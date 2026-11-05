@@ -3,12 +3,13 @@ import {history} from '@umijs/max';
 import {Alert, Button, Card, Flex, Typography} from 'antd';
 import {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 import {AiApiError} from '@/services/arte-ai/request';
-import {getPolicy, type TenantPolicyView} from '@/services/platform/policy';
+import {getPolicy, type PolicyField, type TenantPolicyView} from '@/services/platform/policy';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import PolicyEditor from './PolicyEditor';
 import type {WorkspaceVersionChange} from './workspaceVersionChange';
 
-export default function WorkspacePolicyPane({userId, view, revision, versionChange, onSaved, onUnsafeChange}: {
+export default function WorkspacePolicyPane({userId, view, revision, versionChange, focus, onSaved, onUnsafeChange}: {
+  focus?: { field: PolicyField };
   userId: string; view: WorkspaceView; revision: number; versionChange?: WorkspaceVersionChange;
   onSaved: (change?: WorkspaceVersionChange) => void; onUnsafeChange: (unsafe: boolean) => void;
 }) {
@@ -36,22 +37,23 @@ export default function WorkspacePolicyPane({userId, view, revision, versionChan
     <Card title="租户政策上限" size="small">
       {status === 'loading' && <Typography.Text type="secondary">正在读取可查看的租户上限…</Typography.Text>}
       {status === 'denied' && <Typography.Text type="secondary">
-        你当前无权查看完整租户政策。空间政策仍按你的空间治理资格独立读取，保存时由服务端核验租户上限。
+        你当前无权查看完整租户政策。当前政策效果只显示本空间可核验的约束。
       </Typography.Text>}
       {status === 'error' && <Alert type="warning" title="租户上限暂时无法读取。"
                                     action={<Button onClick={() => setRetry(value => value + 1)}>重试</Button>}/>}
       {ceiling && <Flex vertical gap={8} align="start">
         <Typography.Text>{ceiling.tenantName} · 政策版本 {ceiling.policy.version}</Typography.Text>
-        <Typography.Text>个人凭据：{ceiling.policy.rules.personalCredentialsAllowed ? '允许' : '禁止'}</Typography.Text>
-        <Typography.Text>供应商：{ceiling.policy.rules.allowedProviders.join('、') || '无'}</Typography.Text>
-        <Typography.Text>主机：{ceiling.policy.rules.allowedDestinations.join('、') || '无'}</Typography.Text>
-        <Button onClick={() => navigation.request(() => history.push(
-          `/Environment/Tenants?${new URLSearchParams({account: userId, tenantId, tab: 'policy'})}`
-        ))}>查看租户政策</Button>
+        <Flex gap={8} wrap>
+          <Button onClick={() => setRetry(value => value + 1)}>重新读取租户上限</Button>
+          <Button onClick={() => navigation.request(() => history.push(
+            `/Environment/Tenants?${new URLSearchParams({account: userId, tenantId, tab: 'policy'})}`
+          ))}>查看租户政策</Button>
+        </Flex>
       </Flex>}
     </Card>
     <PolicyEditor userId={userId} scope={view.scope} kind="workspace" workspaceName={view.name}
-                  versionChange={versionChange} refreshRevision={revision} onSaved={onSaved}
+                  ceiling={ceiling} focus={focus} versionChange={versionChange} refreshRevision={revision}
+                  onSaved={onSaved}
                   onUnsafeChange={onUnsafeChange}/>
   </Flex>;
 }

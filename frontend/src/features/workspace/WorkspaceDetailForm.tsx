@@ -10,6 +10,7 @@ import {type AiModel, getWorkspaceAi} from '@/services/platform/ai';
 import type {WorkspaceTab} from '@/features/configuration/configurationLocation';
 import {configurationReadError} from '@/features/configuration/useConfigurationDirectory';
 import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
+import type {PolicyField} from '@/services/platform/policy';
 import WorkspacePolicyPane from './WorkspacePolicyPane';
 import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
 import {notifyAiConfiguration, subscribeAiConfiguration} from './aiConfigurationEvents';
@@ -63,6 +64,7 @@ function Detail({
   const [closed, setClosed] = useState(false);
   const [aiUnsafe, setAiUnsafe] = useState(false);
   const [policyUnsafe, setPolicyUnsafe] = useState(false);
+  const [policyFocus, setPolicyFocus] = useState<{ field: PolicyField }>();
   const [localTab, setLocalTab] = useState<WorkspaceTab>('overview');
   const [aiRevision, setAiRevision] = useState(0);
   const [policyRevision, setPolicyRevision] = useState(0);
@@ -304,6 +306,10 @@ function Detail({
                                                                                         context={context}
                                                                                         focusedModel={focusedModel}
                                                                                         focusBudget={focusBudget}
+                                                                                        onPolicyField={field => {
+                                                                                          setPolicyFocus({field});
+                                                                                          (onTabChange ?? setLocalTab)('policy');
+                                                                                        }}
                                                                                         versionChange={versionChange}
                                                                                         refreshRevision={aiRevision}
                                                                                         onUnsafeChange={setAiUnsafe}
@@ -313,6 +319,7 @@ function Detail({
                                                  key: 'policy',
                                                  label: '政策',
                                                  children: <WorkspacePolicyPane userId={userId} view={view}
+                                                                                focus={policyFocus}
                                                                                 revision={policyRevision}
                                                                                 versionChange={versionChange}
                                                                                 onSaved={governanceSaved}

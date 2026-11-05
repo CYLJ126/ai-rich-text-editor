@@ -136,7 +136,15 @@ public final class AiControlData {
      * 可读取且允许在目标空间启用的实际模型固定版本，不受本人账户是否已准备影响。
      */
     public record Model(String resourceId, DefinitionRef binding, String name, ModelKind kind,
-                        DefinitionRef connection, DefinitionRef rate, boolean enabled) {
+                        DefinitionRef connection, DefinitionRef rate, boolean enabled,
+                        List<String> policyRestrictions) {
+    }
+
+    /**
+     * 审核目录的安全建议，不含 URL、凭据引用及其他租户策略。
+     */
+    public record PolicyConnectionOptions(String tenantId, Scope scope, List<String> protocols,
+                                          List<String> providers, List<String> hosts) {
     }
 
     /**

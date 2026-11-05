@@ -4,16 +4,28 @@ import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {AiApiError} from '@/services/arte-ai/request';
 import * as api from '@/services/platform/policy';
 import PolicyEditor from './PolicyEditor';
-import {policyRules, policyScope, tenantPolicyView, workspacePolicyView} from '@root/tests/fixtures/policy';
+import {
+  connectionOptions,
+  policyRules,
+  policyScope,
+  tenantPolicyView,
+  workspacePolicyView
+} from '@root/tests/fixtures/policy';
 
 vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/platform/policy', async original => ({
   ...(await original<typeof import('@/services/platform/policy')>()), getPolicy: vi.fn(), executePolicyCommand: vi.fn(),
+  getPolicyConnectionOptions: vi.fn(), previewWorkspacePolicy: vi.fn(),
 }));
 let tenant: api.TenantPolicyView;
 let workspace: api.WorkspacePolicyView;
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.getPolicyConnectionOptions).mockImplementation(async (kind, scope) => connectionOptions(kind, scope));
+  vi.mocked(api.previewWorkspacePolicy).mockImplementation(async (basis, rules) => ({
+    scope: basis.policy.scope, workspaceVersion: basis.workspaceVersion, workspacePolicyVersion: basis.policy.version,
+    tenantPolicyVersion: basis.tenantPolicyVersion, proposed: {effective: rules, limitedFields: []}
+  }));
   sessionStorage.clear();
   tenant = structuredClone(tenantPolicyView);
   workspace = structuredClone(workspacePolicyView);
@@ -31,7 +43,8 @@ beforeEach(() => {
     };
     else workspace = {
       ...workspace, workspaceVersion: command.request.expectedWorkspaceVersion + 1,
-      policy: {...workspace.policy, rules: command.request.rules, version: command.request.expectedPolicyVersion + 1}
+      policy: {...workspace.policy, rules: command.request.rules, version: command.request.expectedPolicyVersion + 1},
+      effect: {effective: command.request.rules, limitedFields: []}
     };
   });
 });
@@ -119,7 +132,7 @@ it('keeps workspace governance usable when tenant policy read is denied', async 
   await region.findByText('政策已保存，已重新读取当前版本。');
   expect(vi.mocked(api.executePolicyCommand).mock.calls[0][0]).toMatchObject({
     kind: 'workspace', request: {
-      scope: policyScope, expectedWorkspaceVersion: 9, expectedPolicyVersion: 4,
+      scope: policyScope, expectedWorkspaceVersion: 9, expectedPolicyVersion: 4, expectedTenantPolicyVersion: 3,
     }
   });
 });
@@ -182,4 +195,36 @@ it('does not repeat an acknowledged save when only the post-save read failed', a
   await screen.findByText('政策已确认保存，但最新政策读取失败，请重新读取后继续。');
   expect(screen.queryByRole('button', {name: '重试确认原政策操作'})).not.toBeInTheDocument();
   expect(api.executePolicyCommand).toHaveBeenCalledTimes(1);
+});
+
+it('shows saved conflicts and checks a draft without writing when the tenant ceiling blocks it', async () => {
+  workspace.effect = {effective: {...policyRules, allowedProviders: []}, limitedFields: ['allowedProviders']};
+  vi.mocked(api.previewWorkspacePolicy).mockResolvedValueOnce({
+    scope: policyScope, workspaceVersion: 9, workspacePolicyVersion: 4, tenantPolicyVersion: 3,
+    proposed: {effective: policyRules, limitedFields: ['personalCredentialsAllowed', 'allowedProviders']}
+  });
+  render(<PolicyEditor userId="alice" scope={policyScope} kind="workspace"/>);
+  await screen.findByText('已保存的空间设置超出当前租户上限');
+  await draft('workspace');
+  fireEvent.click(screen.getByRole('button', {name: '预览草稿效果'}));
+  expect(await screen.findByText('草稿超出当前租户上限')).toBeVisible();
+  expect(screen.getByText('个人凭据、供应商')).toBeVisible();
+  expect(screen.getByRole('button', {name: '保存空间政策'})).toBeDisabled();
+  expect(api.executePolicyCommand).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('switch', {name: '允许个人凭据'}));
+  expect(screen.queryByText('草稿超出当前租户上限')).not.toBeInTheDocument();
+});
+
+it('keeps the draft and blocks writes when the preview basis changes or the authority cannot be read', async () => {
+  vi.mocked(api.previewWorkspacePolicy).mockRejectedValueOnce(new TypeError('network'))
+    .mockRejectedValueOnce(new AiApiError(409, {code: 'PLATFORM_VERSION_CONFLICT'}));
+  render(<PolicyEditor userId="alice" scope={policyScope} kind="workspace"/>);
+  const save = await draft('workspace');
+  fireEvent.click(save);
+  expect(await screen.findByText('草稿政策效果未知，未提交保存。请重试预览或重新读取政策。')).toBeVisible();
+  fireEvent.click(save);
+  await screen.findByText('政策或父记录版本已变化，草稿已保留。请读取最新版本并核对差异后再保存。');
+  expect(save).toBeDisabled();
+  expect(screen.getByRole('switch', {name: '允许个人凭据'})).toBeChecked();
+  expect(api.executePolicyCommand).not.toHaveBeenCalled();
 });

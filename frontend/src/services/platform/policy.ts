@@ -37,6 +37,23 @@ const tenantPolicySchema = z.object({
 });
 const workspacePolicySchema = z.object({scope: workspaceScopeSchema, rules: policyRulesSchema, ...policyMeta});
 const tenantInfo = {tenantName: z.string().min(1).max(100), tenantType: z.union([z.literal(0), z.literal(1)])};
+const policyFieldSchema = z.enum([
+  'personalCredentialsAllowed', 'guestAiAllowed', 'allowedProtocols', 'allowedProviders', 'allowedDestinations',
+  'allowedCreationTypes', 'extraCreationRoles', 'exportTypes', 'egressTypes', 'shareTargetKinds',
+]);
+const policyEffectSchema = z.object({effective: policyRulesSchema, limitedFields: z.array(policyFieldSchema).max(10)});
+export type PolicyField = z.infer<typeof policyFieldSchema>;
+export type PolicyEffect = z.infer<typeof policyEffectSchema>;
+const previewSchema = z.object({
+  scope: workspaceScopeSchema, workspaceVersion: version, workspacePolicyVersion: version,
+  tenantPolicyVersion: version, proposed: policyEffectSchema,
+});
+export type PolicyPreview = z.infer<typeof previewSchema>;
+const connectionOptionsSchema = z.object({
+  tenantId: id, scope: workspaceScopeSchema.nullish(), protocols: strings, providers: strings, hosts: strings,
+});
+export type PolicyConnectionOptions = z.infer<typeof connectionOptionsSchema>;
+
 const tenantViewSchema = z.object({
   policy: tenantPolicySchema,
   tenantVersion: version,
@@ -44,7 +61,7 @@ const tenantViewSchema = z.object({
 });
 const workspaceViewSchema = z.object({
   policy: workspacePolicySchema, workspaceVersion: version, workspaceEpoch: version,
-  tenantPolicyVersion: version, tenantEpoch: version, ...tenantInfo
+  tenantPolicyVersion: version, tenantEpoch: version, effect: policyEffectSchema.optional(), ...tenantInfo
 });
 
 export const policyCommandSchema = z.discriminatedUnion('kind', [
@@ -57,7 +74,7 @@ export const policyCommandSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('workspace'), request: z.object({
       scope: workspaceScopeSchema, expectedWorkspaceVersion: version,
-      expectedPolicyVersion: version, rules: policyRulesSchema
+      expectedPolicyVersion: version, rules: policyRulesSchema, expectedTenantPolicyVersion: version.optional()
     }).strict()
   }).strict(),
 ]);
@@ -91,7 +108,36 @@ export async function getPolicy(kind: PolicyKind, scope: PolicyScope, options?: 
   return {kind, value: parsed.data};
 }
 
-/** 请求只带规则及同次读取的两个 CAS 版本，不接受主体、角色预设或权限代次。 */
+export async function previewWorkspacePolicy(snapshot: WorkspacePolicyView, rules: PolicyRules, options?: AiRequestOptions) {
+  const target = snapshot.policy.scope;
+  const response = await postResult<unknown>('previewWorkspacePolicy', {
+    scope: target, expectedWorkspaceVersion: snapshot.workspaceVersion, expectedPolicyVersion: snapshot.policy.version,
+    expectedTenantPolicyVersion: snapshot.tenantPolicyVersion, rules: policyRulesSchema.parse(rules)
+  }, options, undefined, base);
+  const value = previewSchema.safeParse(response.body.data);
+  if (!value.success || !sameScope(value.data.scope, target) || value.data.workspaceVersion !== snapshot.workspaceVersion
+    || value.data.workspacePolicyVersion !== snapshot.policy.version || value.data.tenantPolicyVersion !== snapshot.tenantPolicyVersion) {
+    throw invalid(response.httpStatus);
+  }
+  return value.data;
+}
+
+export async function getPolicyConnectionOptions(kind: PolicyKind, scope: PolicyScope, options?: AiRequestOptions) {
+  const tenantId = id.parse(scope.tenantId);
+  const target = kind === 'workspace' ? workspaceScopeSchema.parse(scope) : null;
+  const response = await postResult<unknown>('listPolicyConnectionOptions', {
+    tenantId,
+    scope: target
+  }, options, undefined, '/arte/workspace/ai');
+  const value = connectionOptionsSchema.safeParse(response.body.data);
+  if (!value.success || value.data.tenantId !== tenantId
+    || (target ? !value.data.scope || !sameScope(value.data.scope, target) : !!value.data.scope)) {
+    throw invalid(response.httpStatus);
+  }
+  return value.data;
+}
+
+/** 请求使用当前政策与父记录版本；空间草稿另绑定已预览的租户上限版本。 */
 export async function executePolicyCommand(command: PolicyCommand, key: string): Promise<void> {
   requireIdempotencyKey(key);
   const parsed = policyCommandSchema.parse(command);

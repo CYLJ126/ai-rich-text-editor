@@ -8,7 +8,7 @@ import {browseTenantWorkspaces} from '@/services/platform/workspace';
 import {retainWorkspaceSelection} from '@/features/workspace/useWorkspace';
 import * as policy from '@/services/platform/policy';
 import {savePolicyOperation} from '@/features/workspace/policyRecovery';
-import {policyRules, tenantPolicyView} from '@root/tests/fixtures/policy';
+import {connectionOptions, policyRules, tenantPolicyView} from '@root/tests/fixtures/policy';
 import Page from './index';
 
 vi.mock('@umijs/max', () => ({
@@ -26,6 +26,7 @@ vi.mock('@/features/workspace/useWorkspace', () => ({
 }));
 vi.mock('@/services/platform/policy', async original => ({
   ...await original<typeof import('@/services/platform/policy')>(), getPolicy: vi.fn(), executePolicyCommand: vi.fn(),
+  getPolicyConnectionOptions: vi.fn(), previewWorkspacePolicy: vi.fn(),
 }));
 
 const team: TenantSummary = {
@@ -60,6 +61,11 @@ const details = (value: TenantSummary): TenantDetail => ({
 const select = vi.fn();
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(policy.getPolicyConnectionOptions).mockImplementation(async (kind, scope) => connectionOptions(kind, scope));
+  vi.mocked(policy.previewWorkspacePolicy).mockImplementation(async (basis, rules) => ({
+    scope: basis.policy.scope, workspaceVersion: basis.workspaceVersion, workspacePolicyVersion: basis.policy.version,
+    tenantPolicyVersion: basis.tenantPolicyVersion, proposed: {effective: rules, limitedFields: []}
+  }));
   sessionStorage.clear();
   window.history.replaceState(null, '', '/Environment/Tenants');
   vi.mocked(browseAccessibleTenants).mockResolvedValue(page([team, admin]));

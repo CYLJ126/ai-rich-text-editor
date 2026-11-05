@@ -225,7 +225,23 @@ public class WorkspaceController {
     public record UpdateWorkspacePolicyRequest(@NotNull Scope scope,
                                                @NotNull @Min(0) Long expectedWorkspaceVersion,
                                                @NotNull @Min(0) Long expectedPolicyVersion,
-                                               @NotNull PolicyRules rules) implements com.arte.app.web.platform.StrictPlatformRequest {
+                                               @NotNull PolicyRules rules,
+                                               @Min(0) Long expectedTenantPolicyVersion) implements StrictPlatformRequest {
+    }
+
+    public record PreviewWorkspacePolicyRequest(@NotNull Scope scope,
+                                                @NotNull @Min(0) Long expectedWorkspaceVersion,
+                                                @NotNull @Min(0) Long expectedPolicyVersion,
+                                                @NotNull @Min(0) Long expectedTenantPolicyVersion,
+                                                @NotNull PolicyRules rules) implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/previewWorkspacePolicy")
+    public Mono<ResultContext<WorkspacePolicyViews.PolicyPreview>> previewWorkspacePolicy(Authentication authentication,
+                                                                                          @Valid @RequestBody PreviewWorkspacePolicyRequest request, Locale locale) {
+        return workspaceOperations.previewWorkspacePolicy(authentication, request.scope(), request.expectedWorkspaceVersion(),
+                        request.expectedPolicyVersion(), request.expectedTenantPolicyVersion(), request.rules())
+                .map(policy -> ResultContext.success(policy, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getTenantPolicy")
@@ -257,7 +273,7 @@ public class WorkspaceController {
                                                                                       @Valid @RequestBody UpdateWorkspacePolicyRequest request, @RequestHeader("Idempotency-Key") String operationKey,
                                                                                       HttpServletRequest httpRequest, Locale locale) {
         var command = new WorkspaceCommands.UpdateWorkspacePolicy(commandMeta(operationKey, httpRequest), request.scope(),
-                request.expectedWorkspaceVersion(), request.expectedPolicyVersion(), request.rules());
+                request.expectedWorkspaceVersion(), request.expectedPolicyVersion(), request.rules(), request.expectedTenantPolicyVersion());
         return workspaceOperations.updateWorkspacePolicy(authentication, command)
                 .map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
     }

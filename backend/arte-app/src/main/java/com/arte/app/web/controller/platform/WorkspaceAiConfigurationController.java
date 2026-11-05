@@ -122,6 +122,16 @@ public class WorkspaceAiConfigurationController {
         return call(auth, locale, service::configurationCapabilities);
     }
 
+    public record PolicyConnectionOptionsRequest(@NotBlank @Size(max = 256) String tenantId, Scope scope)
+            implements StrictPlatformRequest {
+    }
+
+    @PostMapping("/listPolicyConnectionOptions")
+    public Mono<ResultContext<PolicyConnectionOptions>> policyConnectionOptions(Authentication auth,
+                                                                                @Valid @RequestBody PolicyConnectionOptionsRequest request, Locale locale) {
+        return call(auth, locale, actor -> governance.policyConnectionOptions(actor, request.tenantId(), request.scope()));
+    }
+
     @PostMapping("/getConfiguration")
     public Mono<ResultContext<WorkspaceView>> get(Authentication auth, @Valid @RequestBody ScopeRequest request, Locale locale) {
         return call(auth, locale, actor -> governance.get(actor, request.scope()));

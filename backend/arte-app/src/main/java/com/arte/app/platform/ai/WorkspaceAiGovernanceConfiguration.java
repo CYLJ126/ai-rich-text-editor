@@ -7,6 +7,7 @@ import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
+import com.arte.core.spi.workspace.PolicyStore;
 import com.arte.core.spi.workspace.WorkspaceStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,12 +30,12 @@ public class WorkspaceAiGovernanceConfiguration {
     @Bean
     WorkspaceAiGovernanceService workspaceAiGovernanceService(PlatformAiControlMapper mapper, PlatformJson json,
                                                               @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, WorkspaceWriteGuard guards,
-                                                              WorkspaceStore workspaces, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
+                                                              WorkspaceStore workspaces, PolicyStore policies, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
                                                               ObjectProvider<DatabaseAiControlService> control, ObjectProvider<ModelPublicationStore> publications,
                                                               ObjectProvider<ModelResourceStore> resources, ObjectProvider<ModelPublicationRuntimeAdapter> runtime,
                                                               IdentityProvider identity, CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit,
                                                               PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new WorkspaceAiGovernanceService(mapper, json, tx, guards, workspaces, authorization, control, publications,
+        return new WorkspaceAiGovernanceService(mapper, json, tx, guards, workspaces, policies, authorization, control, publications,
                 resources, runtime, identity, receipts, outbox, audit, ids, clock);
     }
 }

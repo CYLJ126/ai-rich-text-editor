@@ -1,31 +1,43 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Alert, Button, Card, Descriptions, Flex, Form, Popconfirm, Switch, Table, Typography} from 'antd';
+import {Alert, Button, Card, Descriptions, Flex, Form, Popconfirm, Table, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai/request';
 import {
   executePolicyCommand,
   getPolicy,
+  getPolicyConnectionOptions,
   type PolicyCommand,
   policyCommandSchema,
+  type PolicyConnectionOptions,
+  type PolicyField,
   type PolicyKind,
+  type PolicyPreview,
+  type PolicyRules,
   type PolicyScope,
-  type PolicySnapshot
+  type PolicySnapshot,
+  previewWorkspacePolicy,
+  type TenantPolicyView,
+  type WorkspacePolicyView
 } from '@/services/platform/policy';
 import {type PolicyOperation, readPolicyOperation, savePolicyOperation} from './policyRecovery';
 import {
   deepSeekDraft,
   fromPolicyForm,
   policyChanges,
+  policyFieldNames,
   type PolicyFormValues,
   policyRulesForm,
   toPolicyForm
 } from './policyForm';
 import PolicyRulesFields from './PolicyRulesFields';
+import PolicyEffectTable from './PolicyEffectTable';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
 
 type Props = {
   userId: string; scope: PolicyScope; kind: PolicyKind; workspaceName?: string; refreshRevision?: number;
   versionChange?: WorkspaceVersionChange;
+  ceiling?: TenantPolicyView | null;
+  focus?: { field: PolicyField };
   onUnsafeChange?: (unsafe: boolean) => void; onSaved?: (change?: WorkspaceVersionChange) => void;
   onSnapshot?: (snapshot: PolicySnapshot | null) => void;
 };
@@ -42,7 +54,7 @@ function Editor({
                   kind,
                   workspaceName,
                   refreshRevision = 0,
-                  versionChange,
+                  versionChange, ceiling, focus,
                   onUnsafeChange,
                   onSaved,
                   onSnapshot
@@ -54,6 +66,11 @@ function Editor({
   const [pending, setPending] = useState(pendingRef.current);
   const [blocked, setBlocked] = useState(restored.blocked);
   const [snapshot, setSnapshot] = useState<PolicySnapshot | null>(null);
+  const [directory, setDirectory] = useState<PolicyConnectionOptions>();
+  const [directoryFailed, setDirectoryFailed] = useState(false);
+  const [preview, setPreview] = useState<PolicyPreview | null>(null);
+  const previewReader = useRef<AbortController | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -67,13 +84,16 @@ function Editor({
   callbacks.current = {onSaved, onSnapshot};
   const state = useRef({dirty, pending, blocked});
   state.current = {dirty, pending, blocked};
-  const unsafe = dirty || !!pending || blocked || saving;
-  const locked = loading || saving || !!pending || blocked;
+  const unsafe = dirty || !!pending || blocked || saving || previewing;
+  const locked = loading || saving || !!pending || blocked || previewing;
   const changes = snapshot ? policyChanges(snapshot, draft) : [];
+  const ceilingChanged = snapshot?.kind === 'workspace' && !!ceiling
+    && ceiling.policy.version > snapshot.value.tenantPolicyVersion;
+  const requiresRefresh = stale || ceilingChanged;
   useConfigurationDraft({
     group: kind === 'tenant' ? 'tenant-policy' : 'space-policy', label: kind === 'tenant' ? '租户政策' : '空间政策',
     order: kind === 'tenant' ? 10 : 20,
-    status: blocked ? 'blocked' : saving ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
+    status: blocked ? 'blocked' : saving || previewing ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
     save: async () => {
       try {
         return await submit(await form.validateFields());
@@ -117,7 +137,17 @@ function Editor({
     return '政策请求结果暂时无法确认；如有待确认操作，请使用原参数和原操作键重试。';
   }
 
+  function clearPreview() {
+    previewReader.current?.abort();
+    previewReader.current = null;
+    setPreviewing(false);
+    setPreview(null);
+  }
+
   async function load(keepDraft = false) {
+    clearPreview();
+    setDirectory(undefined);
+    setDirectoryFailed(false);
     reader.current?.abort();
     const controller = new AbortController();
     reader.current = controller;
@@ -136,6 +166,11 @@ function Editor({
       setStale(false);
       if (preserved) setNotice('已读取最新版本并保留完整草稿。保存将以草稿替换当前政策，请核对下方变更预览。');
       callbacks.current.onSnapshot?.(value);
+      void getPolicyConnectionOptions(kind, scope, {signal: controller.signal}).then(options => {
+        if (live.current && !controller.signal.aborted) setDirectory(options);
+      }).catch(() => {
+        if (live.current && !controller.signal.aborted) setDirectoryFailed(true);
+      });
       return true;
     } catch (error) {
       if (live.current && !controller.signal.aborted) {
@@ -156,6 +191,8 @@ function Editor({
       if ((event as CustomEvent<string>).detail !== userId) return;
       live.current = false;
       reader.current?.abort();
+      clearPreview();
+      setDirectory(undefined);
       setSnapshot(null);
       setDirty(false);
       form.resetFields();
@@ -164,6 +201,7 @@ function Editor({
     return () => {
       live.current = false;
       reader.current?.abort();
+      previewReader.current?.abort();
       window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, []);
@@ -171,6 +209,8 @@ function Editor({
   useEffect(() => {
     if (!refreshRevision) return;
     if (state.current.dirty || state.current.pending || state.current.blocked) {
+      clearPreview();
+      setDirectory(undefined);
       setStale(true);
       setNotice('空间政策或租户上限已更新，当前草稿或原操作已保留，请重新核对后继续。');
     } else void load();
@@ -179,6 +219,7 @@ function Editor({
   const workspaceVersion = snapshot?.kind === 'workspace' ? snapshot.value.workspaceVersion : undefined;
   useEffect(() => {
     if (!versionChange || workspaceVersion !== versionChange.from) return;
+    clearPreview();
     setSnapshot(value => value?.kind === 'workspace'
       ? {...value, value: {...value.value, workspaceVersion: versionChange.to}} : value);
   }, [versionChange, workspaceVersion]);
@@ -238,10 +279,61 @@ function Editor({
     }
   }
 
+  async function checkDraft(basis: WorkspacePolicyView, rules: PolicyRules) {
+    if (previewReader.current) return null;
+    const controller = new AbortController();
+    previewReader.current = controller;
+    setPreviewing(true);
+    setPreview(null);
+    setError('');
+    try {
+      const result = await previewWorkspacePolicy(basis, rules, {signal: controller.signal});
+      if (!live.current || controller.signal.aborted) return null;
+      setPreview(result);
+      return result;
+    } catch (error) {
+      if (live.current && !controller.signal.aborted) {
+        if (error instanceof AiApiError && error.httpStatus === 409) {
+          setStale(true);
+          setError(failure(error));
+        } else if (error instanceof AiApiError && error.httpStatus === 400) {
+          setError('草稿未通过校验。请核对规则字段，目的地只填写主机名。');
+        } else {
+          if (error instanceof AiApiError && [401, 403, 404].includes(error.httpStatus)) {
+            reader.current?.abort();
+            setSnapshot(null);
+            setDirectory(undefined);
+            callbacks.current.onSnapshot?.(null);
+          }
+          setError('草稿政策效果未知，未提交保存。请重试预览或重新读取政策。');
+        }
+      }
+      return null;
+    } finally {
+      if (live.current && previewReader.current === controller) {
+        previewReader.current = null;
+        setPreviewing(false);
+      }
+    }
+  }
+
+  async function previewForm() {
+    if (snapshot?.kind !== 'workspace' || locked || requiresRefresh) return;
+    try {
+      await checkDraft(snapshot.value, fromPolicyForm(form.getFieldsValue(true)));
+    } catch {
+      setError('请检查完整政策规则及额外创建角色。');
+    }
+  }
+
   async function submit(values: PolicyFormValues) {
-    if (!snapshot || locked || stale) return false;
+    if (!snapshot || locked || requiresRefresh || previewReader.current) return false;
     try {
       const rules = fromPolicyForm(values);
+      if (snapshot.kind === 'workspace') {
+        const result = await checkDraft(snapshot.value, rules);
+        if (!result || result.proposed.limitedFields.length > 0) return false;
+      }
       const command = policyCommandSchema.parse(snapshot.kind === 'tenant' ? {
         kind: 'tenant', request: {
           tenantId: scope.tenantId,
@@ -253,7 +345,9 @@ function Editor({
       } : {
         kind: 'workspace', request: {
           scope, expectedWorkspaceVersion: snapshot.value.workspaceVersion,
-          expectedPolicyVersion: snapshot.value.policy.version, rules
+          expectedPolicyVersion: snapshot.value.policy.version,
+          expectedTenantPolicyVersion: snapshot.value.tenantPolicyVersion,
+          rules
         }
       });
       return await run(command);
@@ -263,6 +357,8 @@ function Editor({
     }
   }
 
+  const deepSeekAvailable = directory?.protocols.includes('chat-completions-sse')
+    && directory.providers.includes('deepseek') && directory.hosts.includes('api.deepseek.com');
   const title = !snapshot ? (kind === 'tenant' ? '租户政策' : '空间政策') : kind === 'tenant'
     ? `${snapshot.value.tenantName} · ${snapshot.value.tenantType === 0 ? '个人租户政策' : '组织租户政策'}`
     : `${workspaceName ?? '当前空间'} · 空间政策`;
@@ -271,11 +367,13 @@ function Editor({
       <Typography.Title level={4}>{title}</Typography.Title>
       <Typography.Paragraph>{kind === 'tenant'
         ? '租户政策限定其下空间的权限上限。修改不会自动重写已有空间政策，个人租户沿用同一套治理规则。'
-        : '空间政策只能在租户政策上限内调整。即使无法读取租户完整政策，仍可按当前空间治理资格编辑，保存时由服务端核验上限。'}</Typography.Paragraph>
+        : '空间独立保存规则。服务端会先按当前租户上限预览草稿，再在保存时复核上限。'}</Typography.Paragraph>
       {blocked && <Alert type="warning" showIcon
                          title="政策恢复记录无法可靠保存或读取，已阻止新操作。请保留本页并检查浏览器存储。"/>}
       {error && <Alert type="warning" showIcon title={error}/>}
+      {kind === 'workspace' && error && !snapshot && <Alert type="info" title="当前政策效果未知。"/>}
       {notice && <Alert type={stale ? 'warning' : 'info'} showIcon title={notice}/>}
+      {ceilingChanged && <Alert type="warning" title="已读到更新的租户上限。请重新读取空间政策后继续。"/>}
       {pending && <Card title="待确认政策操作" size="small">
         <Typography.Paragraph>保留原目标、完整规则和操作键；刷新后不自动提交，重试不会重复更新政策。</Typography.Paragraph>
         <Button aria-label="重试确认原政策操作" loading={saving} disabled={blocked}
@@ -304,29 +402,24 @@ function Editor({
             children: snapshot.value.tenantPolicyVersion
           }] : []),
         ]}/>
-        <Card size="small">
+        {snapshot.kind === 'workspace' && <PolicyEffectTable snapshot={snapshot.value} ceiling={ceiling}
+                                                             preview={preview} focus={focus} stale={requiresRefresh}/>}
+        <Card size="small" title={kind === 'workspace' ? '本空间设置' : undefined}>
           <Form form={form} name={`workspace-policy-${kind}`} layout="vertical" disabled={locked}
                 onValuesChange={() => {
                   setDirty(true);
+                  setPreview(null);
                   setError('');
                 }} onFinish={() => submit(form.getFieldsValue(true))}>
 
-            {kind === 'tenant' &&
-              <Form.Item name="membersMayCreateWorkspace" label="允许成员创建工作空间" valuePropName="checked">
-                <Switch aria-label="允许成员创建工作空间"/>
-              </Form.Item>}
-
-            <Button disabled={locked} onClick={() => {
+            {directoryFailed && <Alert type="info" title="常用连接选项暂时无法读取。仍可手动填写并由服务端校验。"/>}
+            <PolicyRulesFields form={form} directory={directory} tenant={kind === 'tenant'}
+                               example={deepSeekAvailable ? () => {
               form.setFieldsValue(deepSeekDraft(form.getFieldsValue(true)));
               setDirty(true);
+                                 setPreview(null);
               setError('');
-            }}>填入 DeepSeek 个人模型规则</Button>
-
-            <Typography.Paragraph
-              type="secondary">只填充草稿，保留已有名单和其他规则。保存不会代替模型授权，也不会扩大部署出口范围。</Typography.Paragraph>
-
-            {/* 表单字段 */}
-            <PolicyRulesFields form={form}/>
+                               } : undefined}/>
 
             {(dirty || pending) && <>
               <Typography.Title level={5}>保存前变更预览</Typography.Title>
@@ -337,9 +430,19 @@ function Editor({
               ]}/>
             </>}
 
-            <Button type="primary" htmlType="submit" loading={saving} disabled={locked || stale || !dirty}>
-              {kind === 'tenant' ? '保存租户政策' : '保存空间政策'}
-            </Button>
+            {preview && !requiresRefresh && <Alert type={preview.proposed.limitedFields.length ? 'warning' : 'success'}
+                                                   title={preview.proposed.limitedFields.length ? '草稿超出当前租户上限' : '草稿符合本次核验的租户上限'}
+                                                   description={preview.proposed.limitedFields.length
+                                                     ? preview.proposed.limitedFields.map(field => policyFieldNames[field]).join('、')
+                                                     : `依据租户政策 v${preview.tenantPolicyVersion}、空间政策 v${preview.workspacePolicyVersion}、空间记录 v${preview.workspaceVersion}`}/>}
+            <Flex gap={8} wrap>
+              {kind === 'workspace' && <Button disabled={locked || requiresRefresh || !dirty} loading={previewing}
+                                               onClick={() => void previewForm()}>预览草稿效果</Button>}
+              <Button type="primary" htmlType="submit" loading={saving}
+                      disabled={locked || requiresRefresh || !dirty || !!preview?.proposed.limitedFields.length}>
+                {kind === 'tenant' ? '保存租户政策' : '保存空间政策'}
+              </Button>
+            </Flex>
           </Form>
         </Card>
       </>}

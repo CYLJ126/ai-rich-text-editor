@@ -1,6 +1,7 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.model.ModelPublications;
 import com.arte.ainew.pojo.model.ModelResource;
 import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
@@ -22,9 +23,13 @@ import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.reference.DefinitionRef;
+import com.arte.core.pojo.workspace.PolicyRules;
+import com.arte.core.pojo.workspace.TenantPolicy;
 import com.arte.core.pojo.workspace.Workspace;
+import com.arte.core.pojo.workspace.WorkspacePolicy;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
+import com.arte.core.spi.workspace.PolicyStore;
 import com.arte.core.spi.workspace.WorkspaceStore;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -54,6 +59,7 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
     private final PublicTransactionRunner tx;
     private final WorkspaceWriteGuard guards;
     private final WorkspaceStore workspaces;
+    private final PolicyStore policies;
     private final AuthorizationService authorization;
     private final ObjectProvider<DatabaseAiControlService> control;
     private final ObjectProvider<ModelPublicationStore> publications;
@@ -65,7 +71,7 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
     private final byte[] cursorSecret = new byte[32];
 
     public WorkspaceAiGovernanceService(PlatformAiControlMapper mapper, PlatformJson json, PublicTransactionRunner tx,
-                                        WorkspaceWriteGuard guards, WorkspaceStore workspaces, AuthorizationService authorization,
+                                        WorkspaceWriteGuard guards, WorkspaceStore workspaces, PolicyStore policies, AuthorizationService authorization,
                                         ObjectProvider<DatabaseAiControlService> control, ObjectProvider<ModelPublicationStore> publications,
                                         ObjectProvider<ModelResourceStore> resources, ObjectProvider<ModelPublicationRuntimeAdapter> runtime,
                                         IdentityProvider identity, CommandReceiptStore receipts, PublicOutboxStore outbox,
@@ -75,6 +81,7 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
         this.tx = tx;
         this.guards = guards;
         this.workspaces = workspaces;
+        this.policies = policies;
         this.authorization = authorization;
         this.control = control;
         this.publications = publications;
@@ -178,6 +185,43 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
                             Map.of("workspaceEpoch", Long.toString(changed.authEpoch())));
                     return new DefaultCommandExecutor.Result<>(view(actor, scope), updated.version());
                 });
+    }
+
+    public PolicyConnectionOptions policyConnectionOptions(TrustedActor actor, String tenantId, Scope scope) {
+        if (scope != null && !scope.tenantId().equals(tenantId)) {
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        }
+        AccessRequest request = scope == null
+                ? DefaultAuthorizationService.tenantRequest(tenantId, TENANT_POLICY_WRITE, "policy-connection-options")
+                : DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "policy-connection-options");
+        return tx.required(() -> guards.inCurrentTransaction(actor, List.of(request), () -> {
+            PolicyRules ceiling = policies.findCurrentTenantPolicy(tenantId)
+                    .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)).rules();
+            boolean platformCatalog = scope == null && control.getObject().canManageCatalog(actor);
+            Catalog catalog = catalog().catalog();
+            Set<String> protocols = new TreeSet<>();
+            Set<String> providers = new TreeSet<>();
+            Set<String> hosts = new TreeSet<>();
+            if (catalog != null) {
+                for (ConnectionDefinition connection : catalog.connections()) {
+                    String protocol = connection.protocol().id();
+                    String provider = connection.providerId();
+                    String host = connection.endpoint().getHost();
+                    if (host == null || connection.state() != ConnectionDefinition.State.ENABLED
+                            || catalog.disabledConnections().contains(connection.definition().id())) {
+                        continue;
+                    }
+                    if (platformCatalog || ceiling.allowedProtocols().contains(protocol)
+                            && ceiling.allowedProviders().contains(provider) && ceiling.allowedDestinations().contains(host)) {
+                        protocols.add(protocol);
+                        providers.add(provider);
+                        hosts.add(host);
+                    }
+                }
+            }
+            return new PolicyConnectionOptions(tenantId, scope, protocols.stream().limit(256).toList(),
+                    providers.stream().limit(256).toList(), hosts.stream().limit(256).toList());
+        }));
     }
 
     public ModelOptions modelOptions(TrustedActor actor, Scope scope, String cursor) {
@@ -392,6 +436,8 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
             return List.of();
         }
         List<ModelSelection> selected = Optional.ofNullable(configuration(scope, true)).map(WorkspaceConfiguration::models).orElse(List.of());
+        PolicyRules tenantPolicy = policies.findCurrentTenantPolicy(scope.tenantId()).map(TenantPolicy::rules).orElse(null);
+        PolicyRules spacePolicy = policies.findCurrentWorkspacePolicy(scope).map(WorkspacePolicy::rules).orElse(null);
         List<Model> result = new ArrayList<>();
         for (ModelPublications.Release release : publications.getObject().list(scope, true)) {
             if (!allowed(actor, new AccessRequest(scope, release.resource(), MODEL_READ, "workspace-ai-options"))) {
@@ -399,10 +445,19 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
             }
             ModelResource model = resources.getObject().findCurrent(release.resource()).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
             ModelResourceVersion version = runtime.getObject().version(release, true);
+            ConnectionDefinition connection = version.publication().connection();
+            List<String> restrictions = null;
+            if (tenantPolicy != null && spacePolicy != null) {
+                String protocol = connection.protocol().id();
+                String host = connection.endpoint().getHost();
+                Set<String> fields = new LinkedHashSet<>(tenantPolicy.connectionRestrictions(protocol, connection.providerId(), host));
+                fields.addAll(spacePolicy.connectionRestrictions(protocol, connection.providerId(), host));
+                restrictions = List.copyOf(fields);
+            }
             // 门控只检查读取与目标范围；配置者无需拥有 MODEL_USE 或消费租户凭据。
             result.add(new Model(release.resource().resourceId(), release.binding(), model.name(), model.ownership().workspaceId() == null
                     ? ModelKind.TENANT : ModelKind.PERSONAL, version.publication().connection().definition(), version.publication().rate().definition(),
-                    selected.contains(new ModelSelection(release.resource().resourceId(), release.binding()))));
+                    selected.contains(new ModelSelection(release.resource().resourceId(), release.binding())), restrictions));
         }
         return result.stream().sorted(Comparator.comparing(Model::resourceId).thenComparing(model -> model.binding().version())).toList();
     }

@@ -5,7 +5,7 @@ import * as api from '@/services/platform/workspace';
 import * as ai from '@/services/platform/ai';
 import * as policy from '@/services/platform/policy';
 import {AiApiError} from '@/services/arte-ai/request';
-import {tenantPolicyView, workspacePolicyView} from '@root/tests/fixtures/policy';
+import {connectionOptions, tenantPolicyView, workspacePolicyView} from '@root/tests/fixtures/policy';
 import WorkspaceDetailForm from './WorkspaceDetailForm';
 import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
@@ -22,6 +22,7 @@ vi.mock('@/services/platform/ai', async original => ({
 }));
 vi.mock('@/services/platform/policy', async original => ({
   ...await original<typeof import('@/services/platform/policy')>(), getPolicy: vi.fn(), executePolicyCommand: vi.fn(),
+  getPolicyConnectionOptions: vi.fn(), previewWorkspacePolicy: vi.fn(),
 }));
 vi.mock('@/services/platform/workspace', async original => ({
   ...await original<typeof import('@/services/platform/workspace')>(),
@@ -52,6 +53,11 @@ let counter = 0;
 let userId: string;
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(policy.getPolicyConnectionOptions).mockImplementation(async (kind, scope) => connectionOptions(kind, scope));
+  vi.mocked(policy.previewWorkspacePolicy).mockImplementation(async (basis, rules) => ({
+    scope: basis.policy.scope, workspaceVersion: basis.workspaceVersion, workspacePolicyVersion: basis.policy.version,
+    tenantPolicyVersion: basis.tenantPolicyVersion, proposed: {effective: rules, limitedFields: []}
+  }));
   sessionStorage.clear();
   userId = `details-${++counter}`;
   vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply(aiView()));
@@ -286,4 +292,25 @@ it('preserves the inline policy draft and updates its CAS version even when the 
   await waitFor(() => expect(policy.executePolicyCommand).toHaveBeenCalledWith(expect.objectContaining({
     kind: 'workspace', request: expect.objectContaining({scope, expectedWorkspaceVersion: 8})
   }), expect.any(String)));
+});
+
+it('opens the relevant policy comparison row from an AI model restriction', async () => {
+  const reference = (type: string, id: string) => ({type, id, version: 'v1'});
+  const model: ai.AiModel = {
+    name: '受限模型', resourceId: 'model', binding: reference('binding', 'model'),
+    kind: 'TENANT', enabled: true, rate: reference('rate', 'price'), connection: reference('connection', 'provider'),
+    policyRestrictions: ['allowedProviders']
+  };
+  const data = aiView();
+  vi.mocked(ai.getWorkspaceAi).mockResolvedValue(reply({
+    ...data,
+    models: [model],
+    configuration: {...data.configuration!, models: [{resourceId: model.resourceId, binding: model.binding}]}
+  }));
+  render(<WorkspaceDetailForm userId={userId} scope={scope}/>);
+  fireEvent.click(await screen.findByRole('tab', {name: 'AI 配置'}));
+  fireEvent.click(await screen.findByRole('button', {name: '供应商'}));
+  expect(screen.getByRole('tab', {name: '政策'})).toHaveAttribute('aria-selected', 'true');
+  await waitFor(() => expect(document.activeElement).toHaveTextContent('供应商'));
+  expect(policy.executePolicyCommand).not.toHaveBeenCalled();
 });

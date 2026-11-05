@@ -339,6 +339,14 @@ class WorkspaceAiGovernanceIntegrationTest {
                 assertTrue(ratePage.getJSONArray("items").stream().map(cn.hutool.json.JSONObject.class::cast)
                         .anyMatch(item -> item.getStr("kind").equals("MODEL") && item.get("inputPerMillion") instanceof String
                                 && item.get("outputPerMillion") instanceof String));
+                cn.hutool.json.JSONObject options = http.ok("/workspace/ai/listPolicyConnectionOptions",
+                        f.f.f.f.json.write(Map.of("tenantId", scope().tenantId(), "scope", scope())), null, login).getJSONObject("data");
+                assertEquals(scope().workspaceId(), options.getJSONObject("scope").getStr("workspaceId"));
+                assertTrue(options.getJSONArray("providers").contains("deepseek"));
+                assertFalse(options.toString().contains("endpoint"));
+                assertFalse(options.toString().contains("credential"));
+                http.rejected("/workspace/ai/listPolicyConnectionOptions",
+                        f.f.f.f.json.write(Map.of("tenantId", "wrong-tenant", "scope", scope())), null, login, 400, "INVALID_ARGUMENT");
                 assertEquals(0, count("arte_ai_account"));
             }
         });

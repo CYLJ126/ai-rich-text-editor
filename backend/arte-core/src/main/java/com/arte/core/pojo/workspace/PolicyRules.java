@@ -5,6 +5,8 @@ import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.pojo.access.ResourceType;
 import com.arte.core.utils.platform.PlatformChecks;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,4 +41,25 @@ public record PolicyRules(
         allowedProviders.forEach(v -> PlatformChecks.id(v, "provider"));
         allowedDestinations.forEach(v -> PlatformChecks.id(v, "destination"));
     }
+
+    /**
+     * 返回 AI 连接受策略约束的字段，不检查连接、部署出口或调用资格。
+     */
+    public List<String> connectionRestrictions(String protocol, String provider, String host) {
+        List<String> fields = new ArrayList<>(4);
+        if (!personalCredentialsAllowed) {
+            fields.add("personalCredentialsAllowed");
+        }
+        if (!allowedProtocols.contains(protocol)) {
+            fields.add("allowedProtocols");
+        }
+        if (!allowedProviders.contains(provider)) {
+            fields.add("allowedProviders");
+        }
+        if (host == null || !allowedDestinations.contains(host)) {
+            fields.add("allowedDestinations");
+        }
+        return List.copyOf(fields);
+    }
+
 }

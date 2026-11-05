@@ -106,6 +106,12 @@ public final class ReactiveWorkspaceOperations {
         return call(authentication, actor -> policies.getWorkspacePolicyView(actor, scope));
     }
 
+    public Mono<WorkspacePolicyViews.PolicyPreview> previewWorkspacePolicy(Authentication authentication, Scope scope,
+                                                                           long workspaceVersion, long policyVersion,
+                                                                           long tenantPolicyVersion, PolicyRules rules) {
+        return call(authentication, actor -> policies.previewWorkspacePolicy(actor, scope, workspaceVersion, policyVersion, tenantPolicyVersion, rules));
+    }
+
     public Mono<CommandReceipt<TenantPolicy>> updateTenantPolicy(Authentication authentication, TenantCommands.UpdateTenantPolicy command) {
         return call(authentication, actor -> policies.updateTenantPolicy(actor, command));
     }

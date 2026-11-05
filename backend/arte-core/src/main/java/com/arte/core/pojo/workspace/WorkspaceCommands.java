@@ -251,7 +251,13 @@ public final class WorkspaceCommands {
             Scope scope,
             long expectedWorkspaceVersion,
             long expectedPolicyVersion,
-            PolicyRules rules) {
+            PolicyRules rules,
+            Long expectedTenantPolicyVersion) {
+
+        public UpdateWorkspacePolicy(CommandMeta meta, Scope scope, long expectedWorkspaceVersion,
+                                     long expectedPolicyVersion, PolicyRules rules) {
+            this(meta, scope, expectedWorkspaceVersion, expectedPolicyVersion, rules, null);
+        }
 
         public UpdateWorkspacePolicy {
             Objects.requireNonNull(meta, "meta");
@@ -259,6 +265,9 @@ public final class WorkspaceCommands {
             PlatformChecks.version(expectedWorkspaceVersion, "expectedWorkspaceVersion");
             PlatformChecks.version(expectedPolicyVersion, "expectedPolicyVersion");
             Objects.requireNonNull(rules, "rules");
+            if (expectedTenantPolicyVersion != null) {
+                PlatformChecks.version(expectedTenantPolicyVersion, "expectedTenantPolicyVersion");
+            }
         }
     }
 }

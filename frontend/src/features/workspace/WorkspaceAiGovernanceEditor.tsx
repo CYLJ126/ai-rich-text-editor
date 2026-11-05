@@ -21,6 +21,8 @@ import {type BrowserContext, readOperation, sameScope, saveOperation} from '@/fe
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import {confirmedWorkspaceVersion, type WorkspaceVersionChange} from './workspaceVersionChange';
 
+import type {PolicyField} from '@/services/platform/policy';
+import {policyFieldNames} from './policyForm';
 import WorkspaceAiBudgetRules from './WorkspaceAiBudgetRules';
 
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
@@ -33,7 +35,7 @@ export default function WorkspaceAiGovernanceEditor({
                                                       onUnsafeChange,
                                                       refreshRevision = 0,
                                                       versionChange,
-                                                      focusedModel, focusBudget,
+                                                      focusedModel, focusBudget, onPolicyField,
                                                       disabled = false
                                                     }: {
   disabled?: boolean;
@@ -41,6 +43,7 @@ export default function WorkspaceAiGovernanceEditor({
   versionChange?: WorkspaceVersionChange;
   focusedModel?: AiModel;
   focusBudget?: boolean;
+  onPolicyField?: (field: PolicyField) => void;
   scope: WorkspaceScope;
   context: BrowserContext;
   onUpdated: (change?: WorkspaceVersionChange) => void;
@@ -398,6 +401,22 @@ export default function WorkspaceAiGovernanceEditor({
             {
               title: '精确费率', key: 'rate', render: (_, row) => row.model
                 ? `${row.model.rate.id}@${row.model.rate.version}` : '未核验'
+            },
+            {
+              title: 'AI 政策', key: 'policy', render: (_, row) => {
+                const restrictions = row.model?.policyRestrictions;
+                if (!restrictions) return '未核验';
+                if (!restrictions.length) return '政策范围内';
+                return <Flex vertical align="start">
+                  <Typography.Text>受限</Typography.Text>
+                  {restrictions.filter(field => Object.hasOwn(policyFieldNames, field)).map(field =>
+                    view.canManage && onPolicyField
+                      ? <Button type="link" size="small" key={field}
+                                onClick={() => onPolicyField(field)}>{policyFieldNames[field]}</Button>
+                      : <Typography.Text key={field}>{policyFieldNames[field]}</Typography.Text>
+                  )}
+                </Flex>;
+              }
             },
             {
               title: '已保存规则状态',

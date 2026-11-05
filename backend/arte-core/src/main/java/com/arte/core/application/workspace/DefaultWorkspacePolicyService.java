@@ -6,7 +6,9 @@ import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.application.platform.DefaultCommandExecutor;
 import com.arte.core.application.platform.PlatformTimes;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.pojo.access.ResourceType;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.workspace.*;
 import com.arte.core.spi.platform.PublicTransactionRunner;
@@ -89,7 +91,27 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
             var snapshot = access.snapshotCurrent(actor, scope);
             return new WorkspacePolicyViews.WorkspacePolicyView(snapshot.policy(), snapshot.workspace().version(), snapshot.workspace().authEpoch(),
                     snapshot.tenant().policy().version(), snapshot.tenant().tenant().authEpoch(),
-                    snapshot.tenant().tenant().name(), snapshot.tenant().tenant().type());
+                    snapshot.tenant().tenant().name(), snapshot.tenant().tenant().type(),
+                    effect(snapshot.policy().rules(), snapshot.tenant().policy().rules()));
+        });
+    }
+
+    @Override
+    public WorkspacePolicyViews.PolicyPreview previewWorkspacePolicy(TrustedActor actor, Scope scope, long workspaceVersion,
+                                                                     long workspacePolicyVersion, long tenantPolicyVersion,
+                                                                     PolicyRules rules) {
+        String subject = principals.requireUser(actor).subjectId();
+        return transactions.required(() -> {
+            locks.scopes(subject, List.of(scope));
+            requireWorkspace(actor, scope);
+            WorkspaceAccessSupport.WorkspaceSnapshot snapshot = access.snapshotCurrent(actor, scope);
+            if (snapshot.workspace().version() != workspaceVersion || snapshot.policy().version() != workspacePolicyVersion
+                    || snapshot.tenant().policy().version() != tenantPolicyVersion) {
+                throw new PlatformException(PlatformErrorCodeEnum.VERSION_CONFLICT, "policy-preview");
+            }
+            validateNewDestinations(rules, snapshot.policy().rules());
+            return new WorkspacePolicyViews.PolicyPreview(scope, workspaceVersion, workspacePolicyVersion, tenantPolicyVersion,
+                    effect(rules, snapshot.tenant().policy().rules()));
         });
     }
 
@@ -110,6 +132,7 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
                     Tenant current = snapshot.tenant();
                     TenantPolicy policy = snapshot.policy();
                     check(current.version() == command.expectedTenantVersion() && policy.version() == command.expectedPolicyVersion(), command.meta());
+                    validateNewDestinations(command.rules(), policy.rules());
                     var updated = new TenantPolicy(current.id(), command.rules(), command.membersMayCreateWorkspace(),
                             policy.policySchemaVersion(), policy.rolePresetVersion(), Math.incrementExact(policy.version()), policy.personalTemplateVersion());
                     var tenant = new Tenant(current.id(), current.name(), current.type(), current.personalSubjectId(), current.state(),
@@ -126,8 +149,13 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
     public CommandReceipt<WorkspacePolicy> updateWorkspacePolicy(TrustedActor actor, WorkspaceCommands.UpdateWorkspacePolicy command) {
         String subject = principals.requireUser(actor).subjectId();
         var scope = new CommandScope(command.scope().tenantId(), command.scope().workspaceId());
+        List<String> fields = fields(command.rules(), command.expectedWorkspaceVersion(), command.expectedPolicyVersion());
+        if (command.expectedTenantPolicyVersion() != null) {
+            fields.add("tenant-policy-version");
+            fields.add(Long.toString(command.expectedTenantPolicyVersion()));
+        }
         return commands.execute(actor, command.meta(), scope, "workspace:policy:update", "workspace:policy:v1",
-                WorkspacePolicy.class, fields(command.rules(), command.expectedWorkspaceVersion(), command.expectedPolicyVersion()),
+                WorkspacePolicy.class, fields,
                 () -> locks.scopes(subject, List.of(command.scope())), value -> {
                     if (!value.scope().equals(command.scope()))
                         throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE, command.meta());
@@ -137,9 +165,13 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
                     var snapshot = access.snapshotCurrent(actor, command.scope());
                     Workspace current = snapshot.workspace();
                     WorkspacePolicy policy = snapshot.policy();
-                    check(current.version() == command.expectedWorkspaceVersion() && policy.version() == command.expectedPolicyVersion(), command.meta());
-                    if (!within(command.rules(), snapshot.tenant().policy().rules()))
+                    TenantPolicy ceiling = snapshot.tenant().policy();
+                    check(current.version() == command.expectedWorkspaceVersion() && policy.version() == command.expectedPolicyVersion()
+                            && (command.expectedTenantPolicyVersion() == null || ceiling.version() == command.expectedTenantPolicyVersion()), command.meta());
+                    validateNewDestinations(command.rules(), policy.rules());
+                    if (!within(command.rules(), ceiling.rules())) {
                         throw error(PlatformErrorCodeEnum.POLICY_DENIED, command.meta());
+                    }
                     var updated = new WorkspacePolicy(current.scope(), command.rules(), policy.policySchemaVersion(),
                             policy.rolePresetVersion(), Math.incrementExact(policy.version()));
                     var workspace = new Workspace(current.scope(), current.name(), current.description(), current.state(), current.createdBy(),
@@ -161,16 +193,71 @@ public final class DefaultWorkspacePolicyService implements WorkspacePolicyServi
     }
 
     static boolean within(PolicyRules value, PolicyRules ceiling) {
-        return ceiling.allowedCreationTypes().containsAll(value.allowedCreationTypes())
-                && value.extraCreationRoles().entrySet().stream().allMatch(e -> ceiling.extraCreationRoles().getOrDefault(e.getKey(), Set.of()).containsAll(e.getValue()))
-                && (!value.guestAiAllowed() || ceiling.guestAiAllowed())
-                && (!value.personalCredentialsAllowed() || ceiling.personalCredentialsAllowed())
-                && ceiling.allowedProtocols().containsAll(value.allowedProtocols())
-                && ceiling.allowedProviders().containsAll(value.allowedProviders())
-                && ceiling.allowedDestinations().containsAll(value.allowedDestinations())
-                && ceiling.exportTypes().containsAll(value.exportTypes())
-                && ceiling.egressTypes().containsAll(value.egressTypes())
-                && ceiling.shareTargetKinds().containsAll(value.shareTargetKinds());
+        return effect(value, ceiling).limitedFields().isEmpty();
+    }
+
+    private static WorkspacePolicyViews.PolicyEffect effect(PolicyRules value, PolicyRules ceiling) {
+        List<String> limited = new ArrayList<>();
+        Set<ResourceType> creation = bounded("allowedCreationTypes",
+                value.allowedCreationTypes(), ceiling.allowedCreationTypes(), limited);
+        Map<ResourceType, Set<WorkspaceRoleEnum>> roles = new HashMap<>();
+        value.extraCreationRoles().forEach((type, requested) -> {
+            Set<WorkspaceRoleEnum> allowed = intersection(requested, ceiling.extraCreationRoles().getOrDefault(type, Set.of()));
+            if (!allowed.equals(requested) && !limited.contains("extraCreationRoles")) {
+                limited.add("extraCreationRoles");
+            }
+            if (creation.contains(type) && !allowed.isEmpty()) {
+                roles.put(type, allowed);
+            }
+        });
+        PolicyRules effective = new PolicyRules(creation, roles,
+                bounded("guestAiAllowed", value.guestAiAllowed(), ceiling.guestAiAllowed(), limited),
+                bounded("personalCredentialsAllowed", value.personalCredentialsAllowed(), ceiling.personalCredentialsAllowed(), limited),
+                bounded("allowedProtocols", value.allowedProtocols(), ceiling.allowedProtocols(), limited),
+                bounded("allowedProviders", value.allowedProviders(), ceiling.allowedProviders(), limited),
+                bounded("allowedDestinations", value.allowedDestinations(), ceiling.allowedDestinations(), limited),
+                bounded("exportTypes", value.exportTypes(), ceiling.exportTypes(), limited),
+                bounded("egressTypes", value.egressTypes(), ceiling.egressTypes(), limited),
+                bounded("shareTargetKinds", value.shareTargetKinds(), ceiling.shareTargetKinds(), limited));
+        return new WorkspacePolicyViews.PolicyEffect(effective, List.copyOf(limited));
+    }
+
+    private static <T> Set<T> intersection(Set<T> value, Set<T> ceiling) {
+        Set<T> result = new HashSet<>(value);
+        result.retainAll(ceiling);
+        return result;
+    }
+
+    private static <T> Set<T> bounded(String field, Set<T> value, Set<T> ceiling, List<String> limited) {
+        Set<T> result = intersection(value, ceiling);
+        if (!result.equals(value)) {
+            limited.add(field);
+        }
+        return result;
+    }
+
+    private static boolean bounded(String field, boolean value, boolean ceiling, List<String> limited) {
+        if (value && !ceiling) {
+            limited.add(field);
+        }
+        return value && ceiling;
+    }
+
+    private static void validateNewDestinations(PolicyRules value, PolicyRules saved) {
+        for (String host : value.allowedDestinations()) {
+            if (saved.allowedDestinations().contains(host)) {
+                continue;
+            }
+            // 与连接端 URI#getHost 的表示一致，只接受主机，不接受 URL、端口或路径。
+            try {
+                if (host.equals(java.net.URI.create("https://" + host).getHost())) {
+                    continue;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // 返回统一的安全参数错误。
+            }
+            throw new PlatformException(PlatformErrorCodeEnum.INVALID_ARGUMENT, "policy-destination");
+        }
     }
 
     /**

@@ -417,6 +417,64 @@ class WorkspaceHttpIntegrationTest {
     }
 
     @Test
+    void previewProjectsOnlyWorkspaceRulesAndRejectsAChangedCeilingWithoutWriting() throws Exception {
+        cn.hutool.json.JSONObject scope = initialize().getJSONObject("workspace").getJSONObject("scope");
+        String tenantId = scope.getStr("tenantId");
+        String tenantTarget = JSONUtil.createObj().set("tenantId", tenantId).toString();
+        String spaceTarget = JSONUtil.createObj().set("scope", scope).toString();
+        cn.hutool.json.JSONObject initial = ok("getTenantPolicy", tenantTarget, null).getJSONObject("data");
+        cn.hutool.json.JSONObject ceiling = initial.getJSONObject("policy").getJSONObject("rules");
+        ceiling.set("allowedProviders", List.of("deepseek", "tenant-only-provider"))
+                .set("allowedDestinations", List.of("api.deepseek.com", "private-catalog.example"));
+        cn.hutool.json.JSONObject tenantUpdate = JSONUtil.createObj().set("tenantId", tenantId)
+                .set("expectedTenantVersion", 0).set("expectedPolicyVersion", 0)
+                .set("membersMayCreateWorkspace", false).set("rules", ceiling);
+        ok("updateTenantPolicy", tenantUpdate.toString(), "allow-ceiling");
+        cn.hutool.json.JSONObject current = ok("getWorkspacePolicy", spaceTarget, null).getJSONObject("data");
+        assertTrue(current.getJSONObject("effect").getJSONObject("effective").getJSONArray("allowedProviders").isEmpty());
+        cn.hutool.json.JSONObject rules = current.getJSONObject("policy").getJSONObject("rules");
+        rules.set("allowedProviders", List.of("deepseek", "outside")).set("allowedDestinations", List.of("api.deepseek.com"));
+        cn.hutool.json.JSONObject preview = JSONUtil.createObj().set("scope", scope)
+                .set("expectedWorkspaceVersion", 0).set("expectedPolicyVersion", 0).set("expectedTenantPolicyVersion", 1).set("rules", rules);
+        long receipts = fixture.count("command"), audits = fixture.count("audit"), events = fixture.count("outbox");
+        cn.hutool.json.JSONObject projection = ok("previewWorkspacePolicy", preview.toString(), null).getJSONObject("data");
+        assertEquals(1L, projection.getLong("tenantPolicyVersion"));
+        assertEquals(List.of("allowedProviders"), projection.getJSONObject("proposed").getJSONArray("limitedFields").toList(String.class));
+        assertEquals(List.of("deepseek"), projection.getJSONObject("proposed").getJSONObject("effective").getJSONArray("allowedProviders").toList(String.class));
+        assertFalse(projection.toString().contains("tenant-only-provider"));
+        assertFalse(projection.toString().contains("private-catalog.example"));
+        assertEquals(receipts, fixture.count("command"));
+        assertEquals(audits, fixture.count("audit"));
+        assertEquals(events, fixture.count("outbox"));
+
+        rules.set("allowedProviders", List.of("deepseek"));
+        assertTrue(ok("previewWorkspacePolicy", preview.toString(), null).getJSONObject("data")
+                .getJSONObject("proposed").getJSONArray("limitedFields").isEmpty());
+        ok("updateWorkspacePolicy", preview.toString(), "save-previewed");
+        ceiling.set("allowedProviders", List.of("tenant-only-provider"));
+        tenantUpdate.set("expectedTenantVersion", 1).set("expectedPolicyVersion", 1);
+        ok("updateTenantPolicy", tenantUpdate.toString(), "tighten-ceiling");
+        fixture.jdbc.update("UPDATE arte_platform_tenant SET type=1,personal_subject_id=NULL WHERE id=?", tenantId);
+        fixture.jdbc.update("UPDATE arte_platform_tenant_member SET role=2,version=version+1 WHERE tenant_id=?", tenantId);
+        rejected("getTenantPolicy", tenantTarget, null, alice, 403, "ACCESS_DENIED");
+        cn.hutool.json.JSONObject after = ok("getWorkspacePolicy", spaceTarget, null).getJSONObject("data");
+        assertEquals(2L, after.getLong("tenantPolicyVersion"));
+        assertEquals(List.of("deepseek"), after.getJSONObject("policy").getJSONObject("rules").getJSONArray("allowedProviders").toList(String.class));
+        assertTrue(after.getJSONObject("effect").getJSONObject("effective").getJSONArray("allowedProviders").isEmpty());
+        assertEquals(List.of("allowedProviders"), after.getJSONObject("effect").getJSONArray("limitedFields").toList(String.class));
+        assertFalse(after.toString().contains("tenant-only-provider"));
+        preview.set("expectedWorkspaceVersion", 1).set("expectedPolicyVersion", 1);
+        rules.set("allowedProviders", List.of());
+        rejected("previewWorkspacePolicy", preview.toString(), null, alice, 409, "VERSION_CONFLICT");
+        rejected("updateWorkspacePolicy", preview.toString(), "stale-preview", alice, 409, "VERSION_CONFLICT");
+        preview.set("expectedTenantPolicyVersion", 2);
+        assertTrue(ok("previewWorkspacePolicy", preview.toString(), null).getJSONObject("data")
+                .getJSONObject("proposed").getJSONArray("limitedFields").isEmpty());
+        rules.set("allowedDestinations", List.of("https://api.deepseek.com/path"));
+        rejected("previewWorkspacePolicy", preview.toString(), null, alice, 400, "INVALID_ARGUMENT");
+    }
+
+    @Test
     void policyHttpRejectsMissingVersionsMalformedRulesAndCrossTenantScope() throws Exception {
         var scope = initialize().getJSONObject("workspace").getJSONObject("scope");
         String tenantId = scope.getStr("tenantId");

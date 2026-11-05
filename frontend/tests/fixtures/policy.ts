@@ -1,4 +1,11 @@
-import type {PolicyRules, TenantPolicyView, WorkspacePolicyView} from '@/services/platform/policy';
+import type {
+  PolicyConnectionOptions,
+  PolicyKind,
+  PolicyRules,
+  PolicyScope,
+  TenantPolicyView,
+  WorkspacePolicyView
+} from '@/services/platform/policy';
 
 export const policyScope = {tenantId: 'tenant-policy', workspaceId: 'workspace-policy'};
 export const policyRules: PolicyRules = {
@@ -22,6 +29,13 @@ export const tenantPolicyView: TenantPolicyView = {
 };
 export const workspacePolicyView: WorkspacePolicyView = {
   tenantName: tenantPolicyView.tenantName, tenantType: 0, workspaceVersion: 9, workspaceEpoch: 13,
-  tenantPolicyVersion: 3, tenantEpoch: 12,
+  tenantPolicyVersion: 3, tenantEpoch: 12, effect: {effective: policyRules, limitedFields: []},
   policy: {scope: policyScope, rules: policyRules, policySchemaVersion: 1, rolePresetVersion: 1, version: 4},
 };
+
+
+export const connectionOptions = (kind: PolicyKind, scope: PolicyScope): PolicyConnectionOptions => ({
+  tenantId: scope.tenantId,
+  scope: kind === 'workspace' && scope.workspaceId ? {tenantId: scope.tenantId, workspaceId: scope.workspaceId} : null,
+  protocols: ['chat-completions-sse'], providers: ['deepseek'], hosts: ['api.deepseek.com']
+});

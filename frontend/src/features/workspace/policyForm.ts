@@ -1,4 +1,4 @@
-import {type PolicyRules, policyRulesSchema, type PolicySnapshot} from '@/services/platform/policy';
+import {type PolicyField, type PolicyRules, policyRulesSchema, type PolicySnapshot} from '@/services/platform/policy';
 
 export type PolicyFormValues = Omit<PolicyRules, 'extraCreationRoles'> & {
   extraRoles: { resourceType: string; roles: (0 | 1 | 2 | 3)[] }[];
@@ -48,7 +48,7 @@ export function deepSeekDraft(values: PolicyFormValues): PolicyFormValues {
   };
 }
 
-const names: Record<keyof PolicyRules | 'membersMayCreateWorkspace', string> = {
+export const policyFieldNames: Record<PolicyField | 'membersMayCreateWorkspace', string> = {
   personalCredentialsAllowed: '个人凭据',
   guestAiAllowed: '访客 AI',
   allowedProtocols: '协议',
@@ -63,7 +63,7 @@ const names: Record<keyof PolicyRules | 'membersMayCreateWorkspace', string> = {
 };
 const resources = (value: string) => resourceOptions.find(option => option.value === value)?.label ?? value;
 
-function text(field: string, value: unknown): string {
+export function policyValueText(field: string, value: unknown): string {
   if (typeof value === 'boolean') return value ? '允许' : '禁止';
   if (Array.isArray(value)) return value.map(item => field === 'shareTargetKinds'
     ? targetOptions.find(option => option.value === item)?.label ?? String(item)
@@ -83,9 +83,9 @@ export function policyChanges(snapshot: PolicySnapshot, draft: PolicyFormValues 
       before.membersMayCreateWorkspace = snapshot.value.policy.membersMayCreateWorkspace;
       after.membersMayCreateWorkspace = draft.membersMayCreateWorkspace;
     }
-    return Object.entries(names).flatMap(([field, label]) => {
-      const current = text(field, before[field]);
-      const next = text(field, after[field]);
+    return Object.entries(policyFieldNames).flatMap(([field, label]) => {
+      const current = policyValueText(field, before[field]);
+      const next = policyValueText(field, after[field]);
       return current === next ? [] : [{key: field, field: label, current, draft: next}];
     });
   } catch {

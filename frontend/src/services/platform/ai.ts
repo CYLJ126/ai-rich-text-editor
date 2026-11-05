@@ -41,7 +41,8 @@ export interface AiModel {
   binding: DefinitionRef;
   name: string;
   connection: DefinitionRef;
-  rate: DefinitionRef
+  rate: DefinitionRef;
+  policyRestrictions?: import('./policy').PolicyField[] | null
 }
 
 export interface WorkspaceAiView {

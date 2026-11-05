@@ -44,6 +44,12 @@ public interface WorkspacePolicyService {
     WorkspacePolicyViews.WorkspacePolicyView getWorkspacePolicyView(TrustedActor actor, Scope scope);
 
     /**
+     * 根据同一事务内的当前上限检查草稿，不创建命令、审计或授权。
+     */
+    WorkspacePolicyViews.PolicyPreview previewWorkspacePolicy(TrustedActor actor, Scope scope, long workspaceVersion,
+                                                              long workspacePolicyVersion, long tenantPolicyVersion, PolicyRules rules);
+
+    /**
      * 更新租户政策，并在同一事务内更新权限版本。
      *
      * @param actor   经可信认证适配确认的当前操作者

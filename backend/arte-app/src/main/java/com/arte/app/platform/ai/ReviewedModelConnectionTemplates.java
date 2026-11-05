@@ -44,8 +44,7 @@ public final class ReviewedModelConnectionTemplates implements ModelConnectionTe
     }
 
     private boolean allowed(PolicyRules r, ConnectionDefinition c) {
-        return r.personalCredentialsAllowed() && r.allowedProtocols().contains(c.protocol().id())
-                && r.allowedProviders().contains(c.providerId()) && r.allowedDestinations().contains(c.endpoint().getHost());
+        return r.connectionRestrictions(c.protocol().id(), c.providerId(), c.endpoint().getHost()).isEmpty();
     }
 
     @Override
