@@ -227,12 +227,13 @@ final class InMemoryWorkspaceFixture {
             return true;
         }
 
-        public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit) {
+        public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit, String tenantId) {
             com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
             com.arte.core.utils.platform.PlatformChecks.require(limit >= 1 && limit <= 100, "candidate limit must be 1..100");
             beforeCandidateScan.accept(++candidateScans);
             Comparator<Workspace> order = Comparator.comparing(WorkspaceCandidateKey::from);
             var candidates = workspaces.values().stream().filter(w -> scanAll || workspaceMembers.containsKey(workspaceKey(w.scope(), subject)))
+                    .filter(w -> tenantId == null || tenantId.equals(w.scope().tenantId()))
                     .filter(w -> after == null || loopCursor || WorkspaceCandidateKey.from(w).compareTo(after) > 0)
                     .sorted(reverseCandidateOrder ? order.reversed() : order).limit(limit + 1L).toList();
             var records = candidates.subList(0, Math.min(candidates.size(), limit)).stream().map(WorkspaceCandidateKey::from).toList();
@@ -241,6 +242,14 @@ final class InMemoryWorkspaceFixture {
     };
 
     final TenantMembershipStore tenantMemberStore = new TenantMembershipStore() {
+        public TenantCandidatePage scanMembershipCandidates(String subject, String after, int limit) {
+            var candidates = tenantMembers.values().stream().filter(m -> m.subjectId().equals(subject))
+                    .map(TenantMembership::tenantId)
+                    .filter(id -> after == null || id.compareTo(after) > 0)
+                    .sorted().limit(limit + 1L).toList();
+            return new TenantCandidatePage(candidates.subList(0, Math.min(limit, candidates.size())), candidates.size() <= limit);
+        }
+
         public PageResult<TenantMembership> list(String tenant, PageQuery query) {
             return page(tenantMembers.values().stream().filter(m -> m.tenantId().equals(tenant)).toList(), query);
         }

@@ -3,14 +3,22 @@ package com.arte.app.platform.persistence;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.arte.app.platform.identity.*;
+import com.arte.app.platform.workspace.ReactiveTenantQueries;
 import com.arte.app.platform.workspace.ReactiveWorkspaceOperations;
+import com.arte.app.platform.workspace.TenantDirectoryBrowser;
+import com.arte.app.platform.workspace.WorkspaceDirectoryBrowser;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.app.web.advice.GlobalExceptionHandler;
 import com.arte.app.web.advice.PlatformExceptionHandler;
 import com.arte.app.web.aspect.WebAspect;
+import com.arte.app.web.controller.platform.TenantDirectoryController;
 import com.arte.app.web.controller.platform.WorkspaceAccessController;
 import com.arte.app.web.controller.platform.WorkspaceController;
+import com.arte.core.application.workspace.DefaultWorkspacePolicies;
+import com.arte.core.enums.workspace.*;
 import com.arte.core.pojo.UserOnlineInfo;
+import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.workspace.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,8 +38,10 @@ import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
@@ -62,18 +72,25 @@ class WorkspaceHttpIntegrationTest {
                 new PlatformIdentityProperties(true, 0L, List.of()), List::of, Clock.systemUTC());
         scheduler = Schedulers.newBoundedElastic(2, 16, "workspace-http");
         var services = fixture.services;
-        operations = new ReactiveWorkspaceOperations(identities, new PlatformPersistenceExecutor(scheduler, fixture.tx),
+        var executor = new PlatformPersistenceExecutor(scheduler, fixture.tx);
+        operations = new ReactiveWorkspaceOperations(identities, executor,
                 services.personal(), services.workspaces(), services.preferences(), services.scopes(), services.authorization(), services.writeGuard(), services.receiptQueries(), services.policies(),
-                new com.arte.app.platform.workspace.WorkspaceDirectoryBrowser(services.workspaces(), cursors));
+                new WorkspaceDirectoryBrowser(services.workspaces(), cursors));
         var proxyFactory = new AspectJProxyFactory(new WorkspaceController(operations));
         proxyFactory.setProxyTargetClass(true);
         proxyFactory.addAspect(new WebAspect());
         var accessProxy = new AspectJProxyFactory(new WorkspaceAccessController(operations));
         accessProxy.setProxyTargetClass(true);
         accessProxy.addAspect(new WebAspect());
+        var tenantProxy = new AspectJProxyFactory(new TenantDirectoryController(
+                new ReactiveTenantQueries(identities, executor, services.tenantQueries(),
+                        new TenantDirectoryBrowser(services.tenantQueries(), cursors))));
+        tenantProxy.setProxyTargetClass(true);
+        tenantProxy.addAspect(new WebAspect());
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        mvc = MockMvcBuilders.standaloneSetup((WorkspaceController) proxyFactory.getProxy(), (WorkspaceAccessController) accessProxy.getProxy())
+        mvc = MockMvcBuilders.standaloneSetup((WorkspaceController) proxyFactory.getProxy(),
+                        (WorkspaceAccessController) accessProxy.getProxy(), (TenantDirectoryController) tenantProxy.getProxy())
                 .setControllerAdvice(new PlatformExceptionHandler(), new GlobalExceptionHandler())
                 .setValidator(validator).setAsyncRequestTimeout(10000).build();
         alice = login(1, "alice");
@@ -164,6 +181,146 @@ class WorkspaceHttpIntegrationTest {
         assertTrue(missing.getBool("exhausted"));
         assertEquals(0, missing.getJSONArray("records").size());
         rejected("browseAccessibleWorkspaces", "{\"cursor\":\"short\"}", null, alice, 400, "INVALID_ARGUMENT");
+    }
+
+    private void seedOrganization(String id, String name, TenantRoleEnum role, TenantStateEnum state,
+                                  boolean memberCreateAllowed, boolean guestWorkspace) {
+        String subject = fixture.actor.principal().subjectId();
+        var policies = DefaultWorkspacePolicies.conservativePersonalDefaults();
+        var policy = new TenantPolicy(id, policies.personalTenant(id).rules(), memberCreateAllowed, 1, 1, 0);
+        fixture.tx.required(() -> {
+            var created = Instant.parse("2026-10-01T00:00:00Z");
+            fixture.preferences.lockSubject(subject);
+            assertTrue(fixture.tenants.insert(new Tenant(id, name, TenantTypeEnum.ORGANIZATION, null, state,
+                    subject, 0, 0, created, created)));
+            fixture.tenants.lock(id).orElseThrow();
+            if (role != null) assertTrue(fixture.tenantMembers.insert(new TenantMembership(
+                    id + "-member", id, subject, role, MembershipStateEnum.ACTIVE, 0, 0)));
+            assertTrue(fixture.policies.insertTenantPolicy(policy));
+            if (guestWorkspace) {
+                var scope = new Scope(id, id + "-workspace");
+                var newer = Instant.parse("2026-10-30T00:00:00Z");
+                assertTrue(fixture.workspaces.insert(new Workspace(scope, "Guest workspace", "",
+                        WorkspaceStateEnum.ACTIVE, subject, 0, 0, newer, newer)));
+                fixture.workspaces.lock(scope).orElseThrow();
+                assertTrue(fixture.workspaceMembers.insert(new WorkspaceMembership(id + "-workspace-member", scope, subject,
+                        WorkspaceRoleEnum.GUEST, MembershipStateEnum.ACTIVE, 0, 0)));
+                assertTrue(fixture.policies.insertWorkspacePolicy(policies.workspace(scope, policy)));
+            }
+            return null;
+        });
+    }
+
+    private static String tenantTarget(String id) {
+        return JSONUtil.createObj().set("tenantId", id).toString();
+    }
+
+    @Test
+    void independentTenantReadsUseCurrentFormalMembershipWithoutPersonalPreference() throws Exception {
+        seedOrganization("a-member", "Alpha Team", TenantRoleEnum.MEMBER, TenantStateEnum.ACTIVE, false, false);
+        seedOrganization("b-admin", "Beta Team", TenantRoleEnum.ADMIN, TenantStateEnum.ACTIVE, false, false);
+        seedOrganization("c-guest", "Guest Team", TenantRoleEnum.GUEST, TenantStateEnum.ACTIVE, false, true);
+        seedOrganization("d-inactive", "Inactive Team", TenantRoleEnum.OWNER, TenantStateEnum.SUSPENDED, false, false);
+        seedOrganization("e-unrelated", "Unrelated Team", null, TenantStateEnum.ACTIVE, false, false);
+
+        var first = ok("browseAccessibleTenants", "{\"size\":1,\"type\":1,\"search\":\" TEAM \"}", null).getJSONObject("data");
+        assertEquals("a-member", first.getJSONArray("records").getJSONObject(0).getStr("id"));
+        assertFalse(first.getBool("exhausted"));
+        assertFalse(first.containsKey("total"));
+        assertFalse(first.containsKey("nextBoundary"));
+        String token = first.getStr("nextCursor");
+        assertEquals(36, token.length());
+        var nextBody = JSONUtil.createObj().set("cursor", token).set("size", 1).set("search", "team").set("type", 1);
+        var next = ok("browseAccessibleTenants", nextBody.toString(), null).getJSONObject("data");
+        assertEquals("b-admin", next.getJSONArray("records").getJSONObject(0).getStr("id"));
+        var end = ok("browseAccessibleTenants", nextBody.set("cursor", next.getStr("nextCursor")).toString(), null)
+                .getJSONObject("data");
+        assertTrue(end.getBool("exhausted"));
+        assertTrue(end.getJSONArray("records").isEmpty());
+        rejected("browseAccessibleTenants", nextBody.set("cursor", token).set("type", 0).toString(),
+                null, alice, 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleTenants", nextBody.set("type", 1).set("search", "changed").toString(),
+                null, alice, 400, "INVALID_ARGUMENT");
+        fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(2,'bob',1,?)",
+                java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
+        rejected("browseAccessibleTenants", nextBody.set("search", "team").toString(),
+                null, login(2, "bob"), 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleWorkspaces", "{\"cursor\":\"" + token + "\"}", null, alice, 410, "CURSOR_EXPIRED");
+
+        var member = ok("getTenant", tenantTarget("a-member"), null).getJSONObject("data");
+        assertEquals(Set.of("id", "name", "type", "state", "currentRole", "version", "isPersonal", "viewLevel", "actions"), member.keySet());
+        assertEquals(1, member.getInt("type"));
+        assertEquals(2, member.getInt("currentRole"));
+        assertFalse(member.getBool("isPersonal"));
+        assertEquals("BASIC", member.getStr("viewLevel"));
+        assertEquals(List.of("tenant:read"), member.getJSONArray("actions").toList(String.class));
+        var admin = ok("getTenant", tenantTarget("b-admin"), null).getJSONObject("data");
+        assertEquals("GOVERNANCE", admin.getStr("viewLevel"));
+        assertEquals(List.of("tenant:read", "tenant:policy:write", "tenant:workspace:create"),
+                admin.getJSONArray("actions").toList(String.class));
+        for (var hidden : List.of("c-guest", "d-inactive", "e-unrelated", "not-present"))
+            rejected("getTenant", tenantTarget(hidden), null, alice, 404, "NOT_FOUND");
+
+        var guestSpaces = ok("browseAccessibleWorkspaces", tenantTarget("c-guest"), null).getJSONObject("data");
+        assertEquals(1, guestSpaces.getJSONArray("records").size());
+        assertEquals(3, guestSpaces.getJSONArray("records").getJSONObject(0).getInt("currentRole"));
+        var tenantOnly = ok("browseAccessibleWorkspaces", tenantTarget("b-admin"), null).getJSONObject("data");
+        assertTrue(tenantOnly.getJSONArray("records").isEmpty());
+        assertTrue(tenantOnly.getBool("exhausted"));
+
+        var options = ok("getTenantCreationOptions", "{}", null).getJSONObject("data");
+        assertFalse(options.getBool("available"));
+        assertFalse(options.getBool("organizationAllowed"));
+        assertEquals("CAPABILITY_NOT_ENABLED", options.getStr("reason"));
+        rejected("getTenantCreationOptions", "{\"subjectId\":\"other\"}", null, alice, 400, "INVALID_ARGUMENT");
+        rejected("getTenantCreationOptions", "{}", null, null, 401, "UNAUTHENTICATED");
+        rejected("getTenant", "{\"tenantId\":\"a-member\",\"currentRole\":0}", null, alice, 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleTenants", "{\"type\":2}", null, alice, 400, "INVALID_ARGUMENT");
+
+        fixture.jdbc.update("UPDATE arte_platform_tenant_policy SET members_may_create_workspace=TRUE WHERE tenant_id='a-member'");
+        assertEquals(List.of("tenant:read", "tenant:workspace:create"), ok("getTenant", tenantTarget("a-member"), null)
+                .getJSONObject("data").getJSONArray("actions").toList(String.class));
+        fixture.jdbc.update("UPDATE arte_platform_tenant_member SET state=1 WHERE tenant_id='b-admin'");
+        var replay = ok("browseAccessibleTenants", nextBody.set("search", "team").toString(), null).getJSONObject("data");
+        assertTrue(replay.getJSONArray("records").isEmpty());
+        assertTrue(replay.getBool("exhausted"));
+        rejected("getTenant", tenantTarget("b-admin"), null, alice, 404, "NOT_FOUND");
+
+        fixture.jdbc.update("DELETE FROM arte_platform_tenant_policy WHERE tenant_id='a-member'");
+        rejected("browseAccessibleTenants", "{}", null, alice, 503, "AUTHORITY_UNAVAILABLE");
+        rejected("getTenant", tenantTarget("a-member"), null, alice, 503, "AUTHORITY_UNAVAILABLE");
+        assertTrue(fixture.preferences.find(fixture.actor.principal().subjectId()).isEmpty());
+        for (var table : List.of("command", "outbox", "audit")) assertEquals(0, fixture.count(table), table);
+        assertEquals(5, fixture.count("tenant"));
+    }
+
+    @Test
+    void workspaceTenantFilterIsAppliedBeforeLimitAndBoundToContinuation() throws Exception {
+        String personal = initialize().getJSONObject("tenant").getStr("id");
+        assertTrue(ok("getTenant", tenantTarget(personal), null).getJSONObject("data").getBool("isPersonal"));
+        seedOrganization("org", "Organization", TenantRoleEnum.OWNER, TenantStateEnum.ACTIVE, false, false);
+        // Without tenant filtering the latest two candidates are both outside the requested tenant.
+        for (var name : List.of("Org first", "Org second"))
+            ok("createWorkspace", JSONUtil.createObj().set("tenantId", "org").set("name", name).toString(), name.replace(' ', '-'));
+        String subject = fixture.actor.principal().subjectId();
+        assertEquals("org", fixture.workspaces.scanMembershipCandidates(subject, null, 1).records().getFirst().scope().tenantId());
+        var restricted = fixture.workspaces.scanMembershipCandidates(subject, null, 1, personal);
+        assertTrue(restricted.exhausted());
+        assertEquals(personal, restricted.records().getFirst().scope().tenantId());
+
+        var firstBody = JSONUtil.createObj().set("tenantId", "org").set("size", 1);
+        var first = ok("browseAccessibleWorkspaces", firstBody.toString(), null).getJSONObject("data");
+        assertFalse(first.getBool("exhausted"));
+        assertEquals("org", first.getJSONArray("records").getJSONObject(0).getJSONObject("scope").getStr("tenantId"));
+        String token = first.getStr("nextCursor");
+        var second = ok("browseAccessibleWorkspaces", firstBody.set("cursor", token).toString(), null).getJSONObject("data");
+        assertTrue(second.getBool("exhausted"));
+        assertEquals("org", second.getJSONArray("records").getJSONObject(0).getJSONObject("scope").getStr("tenantId"));
+        rejected("browseAccessibleWorkspaces", firstBody.set("tenantId", personal).toString(), null, alice, 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleWorkspaces", JSONUtil.createObj().set("size", 1).set("cursor", token).toString(),
+                null, alice, 400, "INVALID_ARGUMENT");
+        rejected("browseAccessibleTenants", JSONUtil.createObj().set("cursor", token).toString(),
+                null, alice, 410, "CURSOR_EXPIRED");
     }
 
     @Test

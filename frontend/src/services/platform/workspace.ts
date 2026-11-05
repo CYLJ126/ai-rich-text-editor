@@ -63,12 +63,22 @@ const browseSchema = z.object({
   .refine(page => new Set(page.records.map(record => JSON.stringify([record.scope.tenantId, record.scope.workspaceId]))).size
     === page.records.length, 'Duplicate directory scopes');
 
-export const browseAccessibleWorkspaces = (cursor: string | null = null, search = '', options?: AiRequestOptions) =>
-  result<import('./workspaceTypes').WorkspaceBrowsePage>('browseAccessibleWorkspaces', {
+function browseWorkspaces(cursor: string | null, search: string, options?: AiRequestOptions, tenantId?: string) {
+  return result<import('./workspaceTypes').WorkspaceBrowsePage>('browseAccessibleWorkspaces', {
     cursor,
     search,
-    size: 20
-  }, browseSchema, options);
+    size: 20,
+    ...(tenantId === undefined ? {} : {tenantId})
+  }, tenantId === undefined ? browseSchema : browseSchema.refine(page =>
+    page.records.every(record => record.scope.tenantId === tenantId), 'Invalid workspace tenant scope'), options);
+}
+
+export const browseAccessibleWorkspaces = (cursor: string | null = null, search = '', options?: AiRequestOptions) =>
+  browseWorkspaces(cursor, search, options);
+
+/** Server-side scope; a continuation is valid only for this tenant and search. */
+export const browseTenantWorkspaces = (tenantId: string, cursor: string | null = null, search = '', options?: AiRequestOptions) =>
+  browseWorkspaces(cursor, search, options, tenantId);
 
 /** Explicit full count; browsing does not call this endpoint. */
 export const countAccessibleWorkspaces = (options?: AiRequestOptions) =>

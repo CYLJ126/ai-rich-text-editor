@@ -60,13 +60,14 @@ public final class WorkspaceDirectoryBrowser {
         if (token != null) {
             var cursor = cursors.load(token);
             if (!cursor.subjectId().equals(actor.principal().subjectId()) || cursor.size() != query.size()
-                    || !cursor.search().equals(query.search()))
+                    || !cursor.search().equals(query.search())
+                    || !java.util.Objects.equals(cursor.tenantId(), query.tenantId()))
                 throw new IllegalArgumentException("Cursor context mismatch");
             after = cursor.key();
         }
         var result = workspaces.browseAccessible(actor, query, after);
         String next = result.exhausted() ? null : cursors.save(new WorkspaceCursorStore.Cursor(
-                actor.principal().subjectId(), 3, query.size(), query.search(), result.nextBoundary()));
+                actor.principal().subjectId(), 3, query.size(), query.search(), result.nextBoundary(), query.tenantId()));
         return new Page(result.records(), next, result.exhausted());
     }
 }

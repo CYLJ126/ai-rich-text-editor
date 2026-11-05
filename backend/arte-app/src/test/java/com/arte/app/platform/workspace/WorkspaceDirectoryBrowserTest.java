@@ -22,6 +22,14 @@ class WorkspaceDirectoryBrowserTest {
     private final WorkspaceService service = mock(WorkspaceService.class, withSettings().mockMaker(org.mockito.MockMakers.PROXY));
     private final Map<String, WorkspaceCursorStore.Cursor> tokens = new HashMap<>();
     private final WorkspaceCursorStore cursors = new WorkspaceCursorStore() {
+        public String saveTenant(TenantCursor cursor) {
+            throw new AssertionError("Workspace requests must not save a tenant cursor");
+        }
+
+        public TenantCursor loadTenant(String token) {
+            throw new AssertionError("Workspace requests must not load a tenant cursor");
+        }
+
         public String save(Cursor cursor) {
             String token = UUID.randomUUID().toString();
             tokens.put(token, cursor);

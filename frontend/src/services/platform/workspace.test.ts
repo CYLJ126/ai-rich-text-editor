@@ -112,3 +112,13 @@ it('validates empty continuation pages and keeps exact counting separate', async
   vi.mocked(request).mockResolvedValue({status: 200, data: {success: true, code: '200', desc: 'OK', data: 42}});
   expect((await api.countAccessibleWorkspaces()).body.data).toBe(42);
 });
+
+it('sends the tenant scope before pagination and rejects a response outside it', async () => {
+  const next = '00000000-0000-4000-8000-000000000002';
+  response({records: [{...view, defaultWorkspace: true}], nextCursor: null, exhausted: true});
+  await api.browseTenantWorkspaces('tenant', next, 'keyword');
+  expect(request).toHaveBeenCalledWith('/arte/workspace/browseAccessibleWorkspaces', expect.objectContaining({
+    data: {cursor: next, search: 'keyword', size: 20, tenantId: 'tenant'},
+  }));
+  await expect(api.browseTenantWorkspaces('other')).rejects.toBeInstanceOf(AiApiError);
+});

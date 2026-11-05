@@ -214,6 +214,22 @@ public class PlatformWorkspaceConfiguration {
         return new WorkspaceDirectoryBrowser(workspaces, cursors);
     }
 
+    @Bean
+    TenantQueryService tenantQueryService(DefaultWorkspaceServices services) {
+        return services.tenantQueries();
+    }
+
+    @Bean
+    TenantDirectoryBrowser tenantDirectoryBrowser(TenantQueryService tenants, WorkspaceCursorStore cursors) {
+        return new TenantDirectoryBrowser(tenants, cursors);
+    }
+
+    @Bean
+    ReactiveTenantQueries reactiveTenantQueries(RbacIdentityProvider identities, PlatformPersistenceExecutor executor,
+                                                TenantQueryService tenants, TenantDirectoryBrowser browser) {
+        return new ReactiveTenantQueries(identities, executor, tenants, browser);
+    }
+
     /**
      * 装配可信会话到空间公共服务的响应式适配器，供 HTTP 和其他响应式调用方使用。
      * 调用时复制最小会话身份，订阅后在有界数据库线程核验当前身份并执行完整同步调用。

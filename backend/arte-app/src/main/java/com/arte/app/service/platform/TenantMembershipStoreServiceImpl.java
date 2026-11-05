@@ -4,9 +4,11 @@ import com.arte.app.platform.persistence.mapper.PlatformTenantMemberMapper;
 import com.arte.app.pojo.platform.PlatformTenantMemberDto;
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.PageResult;
+import com.arte.core.pojo.workspace.TenantCandidatePage;
 import com.arte.core.pojo.workspace.TenantMembership;
 import com.arte.core.spi.platform.PublicTransactionRunner;
 import com.arte.core.spi.workspace.TenantMembershipStore;
+import com.arte.core.utils.platform.PlatformChecks;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,15 @@ public class TenantMembershipStoreServiceImpl extends PlatformStoreSupport<Platf
             @Qualifier("platformTenantMemberMapper") PlatformTenantMemberMapper mapper,
             @Qualifier("platformTransactionRunner") PublicTransactionRunner tx) {
         super(mapper, tx);
+    }
+
+    @Override
+    public TenantCandidatePage scanMembershipCandidates(String subject, String after, int limit) {
+        PlatformChecks.id(subject, "subjectId");
+        if (after != null) PlatformChecks.id(after, "afterTenantId");
+        PlatformChecks.require(limit >= 1 && limit <= 100, "candidate limit must be 1..100");
+        var rows = baseMapper.scanTenantIds(subject, after, limit + 1);
+        return new TenantCandidatePage(rows.subList(0, Math.min(limit, rows.size())), rows.size() <= limit);
     }
 
     @Override

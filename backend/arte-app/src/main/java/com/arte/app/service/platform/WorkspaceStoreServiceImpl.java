@@ -8,6 +8,7 @@ import com.arte.core.pojo.workspace.WorkspaceCandidateKey;
 import com.arte.core.pojo.workspace.WorkspaceCandidatePage;
 import com.arte.core.spi.platform.PublicTransactionRunner;
 import com.arte.core.spi.workspace.WorkspaceStore;
+import com.arte.core.utils.platform.PlatformChecks;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -62,8 +63,8 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
     }
 
     @Override
-    public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit) {
-        com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
+    public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit, String tenantId) {
+        PlatformChecks.id(subject, "subjectId");
         if (limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid scan limit");
         PlatformWorkspaceDto key = null;
         if (after != null) {
@@ -72,7 +73,11 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
             key.setId(after.scope().workspaceId());
             key.setCreatedAt(PlatformUtcTimes.encode(after.createdAt()));
         }
-        var rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1).stream()
+        if (tenantId != null) {
+            PlatformChecks.id(tenantId, "tenantId");
+            PlatformChecks.require(after == null || tenantId.equals(after.scope().tenantId()), "browse boundary outside tenant");
+        }
+        var rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1, tenantId).stream()
                 .map(row -> new WorkspaceCandidateKey(PlatformUtcTimes.decode(row.getCreatedAt()),
                         new Scope(row.getTenantId(), row.getId()))).toList();
         boolean more = rows.size() > limit;

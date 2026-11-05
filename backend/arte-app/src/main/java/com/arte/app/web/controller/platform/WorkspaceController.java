@@ -3,6 +3,7 @@ package com.arte.app.web.controller.platform;
 import com.arte.app.platform.workspace.ReactiveWorkspaceOperations;
 import com.arte.app.platform.workspace.WorkspaceDirectoryBrowser;
 import com.arte.app.web.platform.PlatformHttpContext;
+import com.arte.app.web.platform.StrictPlatformRequest;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageView;
 import com.arte.core.pojo.ResultContext;
@@ -50,16 +51,17 @@ public class WorkspaceController {
     }
 
     public record BrowseRequest(@Size(min = 36, max = 36) String cursor, @Min(1) @Max(100) Integer size,
-                                @Size(max = 100) String search) {
+                                @Size(max = 100) String search, @Size(min = 1, max = 256) String tenantId)
+            implements StrictPlatformRequest {
         public BrowseRequest {
             size = size == null ? 20 : size;
         }
     }
 
     /**
-     * 按游标和扫描预算浏览当前登录用户可访问的空间，可按当前空间名称搜索。
+     * 按游标和扫描预算浏览当前登录用户可访问的空间，可按当前空间名称和租户筛选。
      * <p>
-     * 首次请求不传游标；后续请求使用返回的 nextCursor，并保持用户、结果条数及规范化搜索条件一致。
+     * 首次请求不传游标；后续请求使用返回的 nextCursor，并保持用户、结果条数、规范化搜索及租户过滤条件一致。
      * 结果不包含可见总数，条数不足或为空时仍可能存在后续游标，应根据 exhausted 判断是否扫描到候选末尾。
      * 每次请求重新验证当前访问资格，不提供固定时点的目录快照。
      *
@@ -71,7 +73,7 @@ public class WorkspaceController {
     @PostMapping("/browseAccessibleWorkspaces")
     public Mono<ResultContext<WorkspaceDirectoryBrowser.Page>> browseAccessibleWorkspaces(
             Authentication authentication, @Valid @RequestBody BrowseRequest request, Locale locale) {
-        return workspaceOperations.browseAccessible(authentication, request.cursor(), new WorkspaceBrowseQuery(request.size(), request.search()))
+        return workspaceOperations.browseAccessible(authentication, request.cursor(), new WorkspaceBrowseQuery(request.size(), request.search(), request.tenantId()))
                 .map(page -> ResultContext.success(page, ResultCodeEnum.SUCCESS, locale));
     }
 

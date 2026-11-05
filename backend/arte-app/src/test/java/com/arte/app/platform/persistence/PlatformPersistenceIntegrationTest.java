@@ -55,6 +55,18 @@ class PlatformPersistenceIntegrationTest {
 
     static class Cursors implements WorkspaceCursorStore {
         final Map<String, Cursor> values = new ConcurrentHashMap<>();
+        final Map<String, TenantCursor> tenantValues = new ConcurrentHashMap<>();
+
+        public String saveTenant(TenantCursor cursor) {
+            String token = UUID.randomUUID().toString();
+            tenantValues.put(token, cursor);
+            return token;
+        }
+
+        public TenantCursor loadTenant(String token) {
+            return Optional.ofNullable(tenantValues.get(token))
+                    .orElseThrow(() -> new PlatformException(com.arte.core.enums.platform.PlatformErrorCodeEnum.CURSOR_EXPIRED, "test-cursor"));
+        }
 
         public String save(Cursor cursor) {
             String token = UUID.randomUUID().toString();

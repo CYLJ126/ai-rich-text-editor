@@ -11,13 +11,19 @@ import java.util.Locale;
  * @param size   单次返回的空间摘要条数上限，范围为 1～100；受扫描预算及当前访问资格影响，实际结果可能更少
  * @param search 空间名称的包含匹配搜索词；null 视为空字符串，去除首尾空白后校验长度不超过 100 个 UTF-16 代码单元且不含控制字符，
  *               再按 Locale.ROOT 转为小写；空字符串表示不筛选名称，转小写后的长度可能增长
+ * @param tenantId 可选租户范围，在候选扫描时生效，不授予空间访问权
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/14 12:35 ✾
  */
-public record WorkspaceBrowseQuery(int size, String search) {
+public record WorkspaceBrowseQuery(int size, String search, String tenantId) {
+
+    public WorkspaceBrowseQuery(int size, String search) {
+        this(size, search, null);
+    }
 
     public WorkspaceBrowseQuery {
         PlatformChecks.require(size >= 1 && size <= 100, "invalid browse size");
+        if (tenantId != null) PlatformChecks.id(tenantId, "tenantId");
         search = search == null ? "" : search.strip();
         PlatformChecks.require(search.length() <= 100 && search.chars().noneMatch(Character::isISOControl), "invalid search");
         search = search.toLowerCase(Locale.ROOT);

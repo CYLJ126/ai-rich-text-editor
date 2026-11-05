@@ -1,5 +1,6 @@
 package com.arte.core.application.workspace;
 
+import com.arte.core.api.workspace.TenantQueryService;
 import com.arte.core.application.access.DefaultActionRegistry;
 import com.arte.core.application.access.DefaultAuthorizationService;
 import com.arte.core.application.access.DefaultResourceAccessService;
@@ -31,6 +32,7 @@ public final class DefaultWorkspaceServices {
     private final DefaultResourceAccessService resources;
     private final DefaultPersonalWorkspaceService personal;
     private final DefaultWorkspaceService workspaces;
+    private final TenantQueryService tenantQueries;
     private final DefaultWorkspacePreferenceService preferences;
     private final DefaultWorkspacePolicyService policies;
     private final DefaultScopeResolver scopes;
@@ -94,6 +96,7 @@ public final class DefaultWorkspaceServices {
         preferences = new DefaultWorkspacePreferenceService(principals, preferenceStore, authorization, commands, locks, effects);
         personal = new DefaultPersonalWorkspaceService(principals, commands, access, locks, tenantStore, workspaceStore,
                 tenantMembers, workspaceMembers, preferenceStore, policyStore, defaults, ids, clock, effects, preferences, receipts, provisioning);
+        tenantQueries = new DefaultTenantQueryService(principals, access, tenantMembers, budget, nanoTime);
         workspaces = new DefaultWorkspaceService(principals, access, authorization, locks, commands, tenantStore,
                 workspaceStore, workspaceMembers, policyStore, preferenceStore, defaults, ids, clock, effects, provisioning, budget, nanoTime);
         policies = new DefaultWorkspacePolicyService(principals, access, authorization, commands, locks, effects,
@@ -108,6 +111,10 @@ public final class DefaultWorkspaceServices {
 
     public DefaultPersonalWorkspaceService personal() {
         return personal;
+    }
+
+    public TenantQueryService tenantQueries() {
+        return tenantQueries;
     }
 
     public DefaultWorkspaceService workspaces() {

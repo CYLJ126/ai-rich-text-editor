@@ -43,4 +43,10 @@
                                                                               separator="," close=")">#{id}
     </foreach> AND subject_id=#{subject}
     </select>
+    <select id="scanTenantIds" resultType="string" useCache="false" flushCache="true">
+        SELECT tenant_id FROM arte_platform_tenant_member
+        WHERE subject_id=#{subject}
+        <if test="after != null">AND tenant_id&gt;#{after}</if>
+        ORDER BY tenant_id LIMIT #{limit}
+    </select>
 </mapper>

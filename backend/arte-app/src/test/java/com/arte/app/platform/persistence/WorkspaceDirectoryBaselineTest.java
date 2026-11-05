@@ -80,6 +80,14 @@ class WorkspaceDirectoryBaselineTest {
                         new PlatformIdentityProperties(true, 0L, List.of()), List::of, Clock.systemUTC());
                 var delegate = new RedisWorkspaceCursorStore(redis, fixture.json, Duration.ofMinutes(10), prefix);
                 var cursors = new WorkspaceCursorStore() {
+                    public String saveTenant(TenantCursor cursor) {
+                        return delegate.saveTenant(cursor);
+                    }
+
+                    public TenantCursor loadTenant(String token) {
+                        return delegate.loadTenant(token);
+                    }
+
                     public String save(Cursor cursor) {
                         if (active.get() != null) active.get().redisWrites++;
                         return delegate.save(cursor);

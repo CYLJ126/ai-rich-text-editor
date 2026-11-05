@@ -169,6 +169,14 @@ class RedisPlatformPersistenceIntegrationTest {
                 WorkspaceCandidateKey.from(fixture.workspaces.find(scope).orElseThrow()));
         String token = a.save(cursor);
         assertEquals(cursor, b.load(token));
+        var tenantCursor = new WorkspaceCursorStore.TenantCursor(fixture.actor.principal().subjectId(), 1, 20, "",
+                com.arte.core.enums.workspace.TenantTypeEnum.PERSONAL, scope.tenantId());
+        String tenantToken = a.saveTenant(tenantCursor);
+        assertEquals(tenantCursor, b.loadTenant(tenantToken));
+        assertEquals(PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(PlatformException.class, () -> b.load(tenantToken)).getCode());
+        assertEquals(PlatformErrorCodeEnum.CURSOR_EXPIRED,
+                assertThrows(PlatformException.class, () -> b.loadTenant(token)).getCode());
         String oldToken = UUID.randomUUID().toString();
         first.getBucket(properties.redisPrefix() + "cursor:v2:" + oldToken, StringCodec.INSTANCE)
                 .set(fixture.json.write(cursor).replace("\"version\":3", "\"version\":2"), properties.cursorTtl());

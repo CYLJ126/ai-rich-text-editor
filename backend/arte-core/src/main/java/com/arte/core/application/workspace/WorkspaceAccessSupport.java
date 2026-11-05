@@ -2,10 +2,7 @@ package com.arte.core.application.workspace;
 
 import com.arte.core.application.platform.CurrentPrincipalResolver;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
-import com.arte.core.enums.workspace.MembershipStateEnum;
-import com.arte.core.enums.workspace.TenantStateEnum;
-import com.arte.core.enums.workspace.TenantTypeEnum;
-import com.arte.core.enums.workspace.WorkspaceStateEnum;
+import com.arte.core.enums.workspace.*;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.AuthorizationVersions;
 import com.arte.core.pojo.platform.Principal;
@@ -109,10 +106,22 @@ public final class WorkspaceAccessSupport {
 
         public TenantSnapshot tenant(String tenantId) {
             if (!tenantKeys.contains(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-            return tenantSnapshots.computeIfAbsent(tenantId, key -> tenantSnapshot(principal, key,
+            return tenantSnapshots.computeIfAbsent(tenantId, key -> readTenant(key, false));
+        }
+
+        /**
+         * 独立目录只投影正式成员的资格。
+         */
+        TenantSnapshot directoryTenant(String tenantId) {
+            if (!tenantKeys.contains(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            return readTenant(tenantId, true);
+        }
+
+        private TenantSnapshot readTenant(String key, boolean formalOnly) {
+            return tenantSnapshot(principal, key,
                     required(facts.tenants(), key, PlatformErrorCodeEnum.NOT_FOUND),
                     required(facts.tenantMembers(), key, PlatformErrorCodeEnum.NOT_FOUND),
-                    () -> required(facts.tenantPolicies(), key, PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                    () -> required(facts.tenantPolicies(), key, PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE), formalOnly);
         }
 
         public WorkspaceSnapshot snapshot(Scope scope) {
@@ -137,11 +146,19 @@ public final class WorkspaceAccessSupport {
     }
 
     public TenantSnapshot tenant(TrustedActor actor, String tenantId) {
+        return readTenant(actor, tenantId, false);
+    }
+
+    TenantSnapshot directoryTenant(TrustedActor actor, String tenantId) {
+        return readTenant(actor, tenantId, true);
+    }
+
+    private TenantSnapshot readTenant(TrustedActor actor, String tenantId, boolean formalOnly) {
         Principal principal = principals.requireActive(actor);
         return tenantSnapshot(principal, tenantId,
                 tenants.find(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND)),
                 tenantMembers.find(tenantId, principal.subjectId()).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND)),
-                () -> policies.findTenantPolicy(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                () -> policies.findTenantPolicy(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)), formalOnly);
     }
 
     /**
@@ -161,10 +178,16 @@ public final class WorkspaceAccessSupport {
 
     private TenantSnapshot tenantSnapshot(Principal principal, String tenantId, Tenant tenant,
                                           TenantMembership member, Supplier<TenantPolicy> policyRead) {
+        return tenantSnapshot(principal, tenantId, tenant, member, policyRead, false);
+    }
+
+    private TenantSnapshot tenantSnapshot(Principal principal, String tenantId, Tenant tenant,
+                                          TenantMembership member, Supplier<TenantPolicy> policyRead, boolean formalOnly) {
         if (!tenant.id().equals(tenantId) || !member.tenantId().equals(tenantId)
                 || !member.subjectId().equals(principal.subjectId()))
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-        if (member.state() != MembershipStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        if (member.state() != MembershipStateEnum.ACTIVE || (formalOnly && member.role() == TenantRoleEnum.GUEST))
+            throw error(PlatformErrorCodeEnum.NOT_FOUND);
         // 租户生命周期独立于主体身份，不能将租户不可用报告为主体停用。
         if (tenant.state() != TenantStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.TENANT_INACTIVE);
         TenantPolicy policy = policyRead.get();

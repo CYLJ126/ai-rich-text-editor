@@ -20,5 +20,5 @@ public interface PlatformWorkspaceMapper extends BaseMapper<PlatformWorkspaceDto
 
     List<PlatformWorkspaceDto> selectScopes(@Param("scopes") List<Scope> scopes);
 
-    List<PlatformWorkspaceDto> scanCandidates(@Param("subject") String subject, @Param("digest") String digest, @Param("key") PlatformWorkspaceDto key, @Param("limit") int limit);
+    List<PlatformWorkspaceDto> scanCandidates(@Param("subject") String subject, @Param("digest") String digest, @Param("key") PlatformWorkspaceDto key, @Param("limit") int limit, @Param("tenantId") String tenantId);
 }

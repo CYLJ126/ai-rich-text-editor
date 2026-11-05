@@ -2,6 +2,7 @@ package com.arte.core.spi.workspace;
 
 import com.arte.core.pojo.platform.PageQuery;
 import com.arte.core.pojo.platform.PageResult;
+import com.arte.core.pojo.workspace.TenantCandidatePage;
 import com.arte.core.pojo.workspace.TenantMembership;
 
 import java.util.Optional;
@@ -20,6 +21,12 @@ import java.util.Optional;
  * @since 2026/10/09 14:25 ✾
  */
 public interface TenantMembershipStore {
+
+    /**
+     * 按主体扫描租户成员关联的租户 ID，按 ID 升序，afterTenantId 为排他的稳定边界。
+     * limit 为 1..100；候选不代表访问资格，也不返回总数。
+     */
+    TenantCandidatePage scanMembershipCandidates(String subjectId, String afterTenantId, int limit);
 
     /**
      * 分页查询指定租户的成员关联，访问资格由公共服务判定。

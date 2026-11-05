@@ -45,6 +45,7 @@
         SELECT m.tenant_id,m.workspace_id,m.workspace_created_at FROM
         arte_platform_workspace_member m
         WHERE m.subject_digest=#{digest} AND m.subject_id=#{subject}
+        <if test="tenantId != null">AND m.tenant_id=#{tenantId}</if>
         <if test="key != null">
             AND (m.workspace_created_at&lt;#{key.createdAt}
             OR (m.workspace_created_at=#{key.createdAt} AND

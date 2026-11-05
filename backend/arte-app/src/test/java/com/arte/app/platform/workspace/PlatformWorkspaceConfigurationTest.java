@@ -25,6 +25,8 @@ class PlatformWorkspaceConfigurationTest {
         runner.run(context -> {
             assertNull(context.getStartupFailure());
             assertTrue(context.getBeansOfType(WorkspaceService.class).isEmpty());
+            assertTrue(context.getBeansOfType(TenantQueryService.class).isEmpty());
+            assertTrue(context.getBeansOfType(ReactiveTenantQueries.class).isEmpty());
             assertTrue(context.getBeansOfType(ReactiveWorkspaceOperations.class).isEmpty());
         });
     }
@@ -51,6 +53,9 @@ class PlatformWorkspaceConfigurationTest {
                     assertSame(services.resources(), context.getBean(com.arte.core.api.access.ResourceRegistrationService.class));
                     assertSame(services.personal(), context.getBean(PersonalWorkspaceService.class));
                     assertSame(services.workspaces(), context.getBean(WorkspaceService.class));
+                    assertSame(services.tenantQueries(), context.getBean(TenantQueryService.class));
+                    assertEquals(1, context.getBeansOfType(ReactiveTenantQueries.class).size());
+                    assertTrue(context.getBeansOfType(TenantService.class).isEmpty());
                     assertSame(services.preferences(), context.getBean(WorkspacePreferenceService.class));
                     assertSame(services.policies(), context.getBean(WorkspacePolicyService.class));
                     assertSame(services.scopes(), context.getBean(ScopeResolver.class));

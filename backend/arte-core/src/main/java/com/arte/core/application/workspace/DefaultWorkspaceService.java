@@ -158,6 +158,8 @@ public final class DefaultWorkspaceService implements WorkspaceService {
         String subject = principals.requireUser(actor).subjectId();
         var preference = preferences.find(subject);
         var records = new ArrayList<WorkspaceViews.WorkspaceSummary>();
+        if (after != null && query.tenantId() != null && !query.tenantId().equals(after.scope().tenantId()))
+            throw new IllegalArgumentException("browse boundary outside tenant");
         WorkspaceCandidateKey boundary = after;
         int processed = 0;
         int batches = 0;
@@ -168,11 +170,12 @@ public final class DefaultWorkspaceService implements WorkspaceService {
             // Keep the dense first page light; widen subsequent batches to amortize authorization round trips.
             int desired = batches == 0 ? Math.min(browseBudget.batchSize(), query.size() * 2) : browseBudget.batchSize();
             int limit = Math.min(desired, browseBudget.maxCandidates() - processed);
-            var batch = workspaces.scanMembershipCandidates(subject, boundary, limit);
+            var batch = workspaces.scanMembershipCandidates(subject, boundary, limit, query.tenantId());
             if (batch.records().size() > limit) throw unavailable();
             WorkspaceCandidateKey previous = boundary;
             for (var key : batch.records()) {
-                if (previous != null && key.compareTo(previous) <= 0) throw unavailable();
+                if ((query.tenantId() != null && !query.tenantId().equals(key.scope().tenantId()))
+                        || (previous != null && key.compareTo(previous) <= 0)) throw unavailable();
                 previous = key;
             }
             var checks = authorization.checkWorkspaceReads(actor, batch.records().stream().map(WorkspaceCandidateKey::scope).toList());

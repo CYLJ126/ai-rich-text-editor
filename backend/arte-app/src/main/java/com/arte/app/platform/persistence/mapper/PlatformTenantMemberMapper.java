@@ -23,5 +23,7 @@ public interface PlatformTenantMemberMapper extends BaseMapper<PlatformTenantMem
 
     int replaceCas(@Param("row") PlatformTenantMemberDto row, @Param("expected") long expected);
 
+    List<String> scanTenantIds(@Param("subject") String subject, @Param("after") String after, @Param("limit") int limit);
+
     List<PlatformTenantMemberDto> selectTenants(@Param("tenantIds") List<String> tenantIds, @Param("subject") String subject);
 }

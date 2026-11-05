@@ -47,5 +47,12 @@ public interface WorkspaceStore {
      * 不暴露候选总数；持续存在的候选不能因更新、改名或先前记录删除而漏扫。
      * 本接口不是成员目录快照：扫描期间新增／撤销关系仍逐项按当前资格过滤，新加入且位于边界前的候选可在下次查询出现。
      */
-    WorkspaceCandidatePage scanMembershipCandidates(String subjectId, WorkspaceCandidateKey after, int limit);
+    default WorkspaceCandidatePage scanMembershipCandidates(String subjectId, WorkspaceCandidateKey after, int limit) {
+        return scanMembershipCandidates(subjectId, after, limit, null);
+    }
+
+    /**
+     * 同一候选顺序；指定租户时必须先限制候选范围，再应用分页，边界也必须属于该租户。
+     */
+    WorkspaceCandidatePage scanMembershipCandidates(String subjectId, WorkspaceCandidateKey after, int limit, String tenantId);
 }
