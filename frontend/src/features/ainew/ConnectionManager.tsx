@@ -1,3 +1,4 @@
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, Button, Card, Flex, Form, Input, InputNumber, Popconfirm, Select, Tag, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai/request';
@@ -49,6 +50,18 @@ function Manager({userId, onUnsafeChange}: Props) {
   const reader = useRef<AbortController | null>(null);
   const unsafe = dirty || !!pending || blocked || saving;
   const disabled = !view || loading || saving || !!pending || blocked;
+  useConfigurationDraft({
+    group: 'connections', label: '平台连接修改',
+    status: blocked ? 'blocked' : saving ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
+    discard: () => {
+      setDirty(false);
+      form.resetFields();
+      setEditing(false);
+      setSelected(undefined);
+      return true;
+    }
+  });
+
 
   useEffect(() => {
     onUnsafeChange?.(unsafe);

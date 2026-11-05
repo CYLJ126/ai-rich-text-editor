@@ -1,3 +1,4 @@
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, Button, Card, Flex, Form, Input, InputNumber, Popconfirm, Select, Switch, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai/request';
@@ -47,6 +48,18 @@ function Manager({userId, onUnsafeChange, onOpenTemplate}: Props) {
   const reader = useRef<AbortController | null>(null);
   const unsafe = dirty || saving || !!pending || blocked;
   const locked = loading || saving || !!pending || blocked;
+  useConfigurationDraft({
+    group: 'plans', label: '模型方案与费率修改',
+    status: blocked ? 'blocked' : saving ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
+    discard: () => {
+      setDirty(false);
+      form.resetFields();
+      setEditing(false);
+      setSelected(undefined);
+      return true;
+    }
+  });
+
   const enabled = connections?.connections.filter(c => c.state === 'ENABLED' && c.providerId === 'deepseek'
     && c.protocol.id === 'chat-completions-sse' && c.protocol.version === 'v1') ?? [];
   useEffect(() => {

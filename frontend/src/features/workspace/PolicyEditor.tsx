@@ -21,6 +21,7 @@ import {
   toPolicyForm
 } from './policyForm';
 import PolicyRulesFields from './PolicyRulesFields';
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 
 type Props = {
   userId: string; scope: PolicyScope; kind: PolicyKind; workspaceName?: string; refreshRevision?: number;
@@ -69,6 +70,19 @@ function Editor({
   const unsafe = dirty || !!pending || blocked || saving;
   const locked = loading || saving || !!pending || blocked;
   const changes = snapshot ? policyChanges(snapshot, draft) : [];
+  useConfigurationDraft({
+    group: kind === 'tenant' ? 'tenant-policy' : 'space-policy', label: kind === 'tenant' ? '租户政策' : '空间政策',
+    order: kind === 'tenant' ? 10 : 20,
+    status: blocked ? 'blocked' : saving ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
+    save: async () => {
+      try {
+        return await submit(await form.validateFields());
+      } catch {
+        return false;
+      }
+    },
+    discard: () => load()
+  });
 
   useEffect(() => {
     onUnsafeChange?.(unsafe);
@@ -138,9 +152,19 @@ function Editor({
   useEffect(() => {
     live.current = true;
     void load();
+    const logout = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== userId) return;
+      live.current = false;
+      reader.current?.abort();
+      setSnapshot(null);
+      setDirty(false);
+      form.resetFields();
+    };
+    window.addEventListener('arte-account-session-cleared', logout);
     return () => {
       live.current = false;
       reader.current?.abort();
+      window.removeEventListener('arte-account-session-cleared', logout);
     };
   }, []);
 
@@ -153,16 +177,16 @@ function Editor({
   }, [refreshRevision]);
 
   async function run(command?: PolicyCommand) {
-    if (!live.current || writing.current || blocked || (command && pendingRef.current)) return;
+    if (!live.current || writing.current || blocked || (command && pendingRef.current)) return false;
     const operation = pendingRef.current ?? (command ? {
       schemaVersion: 1 as const,
       key: crypto.randomUUID(),
       command
     } : null);
-    if (!operation) return;
+    if (!operation) return false;
     if (!savePolicyOperation(userId, scope, kind, operation)) {
       setBlocked(true);
-      return;
+      return false;
     }
     pendingRef.current = operation;
     setPending(operation);
@@ -172,17 +196,19 @@ function Editor({
     setNotice('');
     try {
       await executePolicyCommand(operation.command, operation.key);
-      if (!live.current) return;
+      if (!live.current) return false;
       pendingRef.current = null;
       setPending(null);
-      setBlocked(!savePolicyOperation(userId, scope, kind, null));
+      const cleared = savePolicyOperation(userId, scope, kind, null);
+      setBlocked(!cleared);
       setDirty(false);
       const refreshed = await load();
-      if (!live.current) return;
+      if (!live.current) return false;
       setNotice(refreshed ? '政策已保存，已重新读取当前版本。' : '政策已确认保存，但最新政策读取失败，请重新读取后继续。');
       callbacks.current.onSaved?.();
+      return refreshed && cleared;
     } catch (error) {
-      if (!live.current) return;
+      if (!live.current) return false;
       const uncertain = !(error instanceof AiApiError) || error.httpStatus >= 500 || error.httpStatus < 300
         || [401, 408].includes(error.httpStatus) || error.httpStatus === 403 && error.code !== 'PLATFORM_POLICY_DENIED'
         || error.code === 'PLATFORM_IDEMPOTENCY_CONFLICT';
@@ -197,14 +223,15 @@ function Editor({
         callbacks.current.onSnapshot?.(null);
       }
       setError(failure(error));
+      return false;
     } finally {
       writing.current = false;
       if (live.current) setSaving(false);
     }
   }
 
-  function submit(values: PolicyFormValues) {
-    if (!snapshot || locked || stale) return;
+  async function submit(values: PolicyFormValues) {
+    if (!snapshot || locked || stale) return false;
     try {
       const rules = fromPolicyForm(values);
       const command = policyCommandSchema.parse(snapshot.kind === 'tenant' ? {
@@ -221,9 +248,10 @@ function Editor({
           expectedPolicyVersion: snapshot.value.policy.version, rules
         }
       });
-      void run(command);
+      return await run(command);
     } catch (error) {
       setError(error instanceof Error && !('issues' in error) ? error.message : '请检查完整政策规则；额外角色只能关联已允许创建的资源类型。');
+      return false;
     }
   }
 

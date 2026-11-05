@@ -1,3 +1,4 @@
+import {useConfigurationDraft, useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useMemo, useState} from 'react';
 import {
   Alert,
@@ -169,6 +170,7 @@ function ModelManager({
   }, [vm.closed]);
 
   const disabled = blockedByOther || sharingUnsafe || usageUnsafe || vm.closed || vm.saving || !!vm.pending || vm.blocked || vm.detailLoading;
+  const navigation = useConfigurationNavigation();
   const located = {scope: context.scope, resourceId: detail?.model.resourceId ?? ''};
   const draft = detail?.draft.draft;
   const credential = detail?.draft.credential;
@@ -177,6 +179,32 @@ function ModelManager({
   const validationMatches = !!draft && !!validation && validation.draftVersion === draft.version && validation.credentialVersion === credential?.version;
   const canPublish = validationMatches && validation?.state === 'SUCCEEDED' && !dirty;
   const canMove = !blockedByOther && !sharingUnsafe && !usageUnsafe && !name && !dirty && !token && !vm.hasTemporarySecret && !vm.pending && !vm.saving && !vm.blocked;
+
+  useConfigurationDraft({
+    group: 'models', label: token || vm.hasTemporarySecret ? '模型临时密钥输入' : '模型配置草稿',
+    status: vm.blocked ? 'blocked' : vm.saving ? 'submitting' : vm.pending ? 'pending'
+      : dirty || !!name || !!token || vm.hasTemporarySecret ? 'dirty' : 'clean',
+    save: !name && !token && !vm.hasTemporarySecret && !creating ? async () => {
+      try {
+        return await save(await form.validateFields());
+      } catch {
+        return false;
+      }
+    } : undefined,
+    discard: async () => {
+      setName('');
+      setToken('');
+      vm.clearSecret();
+      setDirty(false);
+      setCreating(false);
+      if (detail) await vm.open(detail.model.resourceId);
+      return true;
+    }
+  });
+  const move = (action: () => void) => {
+    if (navigation.available) navigation.request(action, ['models']);
+    else if (canMove) action();
+  };
 
   async function submit(kind: ModelCommand['kind'], request: ModelCommand['request'], secret?: string) {
     setFormError('');
@@ -187,7 +215,9 @@ function ModelManager({
       setToken('');
       setDirty(false);
       if (kind === 'create') setCreating(false);
+      return true;
     }
+    return false;
   }
 
   async function save(values: Fields) {
@@ -195,10 +225,10 @@ function ModelManager({
     const parsed = modelFieldsSchema.safeParse({...values, planRef: template?.planRef});
     if (!parsed.success) {
       setFormError('请填写名称、有效审核方案和正确的容量；输出上限须小于上下文窗口。');
-      return;
+      return false;
     }
     const {name: displayName, ...settings} = parsed.data;
-    await submit('save', {...located, expectedVersion: draft?.version ?? 0, name: displayName, settings});
+    return submit('save', {...located, expectedVersion: draft?.version ?? 0, name: displayName, settings});
   }
 
   return <MasterDetailLayout
@@ -219,25 +249,23 @@ function ModelManager({
         key: 'add',
         label: '添加模型',
         icon: 'PlusOutlined',
-        disabled: !canMove || disabled || !vm.canCreate,
-        onClick: () => {
+        disabled: (!navigation.available && !canMove) || !vm.canCreate,
+        onClick: () => move(() => {
           setCreating(true);
           setName('');
           setModelKind(vm.creationKinds[0] ?? 'PERSONAL');
-        }
+        })
       },
     ]}
     selectedKey={creating ? undefined : vm.selected ?? undefined}
-    onSelect={key => {
-      if (canMove) {
-        setCreating(false);
-        void vm.open(key);
-      }
-    }}
+    onSelect={key => move(() => {
+      setCreating(false);
+      void vm.open(key);
+    })}
     emptyText="当前列表没有可读模型"
     listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
                                      onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
-    items={buildModelItems(vm.records, !canMove)}>
+    items={buildModelItems(vm.records, !navigation.available && !canMove)}>
     {/* 右侧模型表单详情 */}
     <div className="personal-models ai-management-panel">
       <Flex vertical gap={10} className="personal-models-intro">

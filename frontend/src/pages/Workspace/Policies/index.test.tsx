@@ -5,20 +5,26 @@ import {history} from '@umijs/max';
 import {AiApiError} from '@/services/arte-ai/request';
 import * as api from '@/services/platform/policy';
 import * as coordination from '@/features/workspace/useWorkspace';
-import {savePolicyOperation} from '@/features/workspace/policyRecovery';
 import type {WorkspaceSummary} from '@/services/platform/workspace';
+import {getWorkspace} from '@/services/platform/workspace';
+import {savePolicyOperation} from '@/features/workspace/policyRecovery';
 import {PolicySettings} from './index';
 import {policyRules, policyScope, tenantPolicyView, workspacePolicyView} from '@root/tests/fixtures/policy';
 
 vi.mock('@umijs/max', () => ({request: vi.fn(), useModel: vi.fn(), history: {push: vi.fn()}}));
 vi.mock('@/features/workspace/useWorkspace', () => ({
-  useWorkspaceDirectory: () => {
+  useWorkspaceManagement: () => {
     React.useSyncExternalStore(subscribe, () => revision);
     return directory;
   },
+  useCurrentWorkspace: () => directory.current,
   registerWorkspaceGuard: vi.fn(() => () => {
   }),
   protectWorkspaceChange: vi.fn((_user, _scope, proceed) => proceed()),
+}));
+vi.mock('@/services/platform/workspace', async original => ({
+  ...await original<typeof import('@/services/platform/workspace')>(),
+  getWorkspace: vi.fn()
 }));
 vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => candidates}));
 vi.mock('@/services/platform/policy', async original => ({
@@ -103,6 +109,7 @@ beforeEach(() => {
         policy: {...structuredClone(workspacePolicyView.policy), scope: scope as typeof policyScope}
       }
     });
+  vi.mocked(getWorkspace).mockImplementation(async scope => ({body: {data: records.find(item => item.scope.tenantId === scope.tenantId && item.scope.workspaceId === scope.workspaceId)}}) as never);
   vi.mocked(api.executePolicyCommand).mockResolvedValue(undefined);
 });
 afterEach(cleanup);
@@ -119,8 +126,8 @@ it('offers the personal-tenant shortcut through validated selection without moun
   fireEvent.click(modelButton);
   expect(history.push).toHaveBeenNthCalledWith(2, '/Environment/Models');
   fireEvent.click(screen.getByRole('button', {name: '我的个人租户政策'}));
-  expect(coordination.protectWorkspaceChange).toHaveBeenCalledWith('page-user', personalScope, expect.any(Function));
-  expect(directory.select).toHaveBeenCalledWith(personalScope);
+  await waitFor(() => expect(getWorkspace).toHaveBeenCalledWith(personalScope, expect.any(Object)));
+  expect(directory.select).not.toHaveBeenCalled();
   expect(screen.queryByRole('button', {name: '新建工作空间'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button', {name: '选择工作空间'})).not.toBeInTheDocument();
 });
@@ -139,22 +146,59 @@ it('allows the workspace tab independently of denied tenant governance', async (
   expect(api.executePolicyCommand).not.toHaveBeenCalled();
 });
 
-it('protects both selectors, management navigation and external selection while a draft is dirty', async () => {
+it('offers discard or save before navigation without switching the public workspace', async () => {
   render(<PolicySettings userId="page-user"/>);
   fireEvent.click(await screen.findByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
-  await waitFor(() => expect(screen.getByRole('combobox', {name: '选择租户'})).toBeDisabled());
-  expect(screen.getByRole('button', {name: '我的个人租户政策'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '前往工作空间配置'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '前往模型配置'})).toBeDisabled();
   fireEvent.click(screen.getByRole('button', {name: '前往工作空间配置'}));
-  fireEvent.click(screen.getByRole('button', {name: '前往模型配置'}));
   expect(history.push).not.toHaveBeenCalled();
-  const proceed = vi.fn();
-  vi.mocked(coordination.registerWorkspaceGuard).mock.calls.at(-1)?.[1](otherScope, proceed);
-  expect(proceed).not.toHaveBeenCalled();
-  await screen.findByText('政策有未保存草稿或待确认操作，请先保存、放弃修改或确认原操作后再切换。');
-  fireEvent.click(screen.getByRole('tab', {name: '空间政策'}));
-  expect(screen.getByRole('combobox', {name: '选择政策工作空间'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '保存并继续'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', {name: '放弃修改并继续'}));
+  await waitFor(() => expect(history.push).toHaveBeenCalledWith('/Environment/Workspaces'));
+  expect(api.executePolicyCommand).not.toHaveBeenCalled();
+  expect(directory.select).not.toHaveBeenCalled();
+});
+
+it('waits for a confirmed policy save before continuing navigation', async () => {
+  let finish!: () => void;
+  vi.mocked(api.executePolicyCommand).mockImplementation(() => new Promise(resolve => {
+    finish = resolve;
+  }));
+  render(<PolicySettings userId="page-user"/>);
+  fireEvent.click(await screen.findByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
+  fireEvent.click(screen.getByRole('button', {name: '前往模型配置'}));
+  fireEvent.click(screen.getByRole('button', {name: '保存并继续'}));
+  await waitFor(() => expect(api.executePolicyCommand).toHaveBeenCalledOnce());
+  expect(history.push).not.toHaveBeenCalled();
+  await act(async () => finish());
+  await waitFor(() => expect(history.push).toHaveBeenCalledWith('/Environment/Models'));
+  expect(directory.select).not.toHaveBeenCalled();
+});
+
+it('retains a policy conflict and does not continue or invent a new operation', async () => {
+  vi.mocked(api.executePolicyCommand).mockRejectedValue(new AiApiError(409, {code: 'PLATFORM_VERSION_CONFLICT'}));
+  render(<PolicySettings userId="page-user"/>);
+  fireEvent.click(await screen.findByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
+  fireEvent.click(screen.getByRole('button', {name: '前往模型配置'}));
+  fireEvent.click(screen.getByRole('button', {name: '保存并继续'}));
+  await screen.findByText('“租户政策”尚未处理完成，请核对原页面提示。');
+  expect(history.push).not.toHaveBeenCalled();
+  expect(api.executePolicyCommand).toHaveBeenCalledOnce();
+  expect(within(screen.getByLabelText('租户政策编辑')).getByRole('switch', {name: '允许个人凭据'})).toBeChecked();
+});
+
+it('rechecks local drafts when a target read completes after editing began', async () => {
+  let finish!: (value: Awaited<ReturnType<typeof getWorkspace>>) => void;
+  vi.mocked(getWorkspace).mockImplementationOnce(() => new Promise(resolve => {
+    finish = resolve;
+  }));
+  render(<PolicySettings userId="page-user"/>);
+  await screen.findByText('个人租户名称 · 个人租户政策');
+  await choose('选择租户', '租户（other-tenant）');
+  fireEvent.click(screen.getByRole('button', {name: '填入 DeepSeek 个人模型规则'}));
+  await act(async () => finish({body: {data: records[2]}} as never));
+  expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
+  expect(screen.getByText('个人租户名称 · 个人租户政策')).toBeInTheDocument();
+  expect(directory.select).not.toHaveBeenCalled();
 });
 
 it('does not invent a policy scope or add initialization controls when no space is available', () => {
@@ -187,7 +231,9 @@ it('switches tenants using a real accessible representative and queries the tena
   render(<PolicySettings userId="page-user"/>);
   await choose('选择租户', '租户（other-tenant）');
   await screen.findByText('other-tenant · 个人租户政策');
-  expect(directory.select).toHaveBeenCalledWith(otherScope);
+  expect(getWorkspace).toHaveBeenCalledWith(otherScope, expect.any(Object));
+  expect(directory.current?.scope).toEqual(policyScope);
+  expect(directory.select).not.toHaveBeenCalled();
   expect(api.getPolicy).toHaveBeenCalledWith('tenant', {tenantId: otherScope.tenantId}, expect.any(Object));
   expect(api.getPolicy).toHaveBeenCalledWith('workspace', otherScope, expect.any(Object));
 });
@@ -201,7 +247,8 @@ it('limits the workspace dropdown to the selected tenant and preserves its tenan
   expect(screen.queryByText('其他租户空间（other-space）')).not.toBeInTheDocument();
   fireEvent.click(screen.getByText('第二空间（second-space）', {selector: '.ant-select-item-option-content'}));
   await screen.findByText('第二空间 · 空间政策');
-  expect(directory.select).toHaveBeenCalledWith(secondScope);
+  expect(getWorkspace).toHaveBeenCalledWith(secondScope, expect.any(Object));
+  expect(directory.select).not.toHaveBeenCalled();
   expect(vi.mocked(api.getPolicy).mock.calls.filter(([kind]) => kind === 'tenant')).toHaveLength(1);
 });
 
@@ -238,9 +285,12 @@ it('retains a pending tenant operation and retries with its original key while s
   savePolicyOperation('page-user', policyScope, 'tenant', {schemaVersion: 1, key: 'original-key', command});
   vi.mocked(api.executePolicyCommand).mockRejectedValue(new TypeError('network'));
   render(<PolicySettings userId="page-user"/>);
-  await waitFor(() => expect(screen.getByRole('combobox', {name: '选择租户'})).toBeDisabled());
+  await screen.findByRole('button', {name: '重试确认原政策操作'});
   expect(api.executePolicyCommand).not.toHaveBeenCalled();
   fireEvent.click(await screen.findByRole('button', {name: '重试确认原政策操作'}));
   await waitFor(() => expect(api.executePolicyCommand).toHaveBeenCalledWith(command, 'original-key'));
-  expect(screen.getByRole('combobox', {name: '选择租户'})).toBeDisabled();
+  await choose('选择租户', '租户（other-tenant）');
+  expect(screen.getByRole('button', {name: '保存并继续'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '放弃修改并继续'})).toBeDisabled();
+  expect(getWorkspace).not.toHaveBeenCalled();
 });

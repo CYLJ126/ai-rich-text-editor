@@ -3,8 +3,14 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/ai';
 import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
+import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
-vi.mock('@umijs/max', () => ({request: vi.fn()}));
+vi.mock('@umijs/max', () => ({
+  request: vi.fn(), history: {
+    block: vi.fn(() => () => {
+    })
+  }
+}));
 vi.mock('@/services/platform/ai', async (original) => ({
   ...(await original<typeof import('@/services/platform/ai')>()),
   getWorkspaceAi: vi.fn(),
@@ -66,6 +72,26 @@ beforeEach(() => {
   }));
 });
 afterEach(cleanup);
+
+function ChangeTarget({done}: { done: () => void }) {
+  const navigation = useConfigurationNavigation();
+  return <button type="button" onClick={() => navigation.request(done)}>更换 AI 目标</button>;
+}
+
+it('requires explicit budget approval and only discards the draft when leaving', async () => {
+  const done = vi.fn();
+  render(<ConfigurationBoundary userId={context.userId}>
+    <WorkspaceAiGovernanceEditor scope={scope} context={context} onUpdated={vi.fn()}/><ChangeTarget done={done}/>
+  </ConfigurationBoundary>);
+  fireEvent.change(await screen.findByLabelText('预算额度 price'), {target: {value: '40'}});
+  fireEvent.click(screen.getByText('更换 AI 目标'));
+  expect(screen.getByRole('button', {name: '保存并继续'})).toBeDisabled();
+  expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '放弃修改并继续'}));
+  await waitFor(() => expect(done).toHaveBeenCalledOnce());
+  expect(api.updateWorkspaceBudgetRules).not.toHaveBeenCalled();
+  expect(api.updateWorkspaceAi).not.toHaveBeenCalled();
+});
 
 it('preserves the original operation and CAS fields after network uncertainty and remount', async () => {
   vi.mocked(api.updateWorkspaceAi).mockRejectedValueOnce(new TypeError('network'));

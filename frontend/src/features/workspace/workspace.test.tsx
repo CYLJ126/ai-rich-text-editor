@@ -69,6 +69,39 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it('browses management candidates without a personal preference and never initializes or selects chat', async () => {
+  const userId = `management-no-personal-${++counter}`;
+  const selected = vi.fn();
+  window.addEventListener('arte-workspace-selected', selected);
+  vi.mocked(api.getWorkspacePreference).mockRejectedValueOnce(new AiApiError(404, {code: 'PLATFORM_NOT_FOUND'}));
+  writeValue(workspaceStorageKey(userId, 'currentWorkspace'), a);
+  const hook = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  expect(hook.result.current.records).toHaveLength(1);
+  expect(hook.result.current.preference).toBeNull();
+  expect(api.initializePersonalWorkspace).not.toHaveBeenCalled();
+  expect(api.getWorkspace).not.toHaveBeenCalled();
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
+  expect(selected).not.toHaveBeenCalled();
+  expect(JSON.parse(sessionStorage.getItem(workspaceStorageKey(userId, 'currentWorkspace')) ?? 'null').value).toEqual(a);
+  window.removeEventListener('arte-workspace-selected', selected);
+});
+
+it('keeps even an explicit management directory selection local to that directory', async () => {
+  const userId = `management-selection-${++counter}`;
+  const selected = vi.fn();
+  window.addEventListener('arte-workspace-selected', selected);
+  writeValue(workspaceStorageKey(userId, 'currentWorkspace'), a);
+  const hook = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  await act(async () => expect(await hook.result.current.select(b)).toBe(true));
+  expect(hook.result.current.current?.scope).toEqual(b);
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
+  expect(selected).not.toHaveBeenCalled();
+  expect(JSON.parse(sessionStorage.getItem(workspaceStorageKey(userId, 'currentWorkspace')) ?? 'null').value).toEqual(a);
+  window.removeEventListener('arte-workspace-selected', selected);
+});
+
 it('uses the public prefix and numeric view enums without fabricating AI permission', async () => {
   const actual = await vi.importActual<typeof import('@/services/platform/workspace')>('@/services/platform/workspace');
   vi.mocked(request).mockResolvedValue({status: 200, data: reply(view()).body});

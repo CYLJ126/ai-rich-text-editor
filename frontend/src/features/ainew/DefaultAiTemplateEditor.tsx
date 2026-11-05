@@ -1,3 +1,4 @@
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useRef, useState} from 'react';
 import {Alert, Button, Divider, Flex, Form, InputNumber, Select, Switch, Typography} from 'antd';
 import {AiApiError} from '@/services/arte-ai';
@@ -45,6 +46,16 @@ export default function DefaultAiTemplateEditor({context, onUpdated, onUnsafeCha
   const [catalogEditable, setCatalogEditable] = useState(false);
   const [policyDirty, setPolicyDirty] = useState(false);
   const protectedState = unsafe || uncertain || saving || policyDirty;
+  useConfigurationDraft({
+    group: 'template', label: '平台默认模板修改',
+    status: unsafe ? 'blocked' : saving ? 'submitting' : uncertain ? 'pending' : policyDirty ? 'dirty' : 'clean',
+    discard: async () => {
+      const ok = await readCatalog();
+      if (ok) setPolicyDirty(false);
+      return ok;
+    }
+  });
+
   useEffect(() => {
     onUnsafeChange?.(protectedState);
   }, [protectedState, onUnsafeChange]);

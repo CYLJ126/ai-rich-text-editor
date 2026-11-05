@@ -1,3 +1,4 @@
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useRef, useState} from 'react';
 import {Alert, Button, Card, Checkbox, Flex, Input, Popconfirm, Select, Table, Typography,} from 'antd';
 import {AiApiError} from '@/services/arte-ai/request';
@@ -130,6 +131,22 @@ function Manager({context, onUnsafeChange, model: suppliedModel, embedded, disab
     dirtyAcl ||
     !!name;
   const locked = disabled || loading || saving || !!pending || blocked;
+  useConfigurationDraft({
+    group: 'models', label: '模型授权修改',
+    status: blocked ? 'blocked' : saving ? 'submitting' : pending ? 'pending' : dirtyScopes || dirtyConsumers || dirtyAcl || !!name ? 'dirty' : 'clean',
+    discard: async () => {
+      setName('');
+      setDirtyScopes(false);
+      setDirtyConsumers(false);
+      setDirtyAcl(false);
+      dirty.current = {scopes: false, consumers: false};
+      setRecipient('');
+      setExpiry('');
+      if (selected) return load();
+      return true;
+    }
+  });
+
   const model = suppliedModel?.resourceId === selected ? suppliedModel : records.find((record) => record.resourceId === selected);
   useEffect(() => {
     if (embedded && !operation.current && !blocked && !saving && !dirtyScopes && !dirtyConsumers && !dirtyAcl) setSelected(suppliedModel?.resourceId ?? '');

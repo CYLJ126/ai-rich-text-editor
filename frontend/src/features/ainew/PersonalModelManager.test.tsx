@@ -8,9 +8,15 @@ import {checkWorkspaceAccess} from '@/services/platform/workspace';
 import {AiApiError} from '@/services/arte-ai/request';
 import PersonalModelManager from './PersonalModelManager';
 import {storageKey} from './storage';
+import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
 vi.mock('./ModelSharingManager', () => ({default: () => <p>模型授权详情</p>}));
-vi.mock('@umijs/max', () => ({request: vi.fn()}));
+vi.mock('@umijs/max', () => ({
+  request: vi.fn(), history: {
+    block: vi.fn(() => () => {
+    })
+  }
+}));
 vi.mock('@/services/platform/model', async original => ({
   ...(await original<typeof import('@/services/platform/model')>()),
   listManagedModels: vi.fn(),
@@ -156,6 +162,40 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+function ChangeTarget({done}: { done: () => void }) {
+  const navigation = useConfigurationNavigation();
+  return <button type="button" onClick={() => navigation.request(done)}>更换模型管理目标</button>;
+}
+
+it('saves only an ordinary model draft before a guarded target change', async () => {
+  const done = vi.fn();
+  render(<ConfigurationBoundary userId={context.userId}>
+    <PersonalModelManager context={context} onUpdated={updated}/><ChangeTarget done={done}/>
+  </ConfigurationBoundary>);
+  await open();
+  fireEvent.change(screen.getByLabelText('模型展示名称'), {target: {value: '保存的草稿'}});
+  fireEvent.click(screen.getByText('更换模型管理目标'));
+  fireEvent.click(screen.getByRole('button', {name: '保存并继续'}));
+  await waitFor(() => expect(done).toHaveBeenCalledOnce());
+  expect(api.executeModelCommand).toHaveBeenCalledOnce();
+  expect(vi.mocked(api.executeModelCommand).mock.calls[0][0].kind).toBe('save');
+});
+
+it('clears temporary secret input only after explicit discard, without submitting credentials', async () => {
+  const done = vi.fn();
+  render(<ConfigurationBoundary userId={context.userId}>
+    <PersonalModelManager context={context} onUpdated={updated}/><ChangeTarget done={done}/>
+  </ConfigurationBoundary>);
+  await open();
+  fireEvent.change(screen.getByLabelText('个人 API 密钥'), {target: {value: 'temporary-test-input'}});
+  fireEvent.click(screen.getByText('更换模型管理目标'));
+  expect(screen.getByRole('button', {name: '保存并继续'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', {name: '放弃修改并继续'}));
+  await waitFor(() => expect(done).toHaveBeenCalledOnce());
+  expect(api.executeModelCommand).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('个人 API 密钥')).toHaveValue('');
+});
 
 it('lists readable models without filtering by creator and creates using current scope only', async () => {
   manager();

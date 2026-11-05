@@ -12,6 +12,7 @@ import {AvatarDropdown, ErrorBoundary, LangDropdown, OfflineBanner, ThemeSwitch,
 import MyDynamicIcon from '@/components/DynamicIcon/MyDynamicIcon';
 import TabsLayout from '@/components/TabsLayout';
 import WorkspaceSession from '@/features/workspace/WorkspaceSession';
+import ConfigurationBoundary from '@/features/configuration/ConfigurationBoundary';
 import {Toaster} from '@/components/ui/sonner';
 import {getStoredLayoutMenuState, LayoutMenuContextProvider, saveLayoutMenuState,} from '@/contexts/LayoutMenuContext';
 import {ThemeContextProvider, useThemeContext} from '@/contexts/ThemeContext';
@@ -299,8 +300,11 @@ export const layout: RunTimeLayoutConfig = ({
       return (
         <LayoutMenuContextProvider>
           <WorkspaceSession userId={String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '')}/>
-          <TabsLayout />
-          {children}
+          <ConfigurationBoundary
+            userId={String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '')}>
+            <TabsLayout/>
+            {children}
+          </ConfigurationBoundary>
         </LayoutMenuContextProvider>
       );
     },

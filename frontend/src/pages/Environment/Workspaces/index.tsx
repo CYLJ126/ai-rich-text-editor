@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {useModel} from '@umijs/max';
 import {Alert, Button, Flex, Input, Tooltip, Typography} from 'antd';
 import MasterDetailLayout from '@/components/MasterDetailLayout';
@@ -9,7 +9,11 @@ import WorkspacePolicyDialog from '@/features/workspace/WorkspacePolicyDialog';
 import {useWorkspaceManagement} from '@/features/workspace/useWorkspace';
 import {usePolicyDirectory} from '@/features/workspace/usePolicyDirectory';
 import {checkWorkspaceAccess, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
-import {useAiLeaveGuard} from '@/features/ainew/aiNavigation';
+import ConfigurationBoundary, {
+  useConfigurationFallback,
+  useConfigurationNavigation
+} from '@/features/configuration/ConfigurationBoundary';
+import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 import {sameScope} from '@/features/ainew/storage';
 import '@/features/ainew/personalModels.css';
 import './index.css';
@@ -20,7 +24,8 @@ export default function WorkspaceConfigurationPage() {
   const {initialState} = useModel('@@initialState');
   const userId = String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '');
   if (!userId) return <Alert type="info" title="请登录后管理工作空间。"/>;
-  return <WorkspaceConfiguration key={userId} userId={userId}/>;
+  return <ConfigurationBoundary key={userId} userId={userId}><WorkspaceConfiguration
+    userId={userId}/></ConfigurationBoundary>;
 }
 
 /** 配置目标只存在本页状态中；URL、聊天当前空间和刷新均不会自动选择卡片。 */
@@ -34,17 +39,14 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
   const [formUnsafe, setFormUnsafe] = useState(false);
   const [policyUnsafe, setPolicyUnsafe] = useState(false);
   const [policyOpen, setPolicyOpen] = useState(false);
-  const [guardMessage, setGuardMessage] = useState('');
   const [tenants, setTenants] = useState<{ value: string; label: string }[]>([]);
   const alive = useRef(true);
   const tenantIds = [...new Set(candidates.records.map(item => item.scope.tenantId))].sort().join('\n');
   const unsafe = formUnsafe || policyUnsafe || directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave;
-  const blocked = useCallback(() => setGuardMessage('请先保存、放弃修改或确认原操作，再离开或更换配置目标。'), []);
-  useAiLeaveGuard(unsafe, blocked);
-
-  useEffect(() => {
-    if (!unsafe) setGuardMessage('');
-  }, [unsafe]);
+  const navigation = useConfigurationNavigation();
+  useConfigurationFallback(formUnsafe, 'workspace', '空间详情');
+  useConfigurationFallback(directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave,
+    'workspace-operation', '空间管理操作');
 
   useEffect(() => {
     setFilter(directory.search);
@@ -96,22 +98,19 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
   }
 
   return <ViewportPage className="personal-models-page workspace-configuration-page" label="工作空间配置">
-    {guardMessage && <Alert type="info" title={guardMessage}/>}
+    <ConfigurationTarget name={creating ? '新建工作空间' : target?.name} scope={target?.scope} purpose="工作空间配置"/>
     <div className="workspace-configuration-content">
       <MasterDetailLayout
         label="工作空间管理" actions={[]}
         selectedKey={!creating && target ? keyOf(target.scope) : undefined}
-        onSelect={key => {
-          if (unsafe || policyOpen) {
-            blocked();
-            return;
-          }
+        onSelect={key => navigation.request(() => {
           const item = directory.records.find(value => keyOf(value.scope) === key);
           if (item) {
+            setPolicyOpen(false);
             setCreating(false);
             setTarget(item);
           }
-        }}
+        })}
         listHeader={<Flex gap={8} align="center" className="workspace-directory-actions">
           <Input.Search aria-label="搜索工作空间" placeholder="搜索工作空间" value={filter}
                         maxLength={100} allowClear
@@ -123,8 +122,8 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
           <Tooltip title="租户与空间政策">
             <Button aria-label="租户与空间政策"
                     icon={<DynamicIcon iconName="ControlOutlined"/>}
-                    disabled={unsafe || !target || creating || policyOpen}
-                    onClick={() => setPolicyOpen(true)}/>
+                    disabled={!target || creating || policyOpen}
+                    onClick={() => navigation.request(() => setPolicyOpen(true))}/>
           </Tooltip>
           <Tooltip title="清除启动空间偏好">
             <Button aria-label="清除启动空间偏好"
@@ -135,12 +134,12 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
           <Tooltip title="新建工作空间">
             <Button aria-label="新建工作空间"
                     icon={<DynamicIcon iconName="PlusOutlined"/>}
-                    disabled={unsafe || !tenants.length || policyOpen}
-                    onClick={() => {
+                    disabled={!tenants.length || policyOpen || directory.saving}
+                    onClick={() => navigation.request(() => {
                       setInitialTenantId(tenants.some(item => item.value === target?.scope.tenantId) ? target!.scope.tenantId : '');
                       setTarget(null);
                       setCreating(true);
-                    }}/>
+                    })}/>
           </Tooltip>
         </Flex>}
         listFooter={<Flex vertical gap={8} style={{marginTop: 12}}>
@@ -166,7 +165,7 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
         </Flex>}
         emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
         items={directory.records.map(item => ({
-          key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: unsafe || policyOpen,
+          key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: directory.saving,
           content: <Flex vertical gap={8}>
             <Typography.Text strong>{item.name}</Typography.Text>
             <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
@@ -178,10 +177,10 @@ function WorkspaceConfiguration({userId}: { userId: string }) {
         {creating ? <WorkspaceDetailForm
             userId={userId} initialTenantId={initialTenantId} tenants={tenants}
             onMoreTenants={candidates.hasMore ? () => void candidates.more() : undefined}
-            onCancel={() => {
+            onCancel={() => navigation.request(() => {
               setCreating(false);
               setFormUnsafe(false);
-            }}
+            })}
             onUnsafeChange={setFormUnsafe} onSaved={view => {
             setCreating(false);
             setTarget(view);

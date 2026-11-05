@@ -180,9 +180,9 @@ class WorkspaceDirectory {
   private accept(view: api.WorkspaceView, deliberate = false) {
     if (deliberate) this.revision++;
     this.update({current: view, canCreate: false, canRename: false});
-    if (!writeValue(workspaceStorageKey(this.userId, 'currentWorkspace'), view.scope)) this.update({warning: STORAGE_WARNING});
+    if (!this.management && !writeValue(workspaceStorageKey(this.userId, 'currentWorkspace'), view.scope)) this.update({warning: STORAGE_WARNING});
     void this.checkPermissions(view);
-    if (deliberate) window.dispatchEvent(new CustomEvent('arte-workspace-selected', {
+    if (deliberate && !this.management) window.dispatchEvent(new CustomEvent('arte-workspace-selected', {
       detail: {
         userId: this.userId,
         scope: view.scope
@@ -210,7 +210,10 @@ class WorkspaceDirectory {
   }
 
   refreshView = (view: api.WorkspaceView) => {
-    if (sameScope(this.state.current?.scope, view.scope) && view.version >= this.state.current!.version) this.accept(view);
+    if (sameScope(this.state.current?.scope, view.scope) && view.version >= this.state.current!.version) {
+      this.update({current: view});
+      void this.checkPermissions(view);
+    }
   };
   refreshCurrentMetadata = async (scope: api.WorkspaceScope) => {
     if (!sameScope(scope, this.state.current?.scope) || this.stopped) return;
@@ -240,13 +243,15 @@ class WorkspaceDirectory {
       if (this.stopped || controller.signal.aborted) return false;
       const view = validateView(scope, response.body.data);
       // Re-run protection at commit: the user may have edited a draft while getWorkspace was in flight.
+      let committed = false;
       protectWorkspaceChange(this.userId, scope, () => {
         if (this.stopped || controller.signal.aborted) return;
         this.accept(view, true);
+        committed = true;
         onSelected?.();
-        if (this.state.preference && !this.state.pending && !this.write) void this.updatePreference({lastScope: scope});
+        if (!this.management && this.state.preference && !this.state.pending && !this.write) void this.updatePreference({lastScope: scope});
       });
-      return true;
+      return committed;
     } catch (failure) {
       if (!this.stopped && !controller.signal.aborted) {
         this.update({error: failure});
@@ -278,7 +283,7 @@ class WorkspaceDirectory {
     try {
       // A missing preference is the server's indication that this account has not initialized its default space.
       // Never initialize on network/401/403/503 failures or while a previous command is uncertain.
-      let prefs: Awaited<ReturnType<typeof api.getWorkspacePreference>>;
+      let prefs: Awaited<ReturnType<typeof api.getWorkspacePreference>> | undefined;
       try {
         prefs = await api.getWorkspacePreference({signal: controller.signal});
       } catch (failure) {
@@ -286,22 +291,22 @@ class WorkspaceDirectory {
           && !controller.signal.aborted && !this.stopped && !this.state.pending && !this.state.recoveryBlocked && !this.write) {
           if (this.management) {
             this.update({preference: null});
+          } else {
+            await this.initialize();
             return;
           }
-          await this.initialize();
-          return;
-        }
-        throw failure;
+        } else throw failure;
       }
       const list = await api.browseAccessibleWorkspaces(null, search, {signal: controller.signal});
       if (this.stopped || controller.signal.aborted || selectionRevision !== this.revision) return;
       this.update({
-        preference: prefs.body.data,
+        preference: prefs?.body.data ?? null,
         records: list.body.data.records,
         nextCursor: list.body.data.nextCursor,
         exhausted: list.body.data.exhausted,
       });
       if (this.management) return;
+      if (!prefs) throw new Error('个人空间偏好未读取。');
       const stored = readValue<api.WorkspaceScope>(workspaceStorageKey(this.userId, 'currentWorkspace'));
       const parsed = api.workspaceScopeSchema.safeParse(stored.value);
       if (stored.warning || (stored.value && !parsed.success)) this.update({warning: '保存的空间选择无法读取，已重新校验启动或默认空间。'});

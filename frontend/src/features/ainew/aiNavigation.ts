@@ -3,6 +3,7 @@ import {history} from '@umijs/max';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import {workspaceScopeSchema} from '@/services/platform/workspace';
 import {listWorkspaceModelOptions, type ModelSelection} from '@/services/platform/ai';
+import {useConfigurationFallback, useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
 export type AiIntent = {
   scope?: WorkspaceScope;
@@ -93,8 +94,10 @@ export async function verifyAiModel(scope: WorkspaceScope, model: ModelSelection
 
 /** 站内离开与浏览器刷新都保护未保存草稿和原操作；不自动放弃或重发。 */
 export function useAiLeaveGuard(unsafe: boolean, onBlocked: () => void) {
+  const navigation = useConfigurationNavigation();
+  useConfigurationFallback(unsafe, 'legacy-ai', '当前使用页面的未完成操作');
   useEffect(() => {
-    if (!unsafe) return;
+    if (!unsafe || navigation.available) return;
     const unblock = history.block?.(() => onBlocked());
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -105,5 +108,5 @@ export function useAiLeaveGuard(unsafe: boolean, onBlocked: () => void) {
       unblock?.();
       window.removeEventListener('beforeunload', warn);
     };
-  }, [unsafe, onBlocked]);
+  }, [unsafe, onBlocked, navigation.available]);
 }

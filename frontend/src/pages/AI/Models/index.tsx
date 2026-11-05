@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {history, useModel} from '@umijs/max';
 import {Alert, Button, Flex, Modal, Select, Tabs, Typography} from 'antd';
 import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
@@ -6,12 +6,17 @@ import ModelManager from '@/features/ainew/ModelManager';
 import ConnectionManager from '@/features/ainew/ConnectionManager';
 import ModelPlanManager from '@/features/ainew/ModelPlanManager';
 import DefaultAiTemplateEditor from '@/features/ainew/DefaultAiTemplateEditor';
-import {registerWorkspaceGuard, useWorkspaceDirectory} from '@/features/workspace/useWorkspace';
+import {useCurrentWorkspace, useWorkspaceManagement} from '@/features/workspace/useWorkspace';
 import {getWorkspace, type WorkspaceScope, type WorkspaceView} from '@/services/platform/workspace';
 import type {ModelSelection} from '@/services/platform/ai';
 import {sameScope} from '@/features/ainew/storage';
-import {aiLocation, parseAiIntent, useAiLeaveGuard, useAiRoute} from '@/features/ainew/aiNavigation';
+import {aiLocation, parseAiIntent, useAiRoute} from '@/features/ainew/aiNavigation';
 import '@/features/ainew/personalModels.css';
+import ConfigurationBoundary, {
+  useConfigurationFallback,
+  useConfigurationNavigation
+} from '@/features/configuration/ConfigurationBoundary';
+import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 
 export type ModelConfigurationTab = 'models' | 'sharing' | 'connections' | 'plans';
 const scopeKey = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.workspaceId]);
@@ -23,14 +28,16 @@ export default function ModelsPage({initialTab = 'models'}: { initialTab?: Model
   const {initialState} = useModel('@@initialState');
   const userId = String(initialState?.currentUser?.id ?? initialState?.currentUser?.userid ?? '');
   if (!userId) return <Alert type="info" title="请登录后管理模型。"/>;
-  return <ModelConfiguration key={userId} userId={userId} initialTab={initialTab}
-                             hasWorkspaceMenu={initialState?.currentUser?.menus?.includes('EnvironmentWorkspaces') === true}/>;
+  return <ConfigurationBoundary key={userId} userId={userId}><ModelConfiguration userId={userId} initialTab={initialTab}
+                                                                                 hasWorkspaceMenu={initialState?.currentUser?.menus?.includes('EnvironmentWorkspaces') === true}/></ConfigurationBoundary>;
 }
 
 function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   userId: string; initialTab: ModelConfigurationTab; hasWorkspaceMenu: boolean
 }) {
-  const directory = useWorkspaceDirectory(userId);
+  const directory = useWorkspaceManagement(userId);
+  const chat = useCurrentWorkspace(userId);
+  const navigation = useConfigurationNavigation();
   const search = useAiRoute();
   const route = useMemo(() => {
     try {
@@ -40,6 +47,22 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     }
   }, [search, userId]);
   const [workspace, setWorkspace] = useState<WorkspaceView | null>(null);
+  const [closed, setClosed] = useState(false);
+  const session = useRef(true);
+  useEffect(() => {
+    session.current = true;
+    const logout = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== userId) return;
+      session.current = false;
+      setWorkspace(null);
+      setClosed(true);
+    };
+    window.addEventListener('arte-account-session-cleared', logout);
+    return () => {
+      session.current = false;
+      window.removeEventListener('arte-account-session-cleared', logout);
+    };
+  }, [userId]);
   const [scopeError, setScopeError] = useState('');
   const [loadingScope, setLoadingScope] = useState(false);
   const requestedTab = new URLSearchParams(search).get('tab');
@@ -52,18 +75,13 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   const [planUnsafe, setPlanUnsafe] = useState(false);
   const [templateUnsafe, setTemplateUnsafe] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [guardMessage, setGuardMessage] = useState('');
   const [targetModel, setTargetModel] = useState<ModelSelection | null>(null);
   const [targetScope, setTargetScope] = useState<string>();
   const unsafe = modelUnsafe || connectionUnsafe || planUnsafe || templateUnsafe;
-  const blocked = useCallback(() => setGuardMessage('有未保存内容、临时密钥或待确认操作，请先保存、放弃或确认原操作。'), []);
-  useAiLeaveGuard(unsafe, blocked);
-  useEffect(() => {
-    if (!unsafe) setGuardMessage('');
-  }, [unsafe]);
-  useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
-    if (unsafe) blocked(); else proceed();
-  }), [userId, unsafe, blocked]);
+  useConfigurationFallback(modelUnsafe, 'models', '模型配置');
+  useConfigurationFallback(connectionUnsafe, 'connections', '平台连接');
+  useConfigurationFallback(planUnsafe, 'plans', '模型方案与费率');
+  useConfigurationFallback(templateUnsafe, 'template', '平台默认模板');
   const intent = route.intent;
   const oldSpaceLink = new URLSearchParams(search).get('tab') === 'workspace-ai';
   useEffect(() => {
@@ -78,7 +96,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     setLoadingScope(true);
     setScopeError('');
     getWorkspace(scope, {signal: controller.signal}).then(({body}) => {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || !session.current) return;
       if (scopeKey(body.data.scope) !== scopeKey(scope)) throw new Error('管理空间响应不一致。');
       setWorkspace(body.data);
     }).catch(() => {
@@ -90,41 +108,44 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     return () => controller.abort();
   }, [intent, oldSpaceLink]);
   useEffect(() => {
-    if (!workspace && !intent?.scope && !route.error && !oldSpaceLink && directory.current) setWorkspace(directory.current);
-  }, [directory.current, workspace, intent, route.error, oldSpaceLink]);
+    if (session.current && !workspace && !intent?.scope && !route.error && !oldSpaceLink && chat) setWorkspace(chat);
+  }, [chat, workspace, intent, route.error, oldSpaceLink]);
   const context = useMemo(() => workspace ? {userId, scope: workspace.scope} : null,
     [userId, workspace?.scope.tenantId, workspace?.scope.workspaceId]);
   const choices = new Map<string, WorkspaceView>();
   for (const item of directory.records) choices.set(scopeKey(item.scope), item);
   if (workspace) choices.set(scopeKey(workspace.scope), workspace);
-  const originalChatChanged = !!intent?.chat && !sameScope(intent.chat, directory.current?.scope);
+  const originalChatChanged = !!intent?.chat && !sameScope(intent.chat, chat?.scope);
   const localModel = workspace && intent?.scope && scopeKey(workspace.scope) === scopeKey(intent.scope) ? intent.model : undefined;
   const executionScope = workspace && intent?.scope && sameScope(workspace.scope, intent.scope) ? intent.execution : undefined;
   const tabActions = (
     <Flex className="model-tabs-actions" gap={8} align="center">
       <Select className="model-workspace-select" aria-label="选择工作空间" placeholder="选择管理空间"
-              value={workspace ? scopeKey(workspace.scope) : undefined} disabled={modelUnsafe || loadingScope}
+              value={workspace ? scopeKey(workspace.scope) : undefined} disabled={loadingScope}
               loading={directory.loading || loadingScope} showSearch optionFilterProp="label"
               options={[...choices].map(([value, item]) => ({
                 value,
                 label: `${item.name}（${item.scope.tenantId} / ${item.scope.workspaceId}）`
               }))}
               onChange={key => {
-                if (!modelUnsafe) {
+                navigation.request(() => {
                   setWorkspace(choices.get(key) ?? null);
                   setScopeError('');
-                }
+                }, ['models']);
               }}
               popupRender={menu => <>{menu}{!directory.exhausted && directory.nextCursor &&
                 <Button onClick={() => void directory.loadMore()}>加载更多工作空间</Button>}
                 {directory.cursorExpired &&
                   <Button onClick={() => void directory.load('')}>重新加载工作空间</Button>}</>}/>
-      <Button disabled={unsafe || originalChatChanged} onClick={() => history.push('/AI/ChatNew')}>返回聊天</Button>
-      <Button disabled={unsafe || !hasWorkspaceMenu} onClick={() => history.push(aiLocation('workspaces', userId, {
-        management: workspace?.scope, chat: intent?.chat ?? directory.current?.scope, returnTo: 'models'
-      }))}>工作空间配置</Button>
+      <Button disabled={originalChatChanged}
+              onClick={() => navigation.request(() => history.push('/AI/ChatNew'))}>返回聊天</Button>
+      <Button disabled={!hasWorkspaceMenu}
+              onClick={() => navigation.request(() => history.push(aiLocation('workspaces', userId, {
+                management: workspace?.scope, chat: intent?.chat ?? chat?.scope, returnTo: 'models'
+              })))}>工作空间配置</Button>
     </Flex>
   );
+  if (closed) return <Alert type="warning" title="账号会话已结束，请重新登录后打开模型配置。"/>;
   if (route.error) return <Alert type="warning" title={route.error}/>;
   if (oldSpaceLink) return <Alert type="info" title="空间 AI 配置已迁往工作空间配置。"/>;
   return <ViewportPage className="personal-models-page model-configuration-page" label="空间模型管理页面">
@@ -135,7 +156,10 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     {(!!scopeError || !!directory.error) &&
       <Alert type="warning" title={scopeError || '空间目录读取失败，可重新加载目录。'}/>}
     {unsafe && <Alert type="info" title="当前有未保存内容、临时密钥或待确认操作。切换页签保留内容，离开前请先处理。"/>}
-    {guardMessage && <Alert type="warning" title={guardMessage}/>}
+
+    <ConfigurationTarget name={tab === 'models' ? workspace?.name : '平台 AI 配置'}
+                         scope={tab === 'models' ? workspace?.scope : undefined}
+                         purpose={tab === 'models' ? '模型管理空间' : '平台级连接、方案与默认模板'}/>
     <Tabs tabBarExtraContent={{right: tabActions}} activeKey={tab}
           onChange={value => setTab(value as ModelConfigurationTab)} destroyOnHidden={false} items={[
       {
@@ -155,7 +179,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
                                                                             authorization={initialTab === 'sharing' || intent?.view === 'authorization'}
                                                                             onUnsafeChange={setModelUnsafe}
                                                                             useInChatDisabled={unsafe || originalChatChanged}
-                                                                            onUseInChat={sameScope(executionScope ?? context.scope, directory.current?.scope) && !originalChatChanged ? () => history.push('/AI/ChatNew') : undefined}
+                                                                            onUseInChat={sameScope(executionScope ?? context.scope, chat?.scope) && !originalChatChanged ? () => history.push('/AI/ChatNew') : undefined}
                                                                             onConfigureWorkspace={model => {
                                                                               setTargetModel(model);
                                                                               setTargetScope(undefined);
@@ -164,9 +188,9 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
       },
     ]}/>
     <Modal title="平台默认 AI 模板" open={templateOpen} footer={null} width={800}
-           mask={{closable: !templateUnsafe}} keyboard={!templateUnsafe} closable={!templateUnsafe}
+           mask={{closable: true}} keyboard closable
            onCancel={() => {
-             if (!templateUnsafe) setTemplateOpen(false);
+             navigation.request(() => setTemplateOpen(false), ['template']);
            }}
            styles={{body: {maxHeight: '70dvh', overflowY: 'auto', scrollbarWidth: 'none'}}}>
       <DefaultAiTemplateEditor context={{userId, scope: {tenantId: 'control-admin', workspaceId: 'default-template'}}}
@@ -185,7 +209,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
         const target = targetScope && choices.get(targetScope);
         if (target && targetModel && !unsafe) history.push(aiLocation('workspaces', userId, {
           scope: target.scope, model: targetModel, management: workspace?.scope,
-          chat: intent?.chat ?? directory.current?.scope, returnTo: 'models'
+          chat: intent?.chat ?? chat?.scope, returnTo: 'models'
         }));
       }}>打开此空间 AI 配置</Button>
     </Modal>

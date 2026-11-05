@@ -10,6 +10,7 @@ import WorkspaceAiGovernanceEditor from './WorkspaceAiGovernanceEditor';
 import {notifyAiConfiguration, subscribeAiConfiguration} from './aiConfigurationEvents';
 import {sameScope} from '@/features/ainew/storage';
 import {useWorkspaceManagement} from './useWorkspace';
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 
 interface Props {
   userId: string;
@@ -64,6 +65,18 @@ function Detail({
   const unsafe = !closed && (dirty || aiUnsafe || directory.saving || !!pending || directory.recoveryBlocked || directory.unsafeToLeave);
   const stableScope = useMemo(() => scope ? {...scope} : undefined, [scope?.tenantId, scope?.workspaceId]);
   const context = useMemo(() => stableScope ? {userId, scope: stableScope} : undefined, [userId, stableScope]);
+  useConfigurationDraft({
+    group: 'workspace', label: scope ? '空间基本信息' : '新建空间信息', order: 10,
+    status: directory.recoveryBlocked || directory.unsafeToLeave ? 'blocked' : directory.saving ? 'submitting' : pending ? 'pending' : dirty ? 'dirty' : 'clean',
+    save: () => save(),
+    discard: async () => {
+      if (scope) return read();
+      setName('');
+      setDescription('');
+      setTenantId(initialTenantId);
+      return true;
+    }
+  });
 
   useEffect(() => {
     onUnsafeChange?.(unsafe);
@@ -87,13 +100,13 @@ function Detail({
     setLoading(true);
     setError('');
     try {
-      if (!stableScope) return;
+      if (!stableScope) return true;
       const [{body}, permission] = await Promise.all([
         getWorkspace(stableScope, {signal: controller.signal}),
         checkWorkspaceAccess(stableScope, 'workspace', 'workspace:update', {signal: controller.signal})
           .catch(() => null),
       ]);
-      if (!live.current || controller.signal.aborted) return;
+      if (!live.current || controller.signal.aborted) return false;
       if (!sameScope(body.data.scope, stableScope)) throw new Error('空间响应范围不一致。');
       setView(body.data);
       setAllowed(permission?.body.data.allowed === true);
@@ -101,8 +114,10 @@ function Detail({
       const restored = original?.kind === 'rename' && sameScope(original.request.scope, stableScope) ? original.request : null;
       setName(restored?.name ?? body.data.name);
       setDescription(restored?.description ?? body.data.description ?? '');
+      return true;
     } catch (failure) {
       if (live.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : '空间详情读取失败。');
+      return false;
     } finally {
       if (live.current && !controller.signal.aborted) setLoading(false);
     }
@@ -155,16 +170,16 @@ function Detail({
   }) : undefined, [userId, stableScope]);
 
   async function save(retry = false) {
-    if (closed || loading || directory.saving || directory.recoveryBlocked || aiUnsafe) return;
-    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending)) return;
+    if (closed || loading || directory.saving || directory.recoveryBlocked || aiUnsafe) return false;
+    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending)) return false;
     const saved = retry ? await directory.retry()
       : view ? await directory.rename(view, name.trim(), description.trim())
         : await directory.create(name.trim(), description.trim(), tenantId);
-    if (!live.current || !saved) return;
+    if (!live.current || !saved) return false;
     const updated = directory.savedWorkspace();
     if (!updated || (scope ? !sameScope(updated.scope, scope) : updated.scope.tenantId !== tenantId)) {
       setError('空间保存回执与目标不一致，请确认原操作。');
-      return;
+      return false;
     }
     setView(updated);
     setName(updated.name);
@@ -175,6 +190,7 @@ function Detail({
     notifyAiConfiguration(userId, updated.scope);
     ownNotification.current = false;
     callbacks.current.onSaved?.(updated);
+    return true;
   }
 
   return <Flex vertical gap={12} className="ai-management-panel" aria-label="工作空间详情表单">

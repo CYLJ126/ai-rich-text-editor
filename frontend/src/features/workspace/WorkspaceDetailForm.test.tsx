@@ -3,14 +3,20 @@ import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import * as api from '@/services/platform/workspace';
 import WorkspaceDetailForm from './WorkspaceDetailForm';
+import ConfigurationBoundary, {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
-vi.mock('@umijs/max', () => ({request: vi.fn()}));
+vi.mock('@umijs/max', () => ({
+  request: vi.fn(), history: {
+    block: vi.fn(() => () => {
+    })
+  }
+}));
 vi.mock('@/features/workspace/WorkspaceAiGovernanceEditor', () => ({
   default: ({scope, disabled, onUpdated}: {
     scope: api.WorkspaceScope; disabled: boolean; onUpdated: () => void
   }) => <section aria-label="AI 表单"><span>AI 目标 {scope.workspaceId}</span>
-    <button disabled={disabled}>编辑 AI 测试</button>
-    <button disabled={disabled} onClick={onUpdated}>保存 AI 测试</button>
+    <button type="button" disabled={disabled}>编辑 AI 测试</button>
+    <button type="button" disabled={disabled} onClick={onUpdated}>保存 AI 测试</button>
   </section>
 }));
 vi.mock('@/services/platform/workspace', async original => ({
@@ -67,6 +73,29 @@ beforeEach(() => {
   }));
 });
 afterEach(cleanup);
+
+function ChangeTarget({done}: { done: () => void }) {
+  const navigation = useConfigurationNavigation();
+  return <button type="button" onClick={() => navigation.request(done)}>更换详情目标</button>;
+}
+
+it('saves metadata before a guarded target change and keeps the chat preference unchanged', async () => {
+  const done = vi.fn();
+  render(<ConfigurationBoundary userId={userId}>
+    <WorkspaceDetailForm userId={userId} scope={scope}/><ChangeTarget done={done}/>
+  </ConfigurationBoundary>);
+  await waitFor(() => expect(screen.getByLabelText('空间名称')).toHaveValue('空间 B'));
+  fireEvent.change(screen.getByLabelText('空间名称'), {target: {value: '离开前保存'}});
+  fireEvent.click(screen.getByText('更换详情目标'));
+  expect(done).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', {name: '保存并继续'}));
+  await waitFor(() => expect(done).toHaveBeenCalledOnce());
+  expect(api.renameWorkspace).toHaveBeenCalledWith(expect.objectContaining({
+    scope,
+    name: '离开前保存'
+  }), expect.any(String), expect.anything());
+  expect(api.updateWorkspacePreference).not.toHaveBeenCalled();
+});
 
 it('reads and edits the exact supplied scope and locks AI while metadata is dirty', async () => {
   const saved = vi.fn();

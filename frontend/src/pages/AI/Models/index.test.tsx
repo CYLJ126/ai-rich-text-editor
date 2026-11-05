@@ -1,5 +1,5 @@
 import React from 'react';
-import {cleanup, fireEvent, render, screen} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {history} from '@umijs/max';
 import ModelsPage from './index';
@@ -17,7 +17,8 @@ vi.mock('@umijs/max', () => ({
   useModel: () => ({initialState: {currentUser: user}})
 }));
 vi.mock('@/features/workspace/useWorkspace', () => ({
-  useWorkspaceDirectory: () => directory,
+  useWorkspaceManagement: () => directory,
+  useCurrentWorkspace: () => directory.current,
   registerWorkspaceGuard: vi.fn(() => () => {
   })
 }));
@@ -35,7 +36,7 @@ vi.mock('@/features/ainew/ConnectionManager', () => ({
 }));
 vi.mock('@/features/ainew/ModelPlanManager', () => ({
   default: ({onUnsafeChange, onOpenTemplate}: EditorProps & { onOpenTemplate: () => void }) => <>
-    <button onClick={onOpenTemplate}>平台默认 AI 模板</button>
+    <button type="button" onClick={onOpenTemplate}>平台默认 AI 模板</button>
     <Editor name="费率草稿" onUnsafeChange={onUnsafeChange}/></>
 }));
 vi.mock('@/features/ainew/DefaultAiTemplateEditor', () => ({
@@ -110,8 +111,10 @@ it('protects unsaved model state across tabs, local scope and external navigatio
   fireEvent.change(await screen.findByLabelText('模型草稿'), {target: {value: '未保存'}});
   fireEvent.click(screen.getByRole('tab', {name: '审核连接'}));
   await screen.findByLabelText('连接草稿');
-  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
+  expect(screen.getByRole('combobox', {name: '选择工作空间'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', {name: '返回聊天'}));
+  expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
+  expect(history.push).not.toHaveBeenCalled();
   const proceed = vi.fn();
   vi.mocked(coordination.registerWorkspaceGuard).mock.calls.at(-1)?.[1](spaces[1].scope, proceed);
   expect(proceed).not.toHaveBeenCalled();
@@ -125,7 +128,7 @@ it('keeps default platform template only in the plans tab', async () => {
   fireEvent.click(screen.getByRole('tab', {name: '审核模型与费率'}));
   fireEvent.click(await screen.findByRole('button', {name: '平台默认 AI 模板'}));
   fireEvent.change(await screen.findByLabelText('默认模板'), {target: {value: '未发布'}});
-  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '返回聊天'})).toBeEnabled();
 });
 it('does not require governance menu to manage models and explains a missing menu separately', async () => {
   user = {id: 'operator', menus: []};
@@ -145,6 +148,19 @@ it('does not fall back to current space for an invalid explicit target', async (
   vi.mocked(api.getWorkspace).mockRejectedValue(new Error('denied'));
   render(<ModelsPage/>);
   await screen.findByText('指定管理空间不可读或已失效，请重新选择。');
+  expect(screen.queryByLabelText('模型草稿')).not.toBeInTheDocument();
+});
+
+it('does not restore a late management target after the account session ends', async () => {
+  let finish!: (value: Awaited<ReturnType<typeof api.getWorkspace>>) => void;
+  window.history.replaceState(null, '', '/Environment/Models?tenantId=tenant&workspaceId=second');
+  vi.mocked(api.getWorkspace).mockImplementationOnce(() => new Promise(resolve => {
+    finish = resolve;
+  }));
+  render(<ModelsPage/>);
+  act(() => window.dispatchEvent(new CustomEvent('arte-account-session-cleared', {detail: 'operator'})));
+  await act(async () => finish({body: {data: spaces[1]}} as never));
+  expect(screen.getByText('账号会话已结束，请重新登录后打开模型配置。')).toBeInTheDocument();
   expect(screen.queryByLabelText('模型草稿')).not.toBeInTheDocument();
 });
 it.each([[ConnectionsPage, '审核连接'], [ModelPlansPage, '审核模型与费率'], [ModelSharingPage, '模型管理']] as const)(
@@ -173,8 +189,10 @@ it('opens the default template in a modal and prevents closing an unsaved templa
   fireEvent.click(await screen.findByRole('button', {name: '平台默认 AI 模板'}));
   expect(await screen.findByRole('dialog')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('默认模板'), {target: {value: '未保存'}});
-  expect(screen.queryByRole('button', {name: 'Close'})).not.toBeInTheDocument();
-  expect(screen.getByRole('button', {name: '返回聊天'})).toBeDisabled();
+  fireEvent.click(within(screen.getByLabelText('默认模板').closest('.ant-modal') as HTMLElement).getByRole('button', {name: 'Close'}));
+  expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '留在本页'}));
+  expect(screen.getByRole('button', {name: '返回聊天'})).toBeEnabled();
   fireEvent.change(screen.getByLabelText('默认模板'), {target: {value: ''}});
-  fireEvent.click(screen.getByRole('button', {name: 'Close'}));
+  fireEvent.click(within(screen.getByLabelText('默认模板').closest('.ant-modal') as HTMLElement).getByRole('button', {name: 'Close'}));
 });

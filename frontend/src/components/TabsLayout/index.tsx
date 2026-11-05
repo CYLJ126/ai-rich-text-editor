@@ -1,3 +1,4 @@
+import {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 import {i18nText} from '@/utils/i18n';
 import {CloseOutlined} from '@ant-design/icons';
 import {history, useIntl, useLocation} from '@umijs/max';
@@ -202,9 +203,10 @@ function getMenuIntlInfo(path: string) {
 }
 
 const TabsLayout: React.FC = () => {
+  const navigation = useConfigurationNavigation();
   const { styles } = useStyles();
   const location = useLocation();
-  const { drop, getCachingNodes } = useAliveController();
+  const {drop} = useAliveController();
   const [activeKey, setActiveKey] = useState<string>('');
   const [tabs, setTabs] = useState<TabItem[]>([]);
   const intl = useIntl();
@@ -262,7 +264,6 @@ const TabsLayout: React.FC = () => {
   // 监听路由变化，添加或激活标签页
   useEffect(() => {
     const { pathname, search } = location;
-    const nodes = getCachingNodes();
 
     if (pathname.startsWith('/user/') || pathname === '/' || isHiddenTabPath(pathname)) {
       return;
@@ -292,7 +293,6 @@ const TabsLayout: React.FC = () => {
   const handleTabChange = (key: string) => {
     const tab = tabs.find((t) => t.key === key);
     if (tab) {
-      setActiveKey(key);
       history.push({ pathname: tab.pathname, search: tab.search });
     }
   };
@@ -303,25 +303,27 @@ const TabsLayout: React.FC = () => {
     const tab = tabs.find((t) => t.key === key);
     if (!tab || !tab.closable) return;
 
-    const newTabs = tabs.filter((t) => t.key !== key);
-    setTabs(newTabs);
-    // 删除缓存
-    drop(key).then();
-    // 如果关闭的是当前激活的标签页，需要跳转到其他页面
-    if (activeKey === key) {
-      // ✅ 关闭后优先跳转到 HomePage（始终在 index 0）
-      const homeTab = newTabs.find((t) => t.pathname === HOME_PATH);
-      const fallbackTab = homeTab ?? newTabs[newTabs.length - 1];
-      if (fallbackTab) {
-        setActiveKey(fallbackTab.key);
-        history.push({
-          pathname: fallbackTab.pathname,
-          search: fallbackTab.search,
-        });
-      } else {
-        history.push(HOME_PATH);
+    navigation.request(() => {
+      const newTabs = tabs.filter((t) => t.key !== key);
+      setTabs(newTabs);
+      // 删除缓存
+      drop(key).then();
+      // 如果关闭的是当前激活的标签页，需要跳转到其他页面
+      if (activeKey === key) {
+        // ✅ 关闭后优先跳转到 HomePage（始终在 index 0）
+        const homeTab = newTabs.find((t) => t.pathname === HOME_PATH);
+        const fallbackTab = homeTab ?? newTabs[newTabs.length - 1];
+        if (fallbackTab) {
+          setActiveKey(fallbackTab.key);
+          history.push({
+            pathname: fallbackTab.pathname,
+            search: fallbackTab.search,
+          });
+        } else {
+          history.push(HOME_PATH);
+        }
       }
-    }
+    });
   };
 
   // 关闭其他标签页（保留 HomePage + 当前页）
@@ -329,22 +331,24 @@ const TabsLayout: React.FC = () => {
     const currentTab = tabs.find((t) => t.key === currentKey);
     if (!currentTab) return;
 
-    // ✅ 保留不可关闭的标签（HomePage）+ 当前标签，且保持 HomePage 在首位
-    const newTabs = tabs.filter((t) => t.key === currentKey || !t.closable);
-    tabs.forEach((tab) => {
-      if (tab.key !== currentKey && tab.closable) drop(tab.key).then();
-    });
+    navigation.request(() => {
+      // ✅ 保留不可关闭的标签（HomePage）+ 当前标签，且保持 HomePage 在首位
+      const newTabs = tabs.filter((t) => t.key === currentKey || !t.closable);
+      tabs.forEach((tab) => {
+        if (tab.key !== currentKey && tab.closable) drop(tab.key).then();
+      });
 
-    setTabs(newTabs);
-    setActiveKey(currentKey);
-    history.push({
-      pathname: currentTab.pathname,
-      search: currentTab.search,
+      setTabs(newTabs);
+      setActiveKey(currentKey);
+      history.push({
+        pathname: currentTab.pathname,
+        search: currentTab.search,
+      });
     });
   };
 
   // 关闭所有可关闭的标签页
-  const handleCloseAll = () => {
+  const handleCloseAll = () => navigation.request(() => {
     // ✅ 保留不可关闭的标签（HomePage 始终保留在首位）
     const newTabs = tabs.filter((t) => !t.closable);
     // 删除所有可关闭标签页的缓存
@@ -360,7 +364,7 @@ const TabsLayout: React.FC = () => {
     } else {
       history.push(HOME_PATH);
     }
-  };
+  });
 
   /** 渲染单个标签 */
   const renderTabLabel = (tab: TabItem) => (
@@ -371,6 +375,7 @@ const TabsLayout: React.FC = () => {
       {tab.closable && (
         <Button
           type="text"
+          aria-label={`关闭 ${tab.label}`}
           className={styles.closeBtn}
           icon={<CloseOutlined />}
           onClick={(e) => handleTabClose(tab.key, e)}

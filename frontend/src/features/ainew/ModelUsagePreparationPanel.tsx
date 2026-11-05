@@ -1,3 +1,4 @@
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import React, {useEffect, useRef, useState} from 'react';
 import {Alert, Button, Card, Flex, Typography} from 'antd';
 import {
@@ -75,6 +76,11 @@ export default function ModelUsagePreparationPanel({
   const currentRequest = useRef(requestKey);
   currentRequest.current = requestKey;
   const unsafe = !!operation || blocked || writing;
+  useConfigurationDraft({
+    group: 'models', label: '本人预算使用准备',
+    status: blocked ? 'blocked' : writing ? 'submitting' : operation ? 'pending' : 'clean'
+  });
+
 
   useEffect(() => {
     onUnsafeChange(unsafe);

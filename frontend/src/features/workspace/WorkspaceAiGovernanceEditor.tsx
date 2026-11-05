@@ -17,6 +17,7 @@ import {
 import {AiApiError} from '@/services/arte-ai';
 import type {WorkspaceScope} from '@/services/platform/workspace';
 import {type BrowserContext, readOperation, saveOperation} from '@/features/ainew/storage';
+import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 
 type Operation = { kind: 'prepare' | 'models' | 'rules'; request: unknown; confirmed?: boolean };
 
@@ -53,6 +54,26 @@ export default function WorkspaceAiGovernanceEditor({
   const reader = useRef<AbortController | null>(null);
   const [loading, setLoading] = useState(false);
   const unsafe = blocked || uncertain || saving || dirty;
+  useConfigurationDraft({
+    group: 'workspace', label: dirtyKind === 'rules' ? '空间预算规则' : '空间 AI 配置', order: 20,
+    status: blocked ? 'blocked' : saving ? 'submitting' : uncertain ? 'pending' : dirty ? 'dirty' : 'clean',
+    save: dirtyKind === 'models' ? async () => {
+      if (!view?.configuration || !view.canManage || disabled) return false;
+      return run('models', {
+        scope, expectedWorkspaceVersion: view.workspaceVersion,
+        expectedVersion: view.configuration.version, enabled, models
+      });
+    } : undefined,
+    discard: async () => {
+      try {
+        await load();
+        return true;
+      } catch {
+        setError('配置读取失败，当前修改已保留。');
+        return false;
+      }
+    }
+  });
   useEffect(() => {
     onUnsafeChange?.(unsafe);
   }, [unsafe, onUnsafeChange]);
@@ -137,9 +158,9 @@ export default function WorkspaceAiGovernanceEditor({
   }, [scope, context.userId]);
 
   async function run(kind: Operation['kind'], request: unknown) {
-    if (!live.current || writing.current || blocked) return;
+    if (!live.current || writing.current || blocked) return false;
     const operation = pending.current ?? {kind, request, key: crypto.randomUUID()};
-    if (operation.kind !== kind) return;
+    if (operation.kind !== kind) return false;
     pending.current = operation;
     const persist = () => saveOperation(context, 'workspace-ai-governance', '', {
       key: operation.key,
@@ -148,7 +169,7 @@ export default function WorkspaceAiGovernanceEditor({
     if (!persist()) {
       setBlocked(true);
       setUncertain(true);
-      return;
+      return false;
     }
     writing.current = true;
     setSaving(true);
@@ -166,26 +187,27 @@ export default function WorkspaceAiGovernanceEditor({
         if (receipt.status !== 1 || !resultScope || resultScope.tenantId !== scope.tenantId || resultScope.workspaceId !== scope.workspaceId) {
           throw new AiApiError(200, {code: 'INVALID_WORKSPACE_AI_RESPONSE'});
         }
-        if (!live.current) return;
+        if (!live.current) return false;
         operation.confirmed = true;
         if (!persist()) {
           setBlocked(true);
-          return;
+          return false;
         }
       }
       await load();
-      if (!live.current) return;
+      if (!live.current) return false;
       if (!saveOperation(context, 'workspace-ai-governance', '', null)) {
         setBlocked(true);
-        return;
+        return false;
       }
       pending.current = null;
       setUncertain(false);
       setBlocked(false);
       setSaved(operation.kind === 'prepare' ? '首次准备已保存；尚未选择模型或创建账户。' : operation.kind === 'models' ? '空间开关与模型版本已保存；预算规则保持独立。' : '独立预算规则已保存；模型选择保持独立。');
       onUpdated();
+      return true;
     } catch (failure) {
-      if (!live.current) return;
+      if (!live.current) return false;
       const unknown = operation.confirmed || !(failure instanceof AiApiError) || failure.httpStatus >= 500 || failure.httpStatus < 300;
       if (!unknown) {
         pending.current = null;
@@ -194,6 +216,7 @@ export default function WorkspaceAiGovernanceEditor({
       }
       setError(unknown ? '保存结果待确认，请保留本页并按原操作重试。'
         : failure instanceof AiApiError && failure.httpStatus === 409 ? '配置已变化，请重新读取后修改。' : '配置未保存，请核对当前权限、版本和批准额度。');
+      return false;
     } finally {
       writing.current = false;
       if (live.current) setSaving(false);

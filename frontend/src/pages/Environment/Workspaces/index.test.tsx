@@ -11,7 +11,11 @@ vi.mock('@umijs/max', () => ({
     }), push: vi.fn()
   }
 }));
-vi.mock('@/features/workspace/useWorkspace', () => ({useWorkspaceManagement: () => directory}));
+vi.mock('@/features/workspace/useWorkspace', () => ({
+  useWorkspaceManagement: () => directory,
+  registerWorkspaceGuard: vi.fn(() => () => {
+  })
+}));
 vi.mock('@/features/workspace/usePolicyDirectory', () => ({usePolicyDirectory: () => candidates}));
 vi.mock('@/services/platform/workspace', async original => ({
   ...await original<typeof import('@/services/platform/workspace')>(), checkWorkspaceAccess: vi.fn()
@@ -26,13 +30,13 @@ vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
     onUnsafeChange: (unsafe: boolean) => void;
     onCancel?: () => void
   }) => <section aria-label="配置详情测试">{scope ? `编辑目标 ${scope.workspaceId}` : '新增空间表单'}
-    <button onClick={() => onUnsafeChange(true)}>模拟修改</button>
-    <button onClick={() => {
+    <button type="button" onClick={() => onUnsafeChange(true)}>模拟修改</button>
+    <button type="button" onClick={() => {
       onUnsafeChange(false);
       onSaved({...space, scope: {...space.scope, workspaceId: scope?.workspaceId ?? 'C'}});
     }}>模拟保存
     </button>
-    {onCancel && <button onClick={onCancel}>取消新增</button>}
+    {onCancel && <button type="button" onClick={onCancel}>取消新增</button>}
   </section>
 }));
 const space = {
@@ -79,9 +83,11 @@ it('blocks target and toolbar actions while the form is dirty and uses the selec
   render(<Page/>);
   fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
   fireEvent.click(screen.getByRole('button', {name: '模拟修改'}));
-  expect(screen.getByRole('button', {name: '新建工作空间'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '租户与空间政策'})).toBeDisabled();
-  expect(screen.getByRole('button', {name: '配置 空间 B'})).toHaveAttribute('aria-disabled', 'true');
+  await waitFor(() => expect(screen.getByRole('button', {name: '新建工作空间'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', {name: '新建工作空间'}));
+  expect(screen.getByText('处理当前配置后继续')).toBeInTheDocument();
+  expect(screen.queryByText('新增空间表单')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '留在本页'}));
   fireEvent.click(screen.getByRole('button', {name: '模拟保存'}));
   fireEvent.click(screen.getByRole('button', {name: '租户与空间政策'}));
   expect(screen.getByText('政策目标 B')).toBeInTheDocument();

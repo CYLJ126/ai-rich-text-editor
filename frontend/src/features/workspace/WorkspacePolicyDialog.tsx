@@ -4,6 +4,7 @@ import PolicyEditor from './PolicyEditor';
 import type {WorkspaceView} from '@/services/platform/workspace';
 import type {PolicySnapshot, TenantPolicyView} from '@/services/platform/policy';
 import {notifyAiConfiguration} from './aiConfigurationEvents';
+import {useConfigurationNavigation} from '@/features/configuration/ConfigurationBoundary';
 
 /** 政策范围固定为配置目标，弹窗内不切换聊天空间。 */
 export default function WorkspacePolicyDialog({userId, target, onClose, onUnsafeChange}: {
@@ -14,6 +15,7 @@ export default function WorkspacePolicyDialog({userId, target, onClose, onUnsafe
   const [ceiling, setCeiling] = useState<TenantPolicyView | null>(null);
   const [revision, setRevision] = useState(0);
   const unsafe = tenantUnsafe || spaceUnsafe;
+  const navigation = useConfigurationNavigation();
   useEffect(() => {
     onUnsafeChange(unsafe);
   }, [unsafe, onUnsafeChange]);
@@ -25,8 +27,10 @@ export default function WorkspacePolicyDialog({userId, target, onClose, onUnsafe
   };
   const spaceSaved = () => notifyAiConfiguration(userId, target.scope);
   return <Modal open title={`租户与空间政策 · ${target.name}`} width={920} footer={null}
-                closable={!unsafe} keyboard={!unsafe} mask={{closable: !unsafe}} onCancel={() => {
-    if (!unsafe) onClose();
+                closable={navigation.available || !unsafe} keyboard={navigation.available || !unsafe}
+                mask={{closable: navigation.available || !unsafe}} onCancel={() => {
+    if (navigation.available) navigation.request(onClose, ['tenant-policy', 'space-policy']);
+    else if (!unsafe) onClose();
   }}
                 styles={{body: {maxHeight: '75dvh', overflowY: 'auto'}}}>
     <Tabs defaultActiveKey="workspace" destroyOnHidden={false} items={[
