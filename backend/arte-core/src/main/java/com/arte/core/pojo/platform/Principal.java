@@ -7,6 +7,8 @@ import com.arte.core.utils.platform.PlatformChecks;
 import java.util.Objects;
 
 /**
+ * 主体身分
+ * <p>
  * 表示由可信身份提供者读取的稳定主体身份及当前状态。用户名不参与归属键。
  *
  * @param subjectId 主体的稳定身份标识

@@ -71,8 +71,8 @@ public class WorkspaceController {
      * @return 异步响应，包含当前可访问的空间摘要、后续游标及候选是否已扫描完毕的标记
      */
     @PostMapping("/browseAccessibleWorkspaces")
-    public Mono<ResultContext<WorkspaceDirectoryBrowser.Page>> browseAccessibleWorkspaces(
-            Authentication authentication, @Valid @RequestBody BrowseRequest request, Locale locale) {
+    public Mono<ResultContext<WorkspaceDirectoryBrowser.Page>> browseAccessibleWorkspaces(Authentication authentication,
+                                                                                          @Valid @RequestBody BrowseRequest request, Locale locale) {
         return workspaceOperations.browseAccessible(authentication, request.cursor(), new WorkspaceBrowseQuery(request.size(), request.search(), request.tenantId()))
                 .map(page -> ResultContext.success(page, ResultCodeEnum.SUCCESS, locale));
     }

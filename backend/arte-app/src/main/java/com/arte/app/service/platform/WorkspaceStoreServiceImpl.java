@@ -42,7 +42,7 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
     @Override
     public Optional<Workspace> lock(Scope scope) {
         requireTenant(scope.tenantId());
-        var found = one(() -> baseMapper.selectScoped(scope, true), PlatformRecords::workspace);
+        Optional<Workspace> found = one(() -> baseMapper.selectScoped(scope, true), PlatformRecords::workspace);
         found.ifPresent(v -> scopeHeld(scope));
         return found;
     }
@@ -51,7 +51,9 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
     public boolean insert(Workspace value) {
         requireTenant(value.scope().tenantId());
         boolean inserted = insertRecord(() -> baseMapper.insert(PlatformRecords.workspace(value)));
-        if (inserted) scopeHeld(value.scope());
+        if (inserted) {
+            scopeHeld(value.scope());
+        }
         return inserted;
     }
 
@@ -65,7 +67,9 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
     @Override
     public WorkspaceCandidatePage scanMembershipCandidates(String subject, WorkspaceCandidateKey after, int limit, String tenantId) {
         PlatformChecks.id(subject, "subjectId");
-        if (limit < 1 || limit > 100) throw new IllegalArgumentException("Invalid scan limit");
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("Invalid scan limit");
+        }
         PlatformWorkspaceDto key = null;
         if (after != null) {
             key = new PlatformWorkspaceDto();
@@ -77,11 +81,11 @@ public class WorkspaceStoreServiceImpl extends PlatformStoreSupport<PlatformWork
             PlatformChecks.id(tenantId, "tenantId");
             PlatformChecks.require(after == null || tenantId.equals(after.scope().tenantId()), "browse boundary outside tenant");
         }
-        var rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1, tenantId).stream()
+        List<WorkspaceCandidateKey> rows = baseMapper.scanCandidates(subject, subjectDigest(subject), key, limit + 1, tenantId).stream()
                 .map(row -> new WorkspaceCandidateKey(PlatformUtcTimes.decode(row.getCreatedAt()),
                         new Scope(row.getTenantId(), row.getId()))).toList();
         boolean more = rows.size() > limit;
-        var records = List.copyOf(rows.subList(0, Math.min(limit, rows.size())));
+        List<WorkspaceCandidateKey> records = List.copyOf(rows.subList(0, Math.min(limit, rows.size())));
         return new WorkspaceCandidatePage(records, !more);
     }
 }

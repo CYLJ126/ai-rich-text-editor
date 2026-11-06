@@ -8,12 +8,15 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * 平台专用物理库 Mapper。完整范围、当前读和 CAS 由专用方法明确表达。
+ * 工作空间 Mapper
+ * <p>
+ * 完整范围、当前读和 CAS 由专用方法明确表达。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/10 16:28 ✾
  */
 public interface PlatformWorkspaceMapper extends BaseMapper<PlatformWorkspaceDto> {
+
     PlatformWorkspaceDto selectScoped(@Param("scope") Scope scope, @Param("current") boolean current);
 
     int replaceCas(@Param("row") PlatformWorkspaceDto row, @Param("expected") long expected);

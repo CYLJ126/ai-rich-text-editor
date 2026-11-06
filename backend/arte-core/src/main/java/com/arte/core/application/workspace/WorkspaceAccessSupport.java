@@ -71,8 +71,9 @@ public final class WorkspaceAccessSupport {
         Set<String> tenantKeys = Set.copyOf(tenantIds);
         Set<Scope> scopeKeys = Set.copyOf(scopes);
         if (tenantKeys.size() > 100 || scopeKeys.size() > 100
-                || scopeKeys.stream().anyMatch(scope -> !tenantKeys.contains(scope.tenantId())))
+                || scopeKeys.stream().anyMatch(scope -> !tenantKeys.contains(scope.tenantId()))) {
             throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        }
         Principal principal = principals.requireActive(actor);
         WorkspaceAccessFacts facts = Objects.requireNonNull(batchFacts.read(principal.subjectId(), tenantKeys, scopeKeys, includeDefaultPreferences));
         // 不接受适配器混入其他范围的事实；值与键、主体的对应关系仍由共用校验逐项确认。
@@ -80,13 +81,16 @@ public final class WorkspaceAccessSupport {
                 || !tenantKeys.containsAll(facts.tenantPolicies().keySet()) || !tenantKeys.containsAll(facts.defaultPreferences().keySet())
                 || !scopeKeys.containsAll(facts.workspaces().keySet()) || !scopeKeys.containsAll(facts.workspaceMembers().keySet())
                 || !scopeKeys.containsAll(facts.workspacePolicies().keySet())
-                || (!includeDefaultPreferences && !facts.defaultPreferences().isEmpty()))
+                || (!includeDefaultPreferences && !facts.defaultPreferences().isEmpty())) {
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        }
         return new Batch(principal, facts, tenantKeys, scopeKeys);
     }
 
     /**
-     * 本批可信读取上下文；只复用原始事实，不保存允许决定。
+     * 本批可信读取上下文
+     * <p>
+     * 只复用原始事实，不保存允许决定。
      */
     public final class Batch {
 
@@ -105,7 +109,9 @@ public final class WorkspaceAccessSupport {
         }
 
         public TenantSnapshot tenant(String tenantId) {
-            if (!tenantKeys.contains(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            if (!tenantKeys.contains(tenantId)) {
+                throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            }
             return tenantSnapshots.computeIfAbsent(tenantId, key -> readTenant(key, false));
         }
 
@@ -113,7 +119,9 @@ public final class WorkspaceAccessSupport {
          * 独立目录只投影正式成员的资格。
          */
         TenantSnapshot directoryTenant(String tenantId) {
-            if (!tenantKeys.contains(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            if (!tenantKeys.contains(tenantId)) {
+                throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            }
             return readTenant(tenantId, true);
         }
 
@@ -125,7 +133,9 @@ public final class WorkspaceAccessSupport {
         }
 
         public WorkspaceSnapshot snapshot(Scope scope) {
-            if (!scopeKeys.contains(scope)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            if (!scopeKeys.contains(scope)) {
+                throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+            }
             return workspaceSnapshots.computeIfAbsent(scope, key -> workspaceSnapshot(tenant(key.tenantId()), key,
                     required(facts.workspaces(), key, PlatformErrorCodeEnum.NOT_FOUND),
                     required(facts.workspaceMembers(), key, PlatformErrorCodeEnum.NOT_FOUND),
@@ -134,14 +144,18 @@ public final class WorkspaceAccessSupport {
 
         public boolean isDefaultSpace(WorkspaceSnapshot snapshot) {
             Tenant tenant = snapshot.tenant().tenant();
-            if (tenant.type() != TenantTypeEnum.PERSONAL) return false;
+            if (tenant.type() != TenantTypeEnum.PERSONAL) {
+                return false;
+            }
             return matchesDefault(snapshot, required(facts.defaultPreferences(), tenant.id(), PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
         }
     }
 
     private static <K, V> V required(Map<K, V> facts, K key, PlatformErrorCodeEnum missing) {
         V value = facts.get(key);
-        if (value == null) throw error(missing);
+        if (value == null) {
+            throw error(missing);
+        }
         return value;
     }
 
@@ -172,8 +186,10 @@ public final class WorkspaceAccessSupport {
         Tenant tenant = locks.lockTenant(tenantId).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         TenantMembership member = locks.lockTenantMember(tenantId, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        return tenantSnapshot(locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()), () -> principals.requireActiveCurrent(actor)), tenantId, tenant, member,
-                () -> locks.authorizationFact(List.of(PolicyStore.class, tenantId), () -> policies.findCurrentTenantPolicy(tenantId)).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+        Principal principal = locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()),
+                () -> principals.requireActiveCurrent(actor));
+        return tenantSnapshot(principal, tenantId, tenant, member, () -> locks.authorizationFact(List.of(PolicyStore.class, tenantId),
+                () -> policies.findCurrentTenantPolicy(tenantId)).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
     }
 
     private TenantSnapshot tenantSnapshot(Principal principal, String tenantId, Tenant tenant,
@@ -184,14 +200,20 @@ public final class WorkspaceAccessSupport {
     private TenantSnapshot tenantSnapshot(Principal principal, String tenantId, Tenant tenant,
                                           TenantMembership member, Supplier<TenantPolicy> policyRead, boolean formalOnly) {
         if (!tenant.id().equals(tenantId) || !member.tenantId().equals(tenantId)
-                || !member.subjectId().equals(principal.subjectId()))
+                || !member.subjectId().equals(principal.subjectId())) {
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-        if (member.state() != MembershipStateEnum.ACTIVE || (formalOnly && member.role() == TenantRoleEnum.GUEST))
+        }
+        if (member.state() != MembershipStateEnum.ACTIVE || (formalOnly && member.role() == TenantRoleEnum.GUEST)) {
             throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        }
         // 租户生命周期独立于主体身份，不能将租户不可用报告为主体停用。
-        if (tenant.state() != TenantStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.TENANT_INACTIVE);
+        if (tenant.state() != TenantStateEnum.ACTIVE) {
+            throw error(PlatformErrorCodeEnum.TENANT_INACTIVE);
+        }
         TenantPolicy policy = policyRead.get();
-        if (!policy.tenantId().equals(tenantId)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        if (!policy.tenantId().equals(tenantId)) {
+            throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        }
         requirePolicyVersion(policy.policySchemaVersion(), policy.rolePresetVersion());
         return new TenantSnapshot(principal, tenant, member, policy);
     }
@@ -222,27 +244,41 @@ public final class WorkspaceAccessSupport {
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         WorkspaceMembership member = locks.lockWorkspaceMember(scope, subjectId)
                 .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
-        Principal principal = locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()), () -> principals.requireActiveCurrent(actor));
+        Principal principal = locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()),
+                () -> principals.requireActiveCurrent(actor));
         TenantSnapshot tenantSnapshot = tenantSnapshot(principal, scope.tenantId(), tenant, tenantMember,
-                () -> locks.authorizationFact(List.of(PolicyStore.class, scope.tenantId()), () -> policies.findCurrentTenantPolicy(scope.tenantId())).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope.tenantId()),
+                                () -> policies.findCurrentTenantPolicy(scope.tenantId()))
+                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
         return workspaceSnapshot(tenantSnapshot, scope, workspace, member,
-                () -> locks.authorizationFact(List.of(PolicyStore.class, scope), () -> policies.findCurrentWorkspacePolicy(scope)).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope),
+                                () -> policies.findCurrentWorkspacePolicy(scope))
+                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
     }
 
     private WorkspaceSnapshot workspaceSnapshot(TenantSnapshot tenant, Scope scope, Workspace workspace,
                                                 WorkspaceMembership member, Supplier<WorkspacePolicy> policyRead) {
         if (!workspace.scope().equals(scope) || !member.scope().equals(scope)
-                || !member.subjectId().equals(tenant.principal().subjectId()))
+                || !member.subjectId().equals(tenant.principal().subjectId())) {
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
-        if (member.state() != MembershipStateEnum.ACTIVE) throw error(PlatformErrorCodeEnum.NOT_FOUND);
-        if (workspace.state() == WorkspaceStateEnum.DELETED) throw error(PlatformErrorCodeEnum.NOT_FOUND);
-        if (workspace.state() == WorkspaceStateEnum.CLOSING) throw error(PlatformErrorCodeEnum.SPACE_CLOSING);
+        }
+        if (member.state() != MembershipStateEnum.ACTIVE) {
+            throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        }
+        if (workspace.state() == WorkspaceStateEnum.DELETED) {
+            throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        }
+        if (workspace.state() == WorkspaceStateEnum.CLOSING) {
+            throw error(PlatformErrorCodeEnum.SPACE_CLOSING);
+        }
         WorkspacePolicy policy = policyRead.get();
-        if (!policy.scope().equals(scope)) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        if (!policy.scope().equals(scope)) {
+            throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        }
         requirePolicyVersion(policy.policySchemaVersion(), policy.rolePresetVersion());
-        var versions = new AuthorizationVersions(tenant.tenant().authEpoch(), workspace.authEpoch(),
+        AuthorizationVersions versions = new AuthorizationVersions(tenant.tenant().authEpoch(), workspace.authEpoch(),
                 tenant.member().generation(), tenant.member().version(), member.generation(), member.version(), null, workspace.version());
-        var verified = new VerifiedScope(tenant.principal(), scope, tenant.member().role(), member.role(), versions, clock.instant());
+        VerifiedScope verified = new VerifiedScope(tenant.principal(), scope, tenant.member().role(), member.role(), versions, clock.instant());
         return new WorkspaceSnapshot(tenant, workspace, member, policy, verified);
     }
 
@@ -257,22 +293,27 @@ public final class WorkspaceAccessSupport {
 
     private boolean isDefaultSpace(WorkspaceSnapshot snapshot, boolean currentRead) {
         Tenant tenant = snapshot.tenant().tenant();
-        if (tenant.type() != TenantTypeEnum.PERSONAL) return false;
-        WorkspacePreference preference = (currentRead ? preferences.findCurrent(tenant.personalSubjectId())
-                : preferences.find(tenant.personalSubjectId())).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
+        if (tenant.type() != TenantTypeEnum.PERSONAL) {
+            return false;
+        }
+        WorkspacePreference preference = (currentRead ? preferences.findCurrent(tenant.personalSubjectId()) : preferences.find(tenant.personalSubjectId()))
+                .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE));
         return matchesDefault(snapshot, preference);
     }
 
     private boolean matchesDefault(WorkspaceSnapshot snapshot, WorkspacePreference preference) {
         Tenant tenant = snapshot.tenant().tenant();
         if (!preference.subjectId().equals(tenant.personalSubjectId())
-                || !preference.defaultScope().tenantId().equals(tenant.id()))
+                || !preference.defaultScope().tenantId().equals(tenant.id())) {
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        }
         return preference.defaultScope().equals(snapshot.workspace().scope());
     }
 
     public static void requirePolicyVersion(int schema, int preset) {
-        if (schema != 1 || preset != 1) throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        if (schema != 1 || preset != 1) {
+            throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
+        }
     }
 
     private static PlatformException error(PlatformErrorCodeEnum code) {

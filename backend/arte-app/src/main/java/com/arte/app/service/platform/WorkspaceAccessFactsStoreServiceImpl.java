@@ -3,6 +3,7 @@ package com.arte.app.service.platform;
 import com.arte.app.platform.persistence.PlatformJson;
 import com.arte.app.platform.persistence.mapper.*;
 import com.arte.app.pojo.platform.PlatformWorkspaceDto;
+import com.arte.app.pojo.platform.PlatformWorkspacePreferenceDto;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.workspace.*;
 import com.arte.core.spi.workspace.WorkspaceAccessFactsStore;
@@ -56,31 +57,35 @@ public class WorkspaceAccessFactsStoreServiceImpl extends ServiceImpl<PlatformWo
     @Override
     public WorkspaceAccessFacts read(String subject, Set<String> tenantIds, Set<Scope> scopes, boolean includeDefault) {
         com.arte.core.utils.platform.PlatformChecks.id(subject, "subjectId");
-        if (tenantIds.size() > 100 || scopes.size() > 100 || scopes.stream().anyMatch(s -> !tenantIds.contains(s.tenantId())))
+        if (tenantIds.size() > 100 || scopes.size() > 100 || scopes.stream().anyMatch(s -> !tenantIds.contains(s.tenantId()))) {
             throw new IllegalArgumentException("Invalid facts bounds");
-        if (tenantIds.isEmpty())
+        }
+        if (tenantIds.isEmpty()) {
             return new WorkspaceAccessFacts(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
-        var tids = tenantIds.stream().sorted().toList();
-        var tenantRows = tenants.selectByIds(tids).stream().map(PlatformRecords::tenant).toList();
-        var members = tenantMembers.selectTenants(tids, subject).stream().map(PlatformRecords::tenantMember).toList();
-        var policies = tenantPolicies.selectByIds(tids).stream().map(v -> PlatformRecords.tenantPolicy(v, json)).toList();
+        }
+        List<String> sortedTenantIds = tenantIds.stream().sorted().toList();
+        List<Tenant> tenantRows = tenants.selectByIds(sortedTenantIds).stream().map(PlatformRecords::tenant).toList();
+        List<TenantMembership> members = tenantMembers.selectTenants(sortedTenantIds, subject).stream().map(PlatformRecords::tenantMember).toList();
+        List<TenantPolicy> policies = tenantPolicies.selectByIds(sortedTenantIds).stream().map(v -> PlatformRecords.tenantPolicy(v, json)).toList();
         Map<Scope, Workspace> ws = Map.of();
         Map<Scope, WorkspaceMembership> wm = Map.of();
         Map<Scope, WorkspacePolicy> wp = Map.of();
         if (!scopes.isEmpty()) {
-            var ranges = scopes.stream().sorted(Comparator.comparing(Scope::tenantId).thenComparing(Scope::workspaceId)).toList();
+            List<Scope> ranges = scopes.stream().sorted(Comparator.comparing(Scope::tenantId).thenComparing(Scope::workspaceId)).toList();
             ws = index(baseMapper.selectScopes(ranges).stream().map(PlatformRecords::workspace).toList(), Workspace::scope);
             wm = index(workspaceMembers.selectScopes(ranges, subject).stream().map(PlatformRecords::workspaceMember).toList(), WorkspaceMembership::scope);
             wp = index(workspacePolicies.selectScopes(ranges).stream().map(v -> PlatformRecords.workspacePolicy(v, json)).toList(), WorkspacePolicy::scope);
         }
         Map<String, WorkspacePreference> defaults = new HashMap<>();
         if (includeDefault) {
-            var bySubject = new HashMap<String, String>();
-            for (var tenant : tenantRows)
-                if (tenant.personalSubjectId() != null) bySubject.put(tenant.personalSubjectId(), tenant.id());
+            HashMap<String, String> bySubject = new HashMap<String, String>();
+            for (Tenant tenant : tenantRows)
+                if (tenant.personalSubjectId() != null) {
+                    bySubject.put(tenant.personalSubjectId(), tenant.id());
+                }
             if (!bySubject.isEmpty()) {
-                for (var row : preferences.selectByIds(bySubject.keySet())) {
-                    var value = PlatformRecords.preference(row, json);
+                for (PlatformWorkspacePreferenceDto row : preferences.selectByIds(bySubject.keySet())) {
+                    WorkspacePreference value = PlatformRecords.preference(row, json);
                     defaults.put(bySubject.get(value.subjectId()), value);
                 }
             }
@@ -90,9 +95,11 @@ public class WorkspaceAccessFactsStoreServiceImpl extends ServiceImpl<PlatformWo
     }
 
     private static <K, V> Map<K, V> index(List<V> rows, Function<V, K> key) {
-        var values = new HashMap<K, V>();
-        for (var value : rows)
-            if (values.put(key.apply(value), value) != null) throw new IllegalStateException("Duplicate facts");
+        Map<K, V> values = new HashMap<>();
+        for (V value : rows)
+            if (values.put(key.apply(value), value) != null) {
+                throw new IllegalStateException("Duplicate facts");
+            }
         return values;
     }
 }

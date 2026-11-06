@@ -216,8 +216,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
 
     public List<WorkspaceReadCheck> checkWorkspaceReads(TrustedActor actor, List<Scope> scopes) {
         List<Scope> inputs = List.copyOf(scopes);
-        if (inputs.size() > 100) throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
-        var checks = batch(actor, inputs.stream().map(scope -> workspaceRequest(scope, WORKSPACE_READ, "workspace-list")).toList());
+        if (inputs.size() > 100) {
+            throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
+        }
+        BatchChecks checks = batch(actor, inputs.stream().map(scope -> workspaceRequest(scope, WORKSPACE_READ, "workspace-list")).toList());
         List<WorkspaceReadCheck> results = new ArrayList<>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
             AccessDecision decision = checks.decisions().get(i);
@@ -236,15 +238,18 @@ public final class DefaultAuthorizationService implements AuthorizationService {
         Set<Scope> scopes = new HashSet<>();
         boolean includeDefaults = false;
         for (AccessRequest request : inputs) {
-            if (!isRootRequest(request) && acl == null) continue;
+            if (!isRootRequest(request) && acl == null) {
+                continue;
+            }
             tenantIds.add(request.scope().tenantId());
             if (!request.resource().type().equals(TENANT) && request.scope().workspaceId() != null) {
                 scopes.add(request.scope().requireWorkspace());
                 includeDefaults |= Set.of(WORKSPACE_ARCHIVE, WORKSPACE_CLOSE, WORKSPACE_OWNER_TRANSFER).contains(request.action());
             }
         }
-        if (tenantIds.isEmpty())
+        if (tenantIds.isEmpty()) {
             return new BatchChecks(inputs.stream().map(request -> check(actor, request, false)).toList(), null);
+        }
         WorkspaceAccessSupport.Batch facts;
         try {
             facts = workspaceAccessSupport.readBatch(actor, tenantIds, scopes, includeDefaults);

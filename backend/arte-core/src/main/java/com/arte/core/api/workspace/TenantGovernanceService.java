@@ -6,7 +6,7 @@ import com.arte.core.pojo.workspace.TenantCommands;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 
 /**
- * 租户基本信息和组织创建命令。
+ * 租户基本信息和组织创建命令
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/05 17:11 ✾

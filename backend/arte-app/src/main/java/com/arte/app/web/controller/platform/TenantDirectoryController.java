@@ -43,8 +43,9 @@ public class TenantDirectoryController {
     }
 
     public record BrowseRequest(@Size(min = 36, max = 36) String cursor, @Min(1) @Max(100) Integer size,
-                                @Size(max = 100) String search, @Min(0) @Max(1) Integer type)
-            implements StrictPlatformRequest {
+                                @Size(max = 100) String search,
+                                @Min(0) @Max(1) Integer type) implements StrictPlatformRequest {
+
         public BrowseRequest {
             size = size == null ? 20 : size;
         }
@@ -66,15 +67,16 @@ public class TenantDirectoryController {
     }
 
     @PostMapping("/browseAccessibleTenants")
-    public Mono<ResultContext<TenantDirectoryBrowser.Page>> browseAccessibleTenants(
-            Authentication authentication, @Valid @RequestBody BrowseRequest request, Locale locale) {
+    public Mono<ResultContext<TenantDirectoryBrowser.Page>> browseAccessibleTenants(Authentication authentication,
+                                                                                    @Valid @RequestBody BrowseRequest request,
+                                                                                    Locale locale) {
         return queries.browse(authentication, request.cursor(), request.query())
                 .map(page -> ResultContext.success(page, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getTenant")
-    public Mono<ResultContext<TenantDirectoryViews.Detail>> getTenant(
-            Authentication authentication, @Valid @RequestBody GetRequest request, Locale locale) {
+    public Mono<ResultContext<TenantDirectoryViews.Detail>> getTenant(Authentication authentication,
+                                                                      @Valid @RequestBody GetRequest request, Locale locale) {
         return queries.detail(authentication, request.tenantId())
                 .map(detail -> ResultContext.success(detail, ResultCodeEnum.SUCCESS, locale));
     }
@@ -89,7 +91,9 @@ public class TenantDirectoryController {
 
     @PostMapping("/updateTenant")
     public Mono<ResultContext<CommandReceipt<WorkspaceViews.TenantView>>> updateTenant(Authentication authentication,
-                                                                                       @Valid @RequestBody UpdateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+                                                                                       @Valid @RequestBody UpdateRequest request,
+                                                                                       @RequestHeader("Idempotency-Key") String key,
+                                                                                       HttpServletRequest http, Locale locale) {
         TenantCommands.UpdateTenant command = new TenantCommands.UpdateTenant(new CommandMeta(key, PlatformHttpContext.traceId(http)),
                 request.tenantId(), request.expectedTenantVersion(), request.name());
         return queries.updateTenant(authentication, command).map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));
@@ -97,7 +101,9 @@ public class TenantDirectoryController {
 
     @PostMapping("/createOrganization")
     public Mono<ResultContext<CommandReceipt<WorkspaceViews.TenantView>>> createOrganization(Authentication authentication,
-                                                                                             @Valid @RequestBody CreateRequest request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+                                                                                             @Valid @RequestBody CreateRequest request,
+                                                                                             @RequestHeader("Idempotency-Key") String key,
+                                                                                             HttpServletRequest http, Locale locale) {
         TenantCommands.CreateOrganization command = new TenantCommands.CreateOrganization(
                 new CommandMeta(key, PlatformHttpContext.traceId(http)), request.name());
         return queries.createOrganization(authentication, command).map(receipt -> ResultContext.success(receipt, ResultCodeEnum.SUCCESS, locale));

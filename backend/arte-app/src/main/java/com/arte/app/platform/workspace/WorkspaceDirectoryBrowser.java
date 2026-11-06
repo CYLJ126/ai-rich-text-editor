@@ -4,6 +4,7 @@ import com.arte.app.platform.persistence.WorkspaceCursorStore;
 import com.arte.core.api.workspace.WorkspaceService;
 import com.arte.core.pojo.platform.TrustedActor;
 import com.arte.core.pojo.workspace.WorkspaceBrowseQuery;
+import com.arte.core.pojo.workspace.WorkspaceBrowseResult;
 import com.arte.core.pojo.workspace.WorkspaceCandidateKey;
 import com.arte.core.pojo.workspace.WorkspaceViews;
 
@@ -43,7 +44,7 @@ public final class WorkspaceDirectoryBrowser {
     }
 
     /**
-     * 按预算浏览空间目录，并在仍可继续扫描时保存新的公开游标。
+     * 浏览空间目录，并在仍可继续扫描时保存新的公开游标。
      * <p>
      * 首次浏览从目录起点开始；继续浏览必须使用同一主体、结果条数和规范化搜索条件。
      * 每次调用均由核心服务重新验证当前访问资格；返回空列表但 exhausted 为 false 时，客户端仍可继续浏览。
@@ -58,14 +59,15 @@ public final class WorkspaceDirectoryBrowser {
     public Page browse(TrustedActor actor, String token, WorkspaceBrowseQuery query) {
         WorkspaceCandidateKey after = null;
         if (token != null) {
-            var cursor = cursors.load(token);
+            WorkspaceCursorStore.Cursor cursor = cursors.load(token);
             if (!cursor.subjectId().equals(actor.principal().subjectId()) || cursor.size() != query.size()
                     || !cursor.search().equals(query.search())
-                    || !java.util.Objects.equals(cursor.tenantId(), query.tenantId()))
+                    || !java.util.Objects.equals(cursor.tenantId(), query.tenantId())) {
                 throw new IllegalArgumentException("Cursor context mismatch");
+            }
             after = cursor.key();
         }
-        var result = workspaces.browseAccessible(actor, query, after);
+        WorkspaceBrowseResult result = workspaces.browseAccessible(actor, query, after);
         String next = result.exhausted() ? null : cursors.save(new WorkspaceCursorStore.Cursor(
                 actor.principal().subjectId(), 3, query.size(), query.search(), result.nextBoundary(), query.tenantId()));
         return new Page(result.records(), next, result.exhausted());
