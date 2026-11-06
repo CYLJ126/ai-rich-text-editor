@@ -21,12 +21,13 @@ import {
   type ModelCommand,
   type ModelFields,
   modelFieldsSchema,
-  type ModelListFilter
+  type ModelListFilter,
+  modelListFilterSchema
 } from '@/services/platform/model';
 import type {ModelUsageChecks} from '@/services/platform/modelUsage';
 import type {ModelSelection} from '@/services/platform/ai';
 import {refKey} from '@/services/platform/ai';
-import {type BrowserContext, storageKey} from './storage';
+import {type BrowserContext, readValue, storageKey, writeValue} from './storage';
 import {type ModelChange, useModelManagement} from './useModelManagement';
 import {modelStatusText, validationText} from './modelManagementState';
 import ModelSharingManager from './ModelSharingManager';
@@ -116,7 +117,10 @@ function ModelManager({
   const original = sharingRecovery.operation?.command;
   const sharingResource = original && original.kind !== 'create'
     ? ('target' in original.request ? original.request.target.resourceId : original.request.resourceId) : undefined;
-  const vm = useModelManagement(context, onUpdated, sharingResource ?? initialModel?.resourceId ?? initialResourceId, initialModel);
+  const filterKey = scopeFilter ? storageKey(context, 'model-management-list-filter') : undefined;
+  const [initialFilter] = useState(() => filterKey
+    ? modelListFilterSchema.safeParse(readValue(filterKey).value).data ?? {} : {});
+  const vm = useModelManagement(context, onUpdated, sharingResource ?? initialModel?.resourceId ?? initialResourceId, initialModel, initialFilter);
   const [creating, setCreating] = useState(false);
   const [modelKind, setModelKind] = useState<'PERSONAL' | 'TENANT'>('PERSONAL');
   const [sharingUnsafe, setSharingUnsafe] = useState(false);
@@ -335,7 +339,8 @@ function ModelManager({
       setCreating(false);
       void vm.open(key);
     })}
-    listHeader={scopeFilter && <ModelListControls scopeFilter={scopeFilter} onFilter={vm.setListFilter}/>}
+    listHeader={scopeFilter && <ModelListControls scopeFilter={scopeFilter} onFilter={vm.setListFilter}
+                                                  initialFilter={initialFilter} filterKey={filterKey}/>}
     emptyText={vm.loading ? '正在读取模型列表…' : vm.cursor ? '本批没有匹配模型，可以继续加载。' : '没有匹配的可读模型。'}
     listFooter={vm.cursor && <Button loading={vm.loading} disabled={vm.loading}
                                      onClick={() => void vm.loadList(true)}>继续查找可读模型</Button>}
@@ -725,31 +730,33 @@ function ModelManager({
   </MasterDetailLayout>;
 }
 
-export function ModelListControls({scopeFilter, onFilter}: {
+export function ModelListControls({scopeFilter, onFilter, initialFilter = {}, filterKey}: {
   scopeFilter: React.ReactNode;
   onFilter?: (query: ModelListFilter) => void;
+  initialFilter?: ModelListFilter;
+  filterKey?: string;
 }) {
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState<ModelListFilter>({});
-  const applied = useRef<ModelListFilter>({});
+  const [search, setSearch] = useState(initialFilter.search ?? '');
+  const [query, setQuery] = useState(initialFilter);
+  const applied = useRef(initialFilter);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const composing = useRef(false);
   useEffect(() => () => clearTimeout(searchTimer.current), []);
 
-  function apply(change: ModelListFilter) {
+  function updateFilter(change: ModelListFilter, debounce = false) {
     clearTimeout(searchTimer.current);
     if (!onFilter) return;
     const previous = applied.current;
     const next = {...previous, ...change};
+    if (filterKey) writeValue(filterKey, next);
     if (next.search === previous.search && next.modelKind === previous.modelKind && next.state === previous.state) return;
-    applied.current = next;
-    setQuery(next);
-    onFilter(next);
-  }
-
-  function scheduleSearch(value: string) {
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => apply({search: value.trim() || undefined}), 250);
+    const apply = () => {
+      applied.current = next;
+      setQuery(next);
+      onFilter(next);
+    };
+    if (debounce) searchTimer.current = setTimeout(apply, 250);
+    else apply();
   }
 
   return <div className="model-list-filters">
@@ -759,7 +766,7 @@ export function ModelListControls({scopeFilter, onFilter}: {
            onChange={event => {
              const value = event.target.value;
              setSearch(value);
-             if (!composing.current) scheduleSearch(value);
+             if (!composing.current) updateFilter({search: value.trim() || undefined}, true);
            }}
            onCompositionStart={() => {
              composing.current = true;
@@ -767,14 +774,14 @@ export function ModelListControls({scopeFilter, onFilter}: {
            }}
            onCompositionEnd={event => {
              composing.current = false;
-             scheduleSearch(event.currentTarget.value);
+             updateFilter({search: event.currentTarget.value.trim() || undefined}, true);
            }}
-           onPressEnter={event => apply({search: event.currentTarget.value.trim() || undefined})}/>
+           onPressEnter={event => updateFilter({search: event.currentTarget.value.trim() || undefined})}/>
     <Select aria-label="筛选模型归属" placeholder="全部归属" allowClear disabled={!onFilter} value={query.modelKind}
             options={[{label: '个人模型', value: 'PERSONAL'}, {label: '租户模型', value: 'TENANT'}]}
-            onChange={modelKind => apply({modelKind, search: search.trim() || undefined})}/>
+            onChange={modelKind => updateFilter({modelKind, search: search.trim() || undefined})}/>
     <Select aria-label="筛选模型状态" placeholder="全部状态" allowClear disabled={!onFilter} value={query.state}
             options={Object.entries(stateName).map(([value, label]) => ({value, label}))}
-            onChange={state => apply({state, search: search.trim() || undefined})}/>
+            onChange={state => updateFilter({state, search: search.trim() || undefined})}/>
   </div>;
 }

@@ -15,7 +15,7 @@ export default function WorkspaceQuickSelect({userId, scope, name, onConnect, on
   const currentName = name ?? directory.current?.name ?? '选择工作空间';
   const notice = directory.error != null ? directory.error instanceof Error ? directory.error.message : '空间读取或切换失败，请重新读取后再选择。'
     : directory.warning;
-  return <Flex vertical gap={4} style={{minWidth: 0, maxWidth: '100%'}}>
+  return <Flex vertical gap={4} className="ainew-workspace-picker" style={{minWidth: 0, maxWidth: '100%'}}>
     <Dropdown open={open} onOpenChange={onOpenChange} trigger={['click']} menu={{
       selectedKeys: directory.records.filter(item => sameScope(item.scope, scope ?? directory.current?.scope)).map(item => `space:${JSON.stringify(item.scope)}`),
       items: [
@@ -68,7 +68,7 @@ export default function WorkspaceQuickSelect({userId, scope, name, onConnect, on
     }}>
       <Tooltip title={currentName}>
         <Button className="ainew-workspace-select" aria-label="选择工作空间" loading={directory.selecting}>
-          <span>{currentName}</span><DynamicIcon iconName="DownOutlined" size={12}/>
+          <span className="ainew-workspace-name">{currentName}</span><DynamicIcon iconName="DownOutlined" size={12}/>
         </Button>
       </Tooltip>
     </Dropdown>

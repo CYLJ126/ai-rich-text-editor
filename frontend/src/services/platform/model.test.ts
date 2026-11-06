@@ -62,6 +62,12 @@ it('rejects cross-scope resources and duplicate identities', async () => {
   vi.mocked(request).mockResolvedValue(answer({records: [model, model], nextCursor: null}));
   await expect(api.listManagedModels(scope)).rejects.toThrow();
 });
+it('accepts workspace ownership in the response to a personal model filter', async () => {
+  const personal = {...model, ownershipType: 'WORKSPACE'};
+  vi.mocked(request).mockResolvedValue(answer({records: [personal], nextCursor: null}));
+  expect((await api.listManagedModels(scope, null, undefined, {modelKind: 'PERSONAL'})).body.data.records)
+    .toEqual([personal]);
+});
 it('keeps safe draft/credential fields only and rejects identity substitutions', async () => {
   vi.mocked(request).mockResolvedValue(answer({
     draft: null,

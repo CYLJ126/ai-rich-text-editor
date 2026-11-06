@@ -13,6 +13,7 @@ import {
   browseTenantWorkspaces,
   getWorkspace,
   type WorkspaceScope,
+  workspaceScopeSchema,
   type WorkspaceSummary,
   type WorkspaceView
 } from '@/services/platform/workspace';
@@ -21,7 +22,7 @@ import {
   getConfigurationCapabilities,
   type ModelSelection
 } from '@/services/platform/ai';
-import {sameScope} from '@/features/ainew/storage';
+import {readValue, sameScope, workspaceStorageKey, writeValue} from '@/features/ainew/storage';
 import {aiLocation, parseAiIntent, useAiRoute, useChatReturn, verifyAiModel} from '@/features/ainew/aiNavigation';
 import {AiApiError} from '@/services/arte-ai/request';
 import '@/features/ainew/personalModels.css';
@@ -74,6 +75,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     }
   }, [search, userId, oldSpaceLink, requestedTab]);
   const intent = route.intent;
+  const managementScopeKey = workspaceStorageKey(userId, 'model-management-scope');
   const chatReturn = useChatReturn(userId, chat?.scope, intent?.chat);
   const [workspace, setWorkspace] = useState<WorkspaceView | null>(null);
   const [localIntent, setLocalIntent] = useState(true);
@@ -149,7 +151,10 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
       const {body} = await getWorkspace(scope, {signal: read.signal});
       if (!sameScope(body.data.scope, scope)) throw new Error('管理空间响应不一致。');
       if (model && execution) await verifyAiModel(execution, model, read.signal);
-      if (!read.signal.aborted) setWorkspace(body.data);
+      if (!read.signal.aborted) {
+        setWorkspace(body.data);
+        writeValue(managementScopeKey, body.data.scope);
+      }
     })().catch(() => {
       if (!read.signal.aborted) setScopeError(model
         ? '管理空间、执行空间或指定模型版本不可读或已失效，请重新选择。'
@@ -163,7 +168,9 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     if (closed || oldSpaceLink || !intent) return;
     setLocalIntent(true);
     setTargetModel(null);
-    if (intent.scope) readScope(intent.scope, intent.model, intent.execution);
+    const remembered = workspaceScopeSchema.safeParse(readValue(managementScopeKey).value);
+    const scope = intent.scope ?? remembered.data;
+    if (scope) readScope(scope, intent.model, intent.execution);
     else {
       scopeRead.current?.abort();
       setWorkspace(null);
@@ -171,7 +178,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
       setLoadingScope(undefined);
     }
     return () => scopeRead.current?.abort();
-  }, [intent, oldSpaceLink, closed]);
+  }, [intent, oldSpaceLink, closed, managementScopeKey]);
 
   const context = useMemo(() => workspace ? {userId, scope: workspace.scope} : null,
     [userId, workspace?.scope.tenantId, workspace?.scope.workspaceId]);

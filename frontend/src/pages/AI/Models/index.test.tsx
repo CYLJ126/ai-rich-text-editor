@@ -166,6 +166,19 @@ it('does not mount platform editors when the capability is denied or unavailable
   expect(screen.queryByLabelText('费率草稿')).not.toBeInTheDocument();
 });
 
+it('revalidates the selected management space when returning to the application tab', async () => {
+  const page = render(<ModelsPage/>);
+  await choose('选择管理空间', '空间 B（tenant / B）');
+  await screen.findByText('管理：B');
+  page.unmount();
+  vi.mocked(api.getWorkspace).mockClear();
+
+  render(<ModelsPage/>);
+  await screen.findByText('管理：B');
+  expect(api.getWorkspace).toHaveBeenCalledWith(b.scope, {signal: expect.any(AbortSignal)});
+  expect(directory.select).not.toHaveBeenCalled();
+});
+
 it('allows a security operator to save the platform egress policy independently of model configuration', async () => {
   vi.mocked(getConfigurationCapabilities).mockResolvedValue({
     available: true, manageConnections: false, managePlans: false, manageDefaultTemplate: false, manageEgress: true,

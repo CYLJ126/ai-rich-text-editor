@@ -19,7 +19,7 @@ export interface ModelDetail {
 /** 管理读取及命令协调：迟到响应不能跨资源／空间覆盖，未确认写入只按原请求和原键确认。 */
 export type ModelChange = { kind: api.ModelCommand['kind'] | 'prepare'; resourceId: string | null };
 
-export function useModelManagement(context: BrowserContext, onUpdated: (change: ModelChange) => void, initialResourceId?: string, initialModel?: import('@/services/platform/ai').ModelSelection) {
+export function useModelManagement(context: BrowserContext, onUpdated: (change: ModelChange) => void, initialResourceId?: string, initialModel?: import('@/services/platform/ai').ModelSelection, initialFilter: api.ModelListFilter = {}) {
   const [restored] = useState(() => readModelCommand(context));
   const [pending, setPending] = useState<api.ModelCommand | null>(restored.command);
   const pendingRef = useRef(pending);
@@ -29,7 +29,7 @@ export function useModelManagement(context: BrowserContext, onUpdated: (change: 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [listError, setListError] = useState('');
-  const filter = useRef<api.ModelListFilter>({});
+  const filter = useRef(initialFilter);
   const [records, setRecords] = useState<api.ManagedModel[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const visitedCursors = useRef(new Set<string>());

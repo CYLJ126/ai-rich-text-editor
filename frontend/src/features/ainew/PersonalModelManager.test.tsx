@@ -434,6 +434,31 @@ it('applies ownership and status filters immediately after selection', async () 
     state: 'PUBLISHED'
   });
 });
+it('restores all filters in the first list request after a remount, including a pending search', async () => {
+  const component = <PersonalModelManager context={context} scopeFilter={<span>管理空间选择</span>}
+                                          onUpdated={updated}/>;
+  const page = render(component);
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '筛选模型归属'}));
+  fireEvent.click(await screen.findByText('个人模型', {selector: '.ant-select-item-option-content'}));
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '筛选模型状态'}));
+  fireEvent.click(await screen.findByText('已发布', {selector: '.ant-select-item-option-content'}));
+  fireEvent.change(screen.getByRole('searchbox', {name: '搜索模型名称'}), {target: {value: '目标'}});
+  page.unmount();
+  vi.mocked(api.listManagedModels).mockClear();
+
+  const restored = render(component);
+  expect(screen.getByRole('searchbox', {name: '搜索模型名称'})).toHaveValue('目标');
+  expect(screen.getByTitle('个人模型')).toBeVisible();
+  expect(screen.getByTitle('已发布')).toBeVisible();
+  expect(api.listManagedModels).toHaveBeenNthCalledWith(1, scope, null, expect.anything(), {
+    search: '目标', modelKind: 'PERSONAL', state: 'PUBLISHED'
+  });
+  const other = {...context, scope: {...scope, workspaceId: 'other'}};
+  restored.rerender(<PersonalModelManager context={other} scopeFilter={<span>管理空间选择</span>}
+                                          onUpdated={updated}/>);
+  expect(screen.getByRole('searchbox', {name: '搜索模型名称'})).toHaveValue('');
+  expect(api.listManagedModels).toHaveBeenLastCalledWith(other.scope, null, expect.anything(), {});
+});
 it('discards late reads after scope changes and never shows another scope response', async () => {
   let finish!: (value: ReturnType<typeof response<api.ModelDraft>>) => void;
   vi.mocked(api.getModelDraft).mockImplementationOnce(() => new Promise(resolve => {
