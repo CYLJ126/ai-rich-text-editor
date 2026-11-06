@@ -106,15 +106,14 @@ spring.ai.mcp.server.disallow-delete=true
 # ======================== Public platform / workspace ========================
 # Filtered into classpath:platform/config/application.properties, imported by application.yml.
 # Rebuild Maven resources and restart the application after changing these values.
-# First execute arte-platform-identity-ddl-mysql.sql and arte-platform-workspace-ddl-mysql.sql.
-# Test database checked: both platform DDLs exist; zhangsc has id=1 and uses the existing FIXED subject.
-# Recheck these migration values and bindings before using a different database or account.
+# 安装公共身份和工作空间表，参见 ../arte-app/docs/PLATFORM_PERSISTENCE.md。
+# 下方账号 ID、迁移上限和主体 ID 是示例。部署前按目标库核对并替换。
 arte.platform.identity.enabled=true
-# REQUIRED: the reviewed old-account cutoff recorded at migration; never default this to 0.
+# 必填。填写该环境迁移时核定的旧账号 ID 上限。
 arte.platform.identity.legacy-user-id-ceiling=1798873089
-# REQUIRED: the real arte_rbac_user.id of the configured grants[0].subject-name (not a username).
+# 必填。填写待绑定账号在 arte_rbac_user 表中的实际数字 ID。
 arte.platform.identity.bindings[0].user-id=1
-# Preserve the existing FIXED AI subject, budget owner and history; do not generate a replacement.
+# 升级时沿用已有稳定主体 ID，以保留原有授权、预算和会话归属。
 arte.platform.identity.bindings[0].subject-id=example-subject-id
 
 arte.platform.persistence.enabled=true
@@ -126,12 +125,18 @@ arte.platform.workspace.enabled=true
 # NEW personal tenant defaults are versioned in the database; see arte-app/docs/PLATFORM_WORKSPACE_POLICY.md.
 # Existing policies change only through authorized governance commands.
 
-# ======================== New AI fixed configuration ========================
+# ======================== New AI DATABASE 配置 ========================
 # Maven filters this file into classpath:ainew/config/application.properties.
 # application-ai.yml imports that runtime file; changing this file requires rebuilding resources.
-# These values match examples/ainew-generation.yml; the example identity/rates are for testing.
-# Switch to DATABASE after applying the AI control migration; then import the reviewed deployment seed in the page.
-# DATABASE is authoritative. Configure connections at /AI/Connections; never import file model definitions.
+# 1. 启动前在 appDataSource 所用 MySQL 库安装新 AI 执行、控制面和模型表。
+#    依赖和安装顺序见 ../arte-app/docs/MODEL_CONFIGURATION_M5.md 的「新装和部署边界」。
+#    另执行 arte-ai-model-egress-policy-ddl-mysql.sql 和 arte-ai-model-egress-rbac-dml-mysql.sql。
+# 2. 显式授予平台安全人员 aiSecurity:manageEgress，并分配「环境配置」和「模型配置」菜单。
+#    启动后在「环境配置 → 模型配置 → 平台出口策略」保存供应商 origin，例如 https://api.deepseek.com。
+#    初始名单为空，供应商连接发布、连接测试和模型外发均需匹配白名单。
+# 3. 由平台配置人员在「供应商连接」发布审核连接，再到「模型方案与费率」发布审核方案。
+#    空目录可直接发布第一条连接。随后在「模型管理」按审核方案创建、验证和发布实际模型。
+#    出口安装与授权详情见 ../arte-app/docs/PLATFORM_AI_CONTROL.md 的「平台模型出口策略」。
 arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 StaticToolRegistry Bean。
@@ -148,16 +153,11 @@ arte.ai-new.conversation-metadata-backfill.enabled=true
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1
 
-# Model definitions and initial authorization/budgets are maintained in the database.
-# First-batch connection management: /AI/Connections (aiConfiguration:manage).
-# Legacy FIXED-only examples live in fixed-models.properties.example.
+# 审核配置、实际模型、授权及预算均由数据库保存。FIXED 部署另见 fixed-models.properties.example。
 
-# ARTE_DEEPSEEK_API_KEY 配置位置（此文件只写变量名称，不保存真实 Key）：
-# Environment variables 中配置 ARTE_DEEPSEEK_API_KEY，或从加载变量的终端重启 IDE。
-# 服务器/容器：将变量注入实际 Java 应用进程；只给 Maven 构建进程配置还不够。
-# 修改本文件或 app.properties 后需重新构建资源；不会自动建表或初始化预算账户。
+# 下方是环境变量凭据引用。使用这些引用的部署将 ARTE_DEEPSEEK_API_KEY 注入实际 Java 进程。
+# DATABASE 模式下，实际模型的个人或租户凭据在「模型管理」中维护。
 arte.ai-new-generation.enabled=true
-# DATABASE mode: set model origins in 环境配置 → 模型配置 → 平台出口策略.
 arte.ai-new-generation.secrets[0].reference.type=secret
 arte.ai-new-generation.secrets[0].reference.id=example-credential
 arte.ai-new-generation.secrets[0].reference.version=v1
