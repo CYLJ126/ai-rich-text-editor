@@ -136,7 +136,6 @@ arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 StaticToolRegistry Bean。
 arte.ai-new-tool.enabled=true
-arte.ai-new-tool.discovery.source-timeout=10s
 arte.ai-new-tool.discovery.refresh-on-startup=true
 # Tool chat and its Run worker require the S4 migrations and an execution worker.
 arte.ai-new-tool-chat.enabled=true
