@@ -151,9 +151,7 @@ arte.ai-new-tool.discovery.refresh-on-startup=true
 # 自动执行工具子任务还需启用下方分类调度，并配置与健康工具发现快照一致的 tool-manifest。
 arte.ai-new-tool-chat.enabled=true
 arte.ai-new-tool-chat.worker-enabled=true
-arte.ai-new-tool-chat.poll-interval=1s
-arte.ai-new-tool-chat.lease=45s
-arte.ai-new-tool-chat.batch-size=8
+# 工具聊天的轮询间隔、租约和批量大小由 common.properties 提供默认值。
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1
 
@@ -200,9 +198,7 @@ arte.ai-new-tool-approval.enabled=true
 
 # S5-01: enable only after reviewing the fixed endpoint, network origin and deployment manifest.
 arte.ai-new-tool-http.enabled=false
-arte.ai-new-tool-http.version=v1
-arte.ai-new-tool-http.endpoint=
-arte.ai-new-tool-http.allowed-origins=
+# HTTP 工具开启前，在部署配置中填写 endpoint 和 allowed-origins。
 
 # S5-02: apply billing migration and upgrade consumers before enabling.
 arte.ai-new-tool-billing.enabled=false
