@@ -70,6 +70,79 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it('keeps the loaded management page and cursor while saving preferences', async () => {
+  const userId = `management-preference-${++counter}`;
+  const hook = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  const {records, nextCursor} = hook.result.current;
+  const updated = receipt({...preference, favorites: [a], version: 1});
+  let finish!: (value: typeof updated) => void;
+  vi.mocked(api.updateWorkspacePreference).mockReturnValueOnce(new Promise(resolve => {
+    finish = resolve;
+  }));
+  let saving!: Promise<boolean>;
+  act(() => {
+    saving = hook.result.current.updatePreference({favorites: [a]});
+  });
+  expect(hook.result.current.preferenceSaving).toBe(true);
+  expect(hook.result.current.pending).toBeNull();
+  expect(hook.result.current.saving).toBe(false);
+  expect(hook.result.current.favorite(a)).toBe(false);
+  await act(async () => {
+    finish(updated);
+    await expect(saving).resolves.toBe(true);
+  });
+  expect(hook.result.current.favorite(a)).toBe(true);
+  expect(hook.result.current.preferenceSaving).toBe(false);
+  expect(hook.result.current.preferenceFailure).toBeNull();
+  expect(hook.result.current.records).toBe(records);
+  expect(hook.result.current.nextCursor).toBe(nextCursor);
+  expect(api.browseAccessibleWorkspaces).toHaveBeenCalledOnce();
+  expect(api.getWorkspacePreference).toHaveBeenCalledOnce();
+});
+
+it('keeps an uncertain management preference available for retry with its original request and key', async () => {
+  const userId = `management-preference-retry-${++counter}`;
+  const hook = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  vi.mocked(api.updateWorkspacePreference).mockRejectedValueOnce(new TypeError('network'));
+  await act(async () => {
+    await hook.result.current.updatePreference({startupScope: a});
+  });
+  expect(hook.result.current.pending).toBeNull();
+  expect(hook.result.current.error).toBeNull();
+  expect(hook.result.current.preferencePending?.kind).toBe('preference');
+  expect(hook.result.current.preferenceFailure).toBeInstanceOf(Error);
+  expect(hook.result.current.preference?.startupScope).toBeNull();
+  await act(async () => {
+    await expect(hook.result.current.retry()).resolves.toBe(true);
+  });
+  const requests = vi.mocked(api.updateWorkspacePreference).mock.calls;
+  expect(requests[1].slice(0, 2)).toEqual(requests[0].slice(0, 2));
+  expect(hook.result.current.preferencePending).toBeNull();
+  expect(hook.result.current.preferenceFailure).toBeNull();
+  expect(hook.result.current.preference?.startupScope).toEqual(a);
+});
+
+it('refreshes only preferences after a management preference version conflict', async () => {
+  const userId = `management-preference-conflict-${++counter}`;
+  const hook = renderHook(() => useWorkspaceManagement(userId));
+  await waitFor(() => expect(hook.result.current.loaded).toBe(true));
+  const {records, nextCursor} = hook.result.current;
+  vi.mocked(api.updateWorkspacePreference).mockRejectedValueOnce(new AiApiError(409, {code: 'PLATFORM_VERSION_CONFLICT'}));
+  vi.mocked(api.getWorkspacePreference).mockResolvedValueOnce(reply({...preference, version: 2}));
+  await act(async () => {
+    await expect(hook.result.current.updatePreference({startupScope: a})).resolves.toBe(false);
+  });
+  expect(hook.result.current.preference?.version).toBe(2);
+  expect(hook.result.current.preferencePending).toBeNull();
+  expect(hook.result.current.preferenceFailure?.message).toContain('偏好已在其他操作中更新');
+  expect(hook.result.current.warning).toBeNull();
+  expect(hook.result.current.records).toBe(records);
+  expect(hook.result.current.nextCursor).toBe(nextCursor);
+  expect(api.browseAccessibleWorkspaces).toHaveBeenCalledOnce();
+});
+
 it('browses management candidates without a personal preference and never initializes or selects chat', async () => {
   const userId = `management-no-personal-${++counter}`;
   const selected = vi.fn();

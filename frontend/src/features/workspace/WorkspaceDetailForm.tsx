@@ -33,7 +33,6 @@ interface Props {
   onUnsafeChange?: (unsafe: boolean) => void;
   tab?: WorkspaceTab;
   onTabChange?: (tab: WorkspaceTab) => void;
-  preferences?: React.ReactNode;
   focusedModel?: AiModel;
   focusBudget?: boolean;
 }
@@ -55,7 +54,7 @@ function Detail({
                   onUnsafeChange,
                   tab,
                   onTabChange,
-                  preferences, focusedModel, focusBudget
+                  focusedModel, focusBudget
                 }: Props) {
   const directory = useWorkspaceManagement(userId);
   const [view, setView] = useState<WorkspaceView>();
@@ -247,7 +246,7 @@ function Detail({
 
   async function save(retry = false) {
     if (closed || loading || directory.saving || directory.recoveryBlocked) return false;
-    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending || metadataChanged)) return false;
+    if (!retry && (!allowed || !name.trim() || (!scope && !tenantId) || pending || directory.preferencePending || metadataChanged)) return false;
     const previousVersion = retry && pending?.kind === 'rename' ? pending.request.expectedVersion : view?.version;
     const saved = retry ? await directory.retry()
       : view ? await directory.rename(view, name.trim(), description.trim())
@@ -279,7 +278,8 @@ function Detail({
     <Form.Item label="空间描述"><Input.TextArea aria-label="空间描述" value={description} maxLength={1000}
                                                 onChange={event => setDescription(event.target.value)}/></Form.Item>
     <Flex gap={8} wrap>
-      <Button type="primary" disabled={locked || !allowed || !name.trim() || (!!scope && !dirty) || metadataChanged}
+      <Button type="primary"
+              disabled={locked || !allowed || !name.trim() || (!!scope && !dirty) || !!directory.preferencePending || metadataChanged}
               loading={directory.saving} onClick={() => void save()}>{scope ? '保存空间信息' : '创建工作空间'}</Button>
       {scope && <Button disabled={locked}
                         onClick={() => void read()}>{dirty ? '放弃修改并重新读取空间信息' : '重新读取空间信息'}</Button>}
@@ -332,7 +332,6 @@ function Detail({
                                                    </Card>
                                                    <WorkspaceAiSummary scope={context.scope}
                                                                        revision={summaryRevision}/>
-                                                   {preferences}
                                                  </Flex>
                                                },
                                                {

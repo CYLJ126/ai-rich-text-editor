@@ -402,12 +402,37 @@ it('resets pagination when search changes without losing an open model draft', a
   await open();
   fireEvent.change(screen.getByRole('textbox', {name: '模型展示名称'}), {target: {value: '保留的草稿'}});
   const search = screen.getByRole('searchbox', {name: '搜索模型名称'});
+  const requests = vi.mocked(api.listManagedModels).mock.calls.length;
+  expect(screen.queryByRole('button', {name: '重新读取模型'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: 'search'})).not.toBeInTheDocument();
+  fireEvent.change(search, {target: {value: '目'}});
   fireEvent.change(search, {target: {value: '目标'}});
-  fireEvent.keyDown(search, {key: 'Enter'});
+  expect(api.listManagedModels).toHaveBeenCalledTimes(requests);
   await waitFor(() => expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, null, expect.anything(), {search: '目标'}));
+  expect(api.listManagedModels).toHaveBeenCalledTimes(requests + 1);
   expect(screen.getByRole('textbox', {name: '模型展示名称'})).toHaveValue('保留的草稿');
   fireEvent.click(await screen.findByRole('button', {name: '继续查找可读模型'}));
   await waitFor(() => expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, 'filtered', expect.anything(), {search: '目标'}));
+});
+it('applies ownership and status filters immediately after selection', async () => {
+  render(<PersonalModelManager context={context} scopeFilter={<span>管理空间选择</span>} onUpdated={updated}/>);
+  await screen.findByRole('button', {name: '管理 我的模型'});
+
+  async function selectFilter(label: string, option: string) {
+    const control = screen.getByRole('combobox', {name: label});
+    const requests = vi.mocked(api.listManagedModels).mock.calls.length;
+    fireEvent.mouseDown(control);
+    fireEvent.click(await screen.findByText(option, {selector: '.ant-select-item-option-content'}));
+    expect(api.listManagedModels).toHaveBeenCalledTimes(requests + 1);
+  }
+
+  await selectFilter('筛选模型归属', '个人模型');
+  expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, null, expect.anything(), {modelKind: 'PERSONAL'});
+  await selectFilter('筛选模型状态', '已发布');
+  expect(api.listManagedModels).toHaveBeenLastCalledWith(scope, null, expect.anything(), {
+    modelKind: 'PERSONAL',
+    state: 'PUBLISHED'
+  });
 });
 it('discards late reads after scope changes and never shows another scope response', async () => {
   let finish!: (value: ReturnType<typeof response<api.ModelDraft>>) => void;

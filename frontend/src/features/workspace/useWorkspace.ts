@@ -67,6 +67,8 @@ interface DirectoryState {
   loading: boolean;
   selecting: boolean;
   saving: boolean;
+  preferenceSaving: boolean;
+  preferenceFailure: Error | null;
   loaded: boolean;
   error: unknown;
   warning: string | null;
@@ -88,6 +90,7 @@ const empty: DirectoryState = {
   exhausted: false,
   cursorExpired: false,
   loading: false, selecting: false, saving: false, loaded: false, error: null, warning: null,
+  preferenceSaving: false, preferenceFailure: null,
   pending: null, recoveryBlocked: false, unsafeToLeave: false, canCreate: false, canRename: false, lastReceipt: null,
 };
 const stores = new Map<string, WorkspaceDirectory>();
@@ -153,7 +156,7 @@ class WorkspaceDirectory {
       this.write?.abort();
       this.permissions?.abort();
       this.write = undefined;
-      this.update({loading: false, selecting: false, saving: false});
+      this.update({loading: false, selecting: false, saving: false, preferenceSaving: false});
     };
   };
   clear = () => {
@@ -167,12 +170,15 @@ class WorkspaceDirectory {
     this.update({...empty, loaded: true});
   };
 
-  private persist(operation: WorkspaceOperation | null) {
+  private persist(operation: WorkspaceOperation | null, quietPreference = false) {
     const saved = operation ? writeValue(workspaceStorageKey(this.userId, this.management ? 'workspaceManagementOperation' : 'workspaceOperation'), operation)
       : removeValue(workspaceStorageKey(this.userId, this.management ? 'workspaceManagementOperation' : 'workspaceOperation'));
     this.update({
       pending: operation, unsafeToLeave: !saved,
-      ...(!saved ? {warning: STORAGE_WARNING, recoveryBlocked: !operation} : {})
+      ...(!saved ? {
+        recoveryBlocked: !operation,
+        ...(quietPreference ? {preferenceFailure: new Error(STORAGE_WARNING)} : {warning: STORAGE_WARNING})
+      } : {})
     });
     return saved;
   }
@@ -316,8 +322,11 @@ class WorkspaceDirectory {
       }
       const list = await api.browseAccessibleWorkspaces(null, search, {signal: controller.signal});
       if (this.stopped || controller.signal.aborted || selectionRevision !== this.revision) return;
+      const preference = prefs?.body.data ?? null;
+      const currentPreference = this.state.preference;
       this.update({
-        preference: prefs?.body.data ?? null,
+        preference: this.management && preference && currentPreference && preference.version < currentPreference.version
+          ? currentPreference : preference,
         records: list.body.data.records,
         nextCursor: list.body.data.nextCursor,
         exhausted: list.body.data.exhausted,
@@ -409,14 +418,15 @@ class WorkspaceDirectory {
   private async execute(operation: WorkspaceOperation): Promise<boolean> {
     if (this.write || this.state.recoveryBlocked || this.stopped) return false;
     const selectionRevision = this.revision;
-    if (!this.persist(operation) && this.management) {
-      this.update({recoveryBlocked: true});
-      return false;
-    }
+    const quietPreference = this.management && operation.kind === 'preference';
     const controller = new AbortController();
     this.write = controller;
-    this.update({saving: true, error: null});
+    this.update(quietPreference ? {preferenceSaving: true, preferenceFailure: null} : {saving: true, error: null});
     try {
+      if (!this.persist(operation, quietPreference) && this.management) {
+        this.update({recoveryBlocked: true});
+        return false;
+      }
       const options = {signal: controller.signal};
       const response = operation.operationId
         ? await api.getWorkspaceCommandReceipt<unknown>(operation.operationId, options)
@@ -428,7 +438,7 @@ class WorkspaceDirectory {
       const receipt = response.body.data;
       if (receipt.status !== 1) throw new Error('空间命令尚未确认完成，请确认原操作。');
       // Retain the server operation ID if follow-up validation fails; receipt queries never execute a new write.
-      this.persist({...operation, operationId: receipt.operationId});
+      this.persist({...operation, operationId: receipt.operationId}, quietPreference);
       if (operation.kind === 'initialize') {
         const personal = api.personalWorkspaceSchema.parse(receipt.value);
         this.update({preference: personal.preference, personalTenant: personal.tenant});
@@ -459,15 +469,31 @@ class WorkspaceDirectory {
         } catch { /* 同页更新已完成，跨页可重新读取。 */
         }
       }
-      this.update({lastReceipt: receipt});
-      this.persist(null);
-      await this.load();
+      if (!quietPreference) this.update({lastReceipt: receipt});
+      this.persist(null, quietPreference);
+      if (!quietPreference) await this.load();
       return true;
     } catch (failure) {
       if (!this.stopped && !controller.signal.aborted) {
-        this.update({error: failure});
-        if (failure instanceof AiApiError && failure.httpStatus >= 400 && failure.httpStatus < 500
-          && failure.httpStatus !== 408 && failure.code !== 'PLATFORM_IDEMPOTENCY_CONFLICT') {
+        const rejected = failure instanceof AiApiError && failure.httpStatus >= 400 && failure.httpStatus < 500
+          && failure.httpStatus !== 408 && failure.code !== 'PLATFORM_IDEMPOTENCY_CONFLICT';
+        if (quietPreference) {
+          if (rejected) this.persist(null, true);
+          const conflict = rejected && failure.httpStatus === 409;
+          if (conflict) {
+            // 更新偏好版本即可，保留空间目录及当前分页。
+            const latest = await api.getWorkspacePreference({signal: controller.signal}).catch(() => null);
+            if (latest && !this.stopped && !controller.signal.aborted) this.update({preference: latest.body.data});
+          }
+          if (!this.stopped && !controller.signal.aborted && !this.state.preferenceFailure) {
+            this.update({
+              preferenceFailure: new Error(conflict ? '偏好已在其他操作中更新，请核对后重试。'
+                : authExpired(failure) ? '登录状态已失效，请重新登录后重试。' : '工作空间偏好保存失败，请重试。')
+            });
+          }
+        } else {
+          this.update({error: failure});
+          if (!rejected) return false;
           this.persist(null);
           if (authExpired(failure)) this.update({current: null, records: [], canCreate: false, canRename: false});
           if (failure.httpStatus === 409) {
@@ -479,7 +505,8 @@ class WorkspaceDirectory {
       return false;
     } finally {
       if (this.write === controller) this.write = undefined;
-      if (!this.stopped && !controller.signal.aborted) this.update({saving: false});
+      if (!this.stopped && !controller.signal.aborted)
+        this.update(quietPreference ? {preferenceSaving: false} : {saving: false});
     }
   }
 
@@ -567,7 +594,9 @@ export function useWorkspaceManagement(userId: string) {
     directory = new WorkspaceDirectory(userId, true);
     managementStores.set(userId, directory);
   }
-  return useDirectory(directory);
+  const state = useDirectory(directory);
+  const preferencePending = state.pending?.kind === 'preference' ? state.pending : null;
+  return {...state, pending: preferencePending ? null : state.pending, preferencePending};
 }
 
 function useDirectory(directory: WorkspaceDirectory) {

@@ -9,8 +9,8 @@ import ConfigurationBoundary, {
 } from './ConfigurationBoundary';
 
 vi.mock('@umijs/max', async () => {
-  const {createMemoryHistory} = await import('history');
-  return {history: createMemoryHistory({initialEntries: ['/config']})};
+  const {createBrowserHistory} = await import('@umijs/history');
+  return {history: createBrowserHistory()};
 });
 vi.mock('@/features/workspace/useWorkspace', () => ({
   registerWorkspaceGuard: vi.fn(() => () => {
@@ -43,6 +43,23 @@ function Leave({done, groups}: { done: () => void; groups?: string[] }) {
   const navigation = useConfigurationNavigation();
   return <button type="button" onClick={() => navigation.request(done, groups)}>更换配置目标</button>;
 }
+
+it('allows browser reloads while clean and protects only while there are changes', () => {
+  function Editor() {
+    const [dirty, setDirty] = useState(false);
+    useConfigurationDraft({group: 'models', label: '模型配置草稿', status: dirty ? 'dirty' : 'clean'});
+    return <button type="button" onClick={() => setDirty(value => !value)}>切换草稿状态</button>;
+  }
+
+  const canReload = () => window.dispatchEvent(new Event('beforeunload', {cancelable: true}));
+  render(<ConfigurationBoundary userId="alice"><Editor/></ConfigurationBoundary>);
+  expect(canReload()).toBe(true);
+  const editor = screen.getByRole('button', {name: '切换草稿状态'});
+  fireEvent.click(editor);
+  expect(canReload()).toBe(false);
+  fireEvent.click(editor);
+  expect(canReload()).toBe(true);
+});
 
 it('saves ordinary drafts in dependency order and navigates only after all succeed', async () => {
   const calls: string[] = [];

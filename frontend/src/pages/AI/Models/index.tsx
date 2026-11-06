@@ -1,9 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {history, useModel} from '@umijs/max';
-import {Alert, Button, Flex, Modal, Select, Tabs, Typography} from 'antd';
+import {Alert, Button, Flex, message, Modal, Select, Tabs, Typography} from 'antd';
 import MasterDetailLayout from '@/components/MasterDetailLayout';
 import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
-import ModelManager from '@/features/ainew/ModelManager';
+import ModelManager, {modelAddAction, ModelListControls} from '@/features/ainew/ModelManager';
 import ConnectionManager from '@/features/ainew/ConnectionManager';
 import ModelPlanManager from '@/features/ainew/ModelPlanManager';
 import DefaultAiTemplateEditor from '@/features/ainew/DefaultAiTemplateEditor';
@@ -28,7 +28,6 @@ import ConfigurationBoundary, {
   useConfigurationFallback,
   useConfigurationNavigation
 } from '@/features/configuration/ConfigurationBoundary';
-import ConfigurationTarget from '@/features/configuration/ConfigurationTarget';
 import {useConfigurationDirectory} from '@/features/configuration/useConfigurationDirectory';
 
 export type ModelConfigurationTab = 'models' | 'sharing' | 'connections' | 'plans';
@@ -51,6 +50,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   userId: string; initialTab: ModelConfigurationTab; hasWorkspaceMenu: boolean;
 }) {
   const directory = useWorkspaceManagement(userId);
+  const [messageApi, messageContext] = message.useMessage();
   const chat = useCurrentWorkspace(userId);
   const navigation = useConfigurationNavigation();
   const search = useAiRoute();
@@ -78,7 +78,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   const [localIntent, setLocalIntent] = useState(true);
   const [closed, setClosed] = useState(false);
   const [scopeError, setScopeError] = useState('');
-  const [loadingScope, setLoadingScope] = useState(false);
+  const [loadingScope, setLoadingScope] = useState<WorkspaceScope>();
   const scopeRead = useRef<AbortController | null>(null);
   const [tab, setTab] = useState<ModelConfigurationTab>(initialTab === 'sharing' ? 'models' : initialTab);
   const [capabilities, setCapabilities] = useState<ConfigurationCapabilities | null>(null);
@@ -140,7 +140,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     const read = new AbortController();
     scopeRead.current = read;
     setWorkspace(null);
-    setLoadingScope(true);
+    setLoadingScope(scope);
     setScopeError('');
     void (async () => {
       const {body} = await getWorkspace(scope, {signal: read.signal});
@@ -152,7 +152,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
         ? '管理空间、执行空间或指定模型版本不可读或已失效，请重新选择。'
         : '指定管理空间不可读或已失效，请重新选择。');
     }).finally(() => {
-      if (!read.signal.aborted) setLoadingScope(false);
+      if (!read.signal.aborted) setLoadingScope(undefined);
     });
   }
 
@@ -165,7 +165,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
       scopeRead.current?.abort();
       setWorkspace(null);
       setScopeError('');
-      setLoadingScope(false);
+      setLoadingScope(undefined);
     }
     return () => scopeRead.current?.abort();
   }, [intent, oldSpaceLink, closed]);
@@ -177,9 +177,10 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   const matchesIntent = localIntent && sameScope(workspace?.scope, intent?.scope);
   const exact = matchesIntent ? intent?.model : undefined;
   const execution = matchesIntent ? intent?.execution : undefined;
+  const selectedScope = workspace?.scope ?? loadingScope;
   const managementFilter = <Select aria-label="选择管理空间" placeholder="选择管理空间"
-                                   value={workspace ? scopeKey(workspace.scope) : undefined}
-                                   loading={directory.loading || loadingScope}
+                                   value={selectedScope ? scopeKey(selectedScope) : undefined}
+                                   loading={directory.loading || !!loadingScope}
                                    showSearch optionFilterProp="label" style={{width: '100%'}}
                                    options={[...choices].map(([value, item]) => ({
                                      value,
@@ -187,7 +188,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
                                    }))}
                                    onChange={key => {
                                      const next = choices.get(key);
-                                     if (!next || sameScope(workspace?.scope, next.scope)) return;
+                                     if (!next || sameScope(selectedScope, next.scope)) return;
                                      navigation.request(() => {
                                        setLocalIntent(false);
                                        setTargetModel(null);
@@ -219,6 +220,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   }
 
   return <ViewportPage className="personal-models-page model-configuration-page" label="空间模型管理页面">
+    {messageContext}
     {chatReturn.changed && <Alert type="info" title="原聊天空间已变化，请重新确认当前使用空间。"/>}
     {chatReturn.error && <Alert type="warning" title={chatReturn.error}/>}
     {capabilityError && <Alert type="warning" title={capabilityError}
@@ -227,9 +229,6 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
     {requestedPlatform && active === 'models' && !capabilityError && <Alert type="info" title={capabilities
       ? '当前账号没有该平台配置权限。' : '正在核验平台配置资格。'}/>}
     {unsafe && <Alert type="info" title="当前有未保存内容、临时密钥或待确认操作。切换页签保留内容，离开前请先处理。"/>}
-    <ConfigurationTarget name={active === 'models' ? workspace?.name : '平台 AI 配置'}
-                         scope={active === 'models' ? workspace?.scope : undefined}
-                         purpose={active === 'models' ? '模型管理空间' : '平台级连接、方案与默认模板'}/>
     <Tabs tabBarExtraContent={<Button disabled={chatReturn.changed} loading={chatReturn.loading}
                                       onClick={chatReturn.back}>返回聊天</Button>}
           activeKey={active} onChange={value => setTab(value as ModelConfigurationTab)} destroyOnHidden={false} items={[
@@ -250,8 +249,12 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
                                                                                 management: context.scope
                                                                               });
                                                                             } : undefined}/>
-          : <MasterDetailLayout label="模型管理" actions={[]} items={[]} onSelect={() => {
-          }} listHeader={managementFilter}
+          : <MasterDetailLayout label="模型管理" actions={[{
+            ...modelAddAction, onClick: () => void messageApi.warning({
+              key: 'model-management-scope', content: loadingScope ? '正在核验管理空间，请稍候。' : '请先选择管理空间。'
+            })
+          }]} items={[]} onSelect={() => {
+          }} listHeader={<ModelListControls scopeFilter={managementFilter}/>}
                                 emptyText="请选择管理空间">
             <Alert type={scopeError ? 'warning' : 'info'}
                    title={scopeError || '选择可访问的管理空间后，可以创建或维护个人与租户模型。'}/>

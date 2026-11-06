@@ -86,34 +86,37 @@ function CoordinatorProvider({userId, children}: { userId: string; children: Rea
       live.current = false;
       pending.current = null;
       setNavigation(null);
+      changed();
     };
     window.addEventListener('arte-account-session-cleared', logout);
     return () => {
       live.current = false;
       window.removeEventListener('arte-account-session-cleared', logout);
     };
-  }, [userId]);
+  }, [userId, changed]);
 
-  useEffect(() => {
+  useEffect(() => registerWorkspaceGuard(userId, (_scope, proceed) => {
+    if (live.current) request(proceed); else proceed();
+  }), [userId, request]);
+
+  const shouldProtect = live.current && active().length > 0;
+  useLayoutEffect(() => {
+    // Browser history also installs its own beforeunload listener while blocked.
+    if (!shouldProtect) return;
     let unblock: (() => void) | undefined;
+    let disposed = false;
     const install = () => {
       unblock = history.block?.(transition => {
-        if (!live.current) {
+        const proceed = () => {
           unblock?.();
+          unblock = undefined;
           transition.retry();
-          return;
-        }
-        request(() => {
-          unblock?.();
-          transition.retry();
-          if (live.current) install();
-        });
+          if (!disposed && live.current && active().length) install();
+        };
+        if (live.current) request(proceed); else proceed();
       });
     };
     install();
-    const removeGuard = registerWorkspaceGuard(userId, (_scope, proceed) => {
-      if (live.current) request(proceed); else proceed();
-    });
     const warn = (event: BeforeUnloadEvent) => {
       if (live.current && active().length) {
         event.preventDefault();
@@ -122,11 +125,12 @@ function CoordinatorProvider({userId, children}: { userId: string; children: Rea
     };
     window.addEventListener('beforeunload', warn);
     return () => {
+      disposed = true;
       unblock?.();
-      removeGuard();
+      unblock = undefined;
       window.removeEventListener('beforeunload', warn);
     };
-  }, [userId, request, active]);
+  }, [shouldProtect, request, active]);
 
   const selected = navigation ? active(navigation.filter) : [];
   const canDiscard = selected.every(entry => entry.status === 'dirty' && !!entry.discard);

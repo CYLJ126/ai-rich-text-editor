@@ -52,7 +52,7 @@
   overflow-wrap: anywhere;
 }
 
-.master-detail-card[aria-disabled="true"] {
+.master-detail-card[data-disabled="true"] {
   cursor: default;
 }
 
@@ -61,9 +61,14 @@
   background: var(--ant-color-primary-bg, #e6f4ff);
 }
 
-.master-detail-card:focus-visible {
+.master-detail-card-select:focus-visible {
   outline: 2px solid var(--ant-color-primary, #1677ff);
-  outline-offset: -2px;
+  outline-offset: 2px;
+}
+
+.master-detail-card-actions {
+  margin-top: 4px;
+  cursor: default;
 }
 
 .master-detail-layout .ant-card, .master-detail-layout .ant-card-body {

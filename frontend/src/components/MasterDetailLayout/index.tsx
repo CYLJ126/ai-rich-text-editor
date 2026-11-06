@@ -7,7 +7,7 @@ export interface MasterDetailAction {
   key: string;
   label: string;
   icon: string;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
 }
@@ -16,6 +16,7 @@ export interface MasterDetailItem {
   key: string;
   label: string;
   content: React.ReactNode;
+  actions?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -64,7 +65,8 @@ export default function MasterDetailLayout({
               {/* 左侧上方操作图标 */}
               {actions.map(action =>
                 <Tooltip key={action.key} title={action.label}>
-                  <Button aria-label={action.label} disabled={action.disabled} loading={action.loading}
+                  <Button aria-label={action.label} disabled={action.disabled || !action.onClick}
+                          loading={action.loading}
                           icon={<DynamicIcon iconName={action.icon}/>} onClick={action.onClick}/>
                 </Tooltip>)}
             </Flex>}
@@ -74,20 +76,24 @@ export default function MasterDetailLayout({
               {!items.length && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText}/>}
               {/* 左侧 card 列表，点击时加载右侧表单详情 */}
               {items.map(item =>
-                <Card key={item.key} size="small" role="button" aria-label={item.label}
-                      aria-pressed={selectedKey === item.key}
-                      aria-disabled={item.disabled || undefined}
-                      tabIndex={item.disabled ? -1 : 0}
+                <Card key={item.key} size="small" data-disabled={item.disabled || undefined}
                       className={`master-detail-card${selectedKey === item.key ? ' master-detail-card-selected' : ''}`}
                       onClick={() => {
                         if (!item.disabled) onSelect(item.key);
-                      }}
-                      onKeyDown={event => {
-                        if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
-                          event.preventDefault();
-                          if (!item.disabled) onSelect(item.key);
-                        }
-                      }}>{item.content}
+                      }}>
+                  <div className="master-detail-card-select" role="button" aria-label={item.label}
+                       aria-pressed={selectedKey === item.key} aria-disabled={item.disabled || undefined}
+                       tabIndex={item.disabled ? -1 : 0}
+                       onKeyDown={event => {
+                         if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+                           event.preventDefault();
+                           if (!item.disabled) onSelect(item.key);
+                         }
+                       }}>{item.content}</div>
+                  {item.actions && <Flex justify="end" gap={4} className="master-detail-card-actions"
+                                         onClick={event => event.stopPropagation()}>
+                    {item.actions}
+                  </Flex>}
                 </Card>)}
             </Flex>
             {listFooter}

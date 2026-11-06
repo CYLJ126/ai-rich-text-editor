@@ -54,6 +54,7 @@ interface Props {
 }
 
 type Fields = Omit<ModelFields, 'planRef'> & { template: string };
+export const modelAddAction = {key: 'add', label: '添加模型', icon: 'PlusOutlined'};
 const stateName = {DRAFT: '草稿', PUBLISHED: '已发布', DISABLED: '已停用'};
 const commandName = {
   create: '创建模型',
@@ -308,7 +309,7 @@ function ModelManager({
   return <MasterDetailLayout
     label="模型管理" style={onBrowse ? {height: '75dvh'} : undefined}
     actions={[
-      {
+      ...(!scopeFilter ? [{
         key: 'refresh',
         label: '重新读取模型',
         icon: 'ReloadOutlined',
@@ -318,18 +319,16 @@ function ModelManager({
           void vm.loadList();
           if (vm.selected) void vm.open(vm.selected);
         }
-      },
+      }] : []),
       {
-        key: 'add',
-        label: '添加模型',
-        icon: 'PlusOutlined',
+        ...modelAddAction,
         disabled: (!navigation.available && !canMove) || !vm.canCreate,
         onClick: () => move(() => {
           setCreating(true);
           setName('');
           setModelKind(vm.creationKinds[0] ?? 'PERSONAL');
         })
-      },
+      }
     ]}
     selectedKey={creating ? undefined : vm.selected ?? undefined}
     onSelect={key => move(() => {
@@ -726,24 +725,56 @@ function ModelManager({
   </MasterDetailLayout>;
 }
 
-function ModelListControls({scopeFilter, onFilter}: {
+export function ModelListControls({scopeFilter, onFilter}: {
   scopeFilter: React.ReactNode;
-  onFilter: (query: ModelListFilter) => void
+  onFilter?: (query: ModelListFilter) => void;
 }) {
+  const [search, setSearch] = useState('');
   const [query, setQuery] = useState<ModelListFilter>({});
-  const apply = (next: ModelListFilter) => {
+  const applied = useRef<ModelListFilter>({});
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const composing = useRef(false);
+  useEffect(() => () => clearTimeout(searchTimer.current), []);
+
+  function apply(change: ModelListFilter) {
+    clearTimeout(searchTimer.current);
+    if (!onFilter) return;
+    const previous = applied.current;
+    const next = {...previous, ...change};
+    if (next.search === previous.search && next.modelKind === previous.modelKind && next.state === previous.state) return;
+    applied.current = next;
     setQuery(next);
     onFilter(next);
-  };
-  return <Flex vertical gap={8} style={{marginBottom: 12}}>
+  }
+
+  function scheduleSearch(value: string) {
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => apply({search: value.trim() || undefined}), 250);
+  }
+
+  return <div className="model-list-filters">
     {scopeFilter}
-    <Input.Search aria-label="搜索模型名称" placeholder="搜索模型名称" maxLength={100} allowClear
-                  onSearch={search => apply({...query, search: search.trim() || undefined})}/>
-    <Select aria-label="筛选模型归属" placeholder="全部归属" allowClear value={query.modelKind}
+    <Input type="search" aria-label="搜索模型名称" placeholder="搜索模型名称" maxLength={100} allowClear
+           disabled={!onFilter} value={search}
+           onChange={event => {
+             const value = event.target.value;
+             setSearch(value);
+             if (!composing.current) scheduleSearch(value);
+           }}
+           onCompositionStart={() => {
+             composing.current = true;
+             clearTimeout(searchTimer.current);
+           }}
+           onCompositionEnd={event => {
+             composing.current = false;
+             scheduleSearch(event.currentTarget.value);
+           }}
+           onPressEnter={event => apply({search: event.currentTarget.value.trim() || undefined})}/>
+    <Select aria-label="筛选模型归属" placeholder="全部归属" allowClear disabled={!onFilter} value={query.modelKind}
             options={[{label: '个人模型', value: 'PERSONAL'}, {label: '租户模型', value: 'TENANT'}]}
-            onChange={modelKind => apply({...query, modelKind})}/>
-    <Select aria-label="筛选模型状态" placeholder="全部状态" allowClear value={query.state}
+            onChange={modelKind => apply({modelKind, search: search.trim() || undefined})}/>
+    <Select aria-label="筛选模型状态" placeholder="全部状态" allowClear disabled={!onFilter} value={query.state}
             options={Object.entries(stateName).map(([value, label]) => ({value, label}))}
-            onChange={state => apply({...query, state})}/>
-  </Flex>;
+            onChange={state => apply({state, search: search.trim() || undefined})}/>
+  </div>;
 }

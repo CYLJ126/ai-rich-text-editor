@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {history, useModel} from '@umijs/max';
-import {Alert, Button, Card, Flex, Input, Tooltip, Typography} from 'antd';
+import {Alert, Button, Flex, Input, Modal, Tooltip, Typography} from 'antd';
 import MasterDetailLayout from '@/components/MasterDetailLayout';
 import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
 import DynamicIcon from '@/components/DynamicIcon/MyDynamicIcon';
@@ -35,6 +35,7 @@ const keyOf = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.w
 const tabs = new Set(['overview', 'ai', 'policy', 'members']);
 const tenantKey = (tenant: TenantSummary) => tenant.id;
 type Location = { scope: WorkspaceScope; tab: WorkspaceTab; intent: AiIntent };
+type PreferenceChange = Parameters<ReturnType<typeof useWorkspaceManagement>['updatePreference']>[0];
 
 export default function WorkspaceConfigurationPage() {
   const {initialState} = useModel('@@initialState');
@@ -91,8 +92,11 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
   const [formUnsafe, setFormUnsafe] = useState(false);
   const [targetTab, setTargetTab] = useState<WorkspaceTab>(defaultTab);
   const [closed, setClosed] = useState(false);
+  const [preferenceDialogOpen, setPreferenceDialogOpen] = useState(false);
   const alive = useRef(true);
   const unsafe = formUnsafe || directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave;
+  const {preferenceSaving, preferenceFailure, preferencePending} = directory;
+  const canRetryPreference = !!preferencePending && !directory.recoveryBlocked;
   const navigation = useConfigurationNavigation();
   useConfigurationFallback(directory.saving || !!directory.pending || directory.recoveryBlocked || directory.unsafeToLeave,
     'workspace-operation', '空间管理操作');
@@ -100,6 +104,16 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
   useEffect(() => {
     setFilter(directory.search);
   }, [directory.search]);
+
+  useEffect(() => {
+    if (!preferenceSaving && (preferenceFailure || preferencePending)) setPreferenceDialogOpen(true);
+  }, [preferenceSaving, preferenceFailure, preferencePending]);
+
+  function changePreference(change: PreferenceChange) {
+    if (preferenceSaving) return;
+    if (preferencePending) setPreferenceDialogOpen(true);
+    else void directory.updatePreference(change);
+  }
 
   useEffect(() => {
     alive.current = true;
@@ -214,6 +228,13 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                       setCreating(true);
                     })}/>
           </Tooltip>
+          <Tooltip title="清除启动空间偏好">
+            <Button aria-label="清除启动空间偏好"
+                    icon={<DynamicIcon iconName="ClearOutlined"/>}
+                    aria-disabled={preferenceSaving || undefined}
+                    disabled={!(canRetryPreference && !preferenceSaving) && (unsafe || !directory.preference?.startupScope)}
+                    onClick={() => changePreference({startupScope: null})}/>
+          </Tooltip>
         </Flex>}
         listFooter={<Flex vertical gap={8} style={{marginTop: 12}}>
           {directory.warning && <Alert type="warning" title={directory.warning}/>}
@@ -228,12 +249,15 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                     onClick={() => void directory.loadMore()}>继续加载</Button>}
           {directory.cursorExpired &&
             <Button onClick={() => void directory.load(filter)}>重新加载目录</Button>}
-          {directory.loaded && !directory.preference && !directory.error && <Button disabled={unsafe}
+          {directory.loaded && !directory.preference && !directory.error &&
+            <Button disabled={unsafe || !!preferencePending}
                                                                                     onClick={() => void directory.initialize()}>初始化个人默认空间</Button>}
         </Flex>}
         emptyText={directory.loading ? '正在读取空间目录…' : '没有匹配的工作空间。'}
         items={directory.records.map(item => ({
           key: keyOf(item.scope), label: `配置 ${item.name}`, disabled: directory.saving || locating,
+          actions: <WorkspacePreferenceActions workspace={item} directory={directory} onChange={changePreference}
+                                               disabled={unsafe}/>,
           content: <Flex vertical gap={8}>
             <Typography.Text strong>{item.name}</Typography.Text>
             <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
@@ -272,14 +296,26 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                                  onAccessLost={() => {
                                    setTarget(null);
                                    setLocationError('当前账号已无法访问此工作空间。');
-                                 }}
-                                 preferences={<WorkspacePreferences scope={target.scope} directory={directory}
-                                                                    disabled={unsafe}/>}/>
+                                 }}/>
           </> : !locating && <Typography.Paragraph>
             从左侧选择工作空间，或点击列表上方的新建按钮。
           </Typography.Paragraph>}
       </MasterDetailLayout>
     </div>
+    <Modal title={preferencePending ? '偏好保存结果待确认' : '偏好保存失败'}
+           open={preferenceDialogOpen && !preferenceSaving}
+           okText={canRetryPreference ? '重试原操作' : '知道了'}
+           cancelText="稍后处理"
+           footer={canRetryPreference ? undefined : (_, {OkBtn}) => <OkBtn/>}
+           onCancel={() => setPreferenceDialogOpen(false)}
+           onOk={() => {
+             setPreferenceDialogOpen(false);
+             if (canRetryPreference) void directory.retry();
+           }}>
+      {canRetryPreference
+        ? '暂时无法确认偏好是否已保存。请重试原操作，或稍后点击偏好图标继续确认。'
+        : preferenceFailure?.message}
+    </Modal>
   </ViewportPage>;
 }
 
@@ -300,28 +336,37 @@ function NewWorkspaceForm({userId, initialTenantId, onSaved, onCancel, onUnsafeC
   </>;
 }
 
-function WorkspacePreferences({scope, directory, disabled}: {
-  scope: WorkspaceScope; directory: ReturnType<typeof useWorkspaceManagement>; disabled: boolean;
+function WorkspacePreferenceActions({workspace: {scope, name}, directory, disabled, onChange}: {
+  workspace: WorkspaceView; directory: ReturnType<typeof useWorkspaceManagement>; disabled: boolean;
+  onChange: (change: PreferenceChange) => void;
 }) {
   const preference = directory.preference;
   const startup = sameScope(preference?.startupScope, scope);
   const favorite = directory.favorite(scope);
-  return <Card title="我的偏好" size="small">
-    {preference ? <Flex vertical gap={8}>
-      <Typography.Text type="secondary">收藏与启动设置仅应用于你的账号。</Typography.Text>
-      <Flex gap={8} wrap>
-        <Button disabled={disabled} onClick={() => void directory.updatePreference({
-          favorites: favorite ? preference.favorites.filter(item => !sameScope(item, scope)) : [...preference.favorites, scope],
-        })}>{favorite ? '取消收藏' : '收藏此空间'}</Button>
-        <Button disabled={disabled || startup}
-                onClick={() => void directory.updatePreference({startupScope: scope})}>
-          {startup ? '已设为启动空间' : '设为启动空间'}
-        </Button>
-        {preference.startupScope && <Button disabled={disabled}
-                                            onClick={() => void directory.updatePreference({startupScope: null})}>清除启动空间偏好</Button>}
-      </Flex>
-    </Flex> : <Typography.Text type="secondary">个人空间偏好暂不可用。可在左侧初始化个人默认空间。</Typography.Text>}
-  </Card>;
+  return <>
+    <Tooltip title={favorite ? '取消收藏' : '收藏此空间'}>
+      <Button size="small" variant="text" color={favorite ? 'gold' : 'default'}
+              aria-label={`收藏 ${name}`} aria-pressed={favorite}
+              aria-disabled={directory.preferenceSaving || undefined}
+              icon={<DynamicIcon iconName={favorite ? 'StarFilled' : 'StarOutlined'}/>}
+              disabled={disabled || !preference}
+              onClick={() => {
+                if (!preference) return;
+                const favorites = favorite
+                  ? preference.favorites.filter(item => !sameScope(item, scope))
+                  : [...preference.favorites, scope];
+                onChange({favorites});
+              }}/>
+    </Tooltip>
+    <Tooltip title={startup ? '取消启动空间设置' : '设为启动空间'}>
+      <Button size="small" variant="text" color={startup ? 'primary' : 'default'}
+              aria-label={`启动空间 ${name}`} aria-pressed={startup}
+              aria-disabled={directory.preferenceSaving || undefined}
+              icon={<DynamicIcon iconName={startup ? 'HomeFilled' : 'HomeOutlined'}/>}
+              disabled={disabled || !preference}
+              onClick={() => onChange({startupScope: startup ? null : scope})}/>
+    </Tooltip>
+  </>;
 }
 
 function WorkspaceEntry({userId, target}: { userId: string; target: WorkspaceView }) {

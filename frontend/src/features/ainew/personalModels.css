@@ -63,6 +63,17 @@
   padding: 8px;
 }
 
+.model-list-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.model-list-filters > * {
+  min-width: 0;
+}
+
 @container (min-width: 760px) {
   .personal-models-grid {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);

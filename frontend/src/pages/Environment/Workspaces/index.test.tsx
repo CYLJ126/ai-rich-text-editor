@@ -2,6 +2,7 @@ import React, {useState} from 'react';
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {history} from '@umijs/max';
+import {ConfigProvider} from 'antd';
 import {getWorkspace} from '@/services/platform/workspace';
 import {getManagedModel} from '@/services/platform/model';
 import {listWorkspaceModelOptions} from '@/services/platform/ai';
@@ -40,7 +41,6 @@ vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
                              onSaved,
                              onUnsafeChange,
                              onCancel,
-                             preferences,
                              focusedModel
                            }: React.ComponentProps<typeof WorkspaceDetailForm>) {
     const [dirty, setDirty] = useState(false);
@@ -60,7 +60,6 @@ vi.mock('@/features/workspace/WorkspaceDetailForm', () => ({
       }}>模拟保存
       </button>
       {onCancel && <button type="button" onClick={onCancel}>取消新增</button>}
-      {preferences}
       {focusedModel && <span>精确版本 {focusedModel.binding.version}</span>}
     </section>;
   }
@@ -88,7 +87,9 @@ beforeEach(() => {
   vi.mocked(listWorkspaceModelOptions).mockResolvedValue({body: {data: {items: [exact], nextCursor: null}}} as never);
   directory = {
     records: [{...space, defaultWorkspace: false}], preference: pref, search: '', loaded: true,
-    load: vi.fn(), loadMore: vi.fn(), updatePreference: vi.fn(), favorite: vi.fn(() => false)
+    load: vi.fn(), loadMore: vi.fn(), updatePreference: vi.fn(), retry: vi.fn(),
+    favorite: vi.fn((scope: typeof space.scope) => directory.preference?.favorites.some(item =>
+      item.tenantId === scope.tenantId && item.workspaceId === scope.workspaceId) ?? false)
   } as unknown as typeof directory;
   vi.mocked(retainWorkspaceSelection).mockReturnValue({select, release: vi.fn()});
   vi.mocked(browseAccessibleTenants).mockResolvedValue({
@@ -102,6 +103,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const choose = () => fireEvent.click(screen.getByRole('button', {name: '配置 空间 B'}));
+const withoutMotion = ({children}: { children: React.ReactNode }) =>
+  <ConfigProvider theme={{token: {motion: false}}}>{children}</ConfigProvider>;
 
 it('opens an overview only after selecting a card when the menu has no target', () => {
   const page = render(<Page/>);
@@ -146,16 +149,89 @@ it('uses the independent tenant directory for creation and opens the created spa
   expect(directory.updatePreference).not.toHaveBeenCalled();
 });
 
-it('keeps search in the directory and startup settings under my preferences', () => {
-  render(<Page/>);
+it('clears the account startup preference from the directory without selecting a workspace', () => {
+  const page = render(<Page/>);
   fireEvent.change(screen.getByLabelText('搜索工作空间'), {target: {value: '空间'}});
   fireEvent.click(screen.getByRole('button', {name: /^搜\s*索$/}));
   expect(directory.load).toHaveBeenCalledWith('空间');
-  expect(screen.queryByRole('button', {name: '清除启动空间偏好'})).not.toBeInTheDocument();
-  choose();
-  expect(screen.getByText('我的偏好')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', {name: '清除启动空间偏好'}));
   expect(directory.updatePreference).toHaveBeenCalledWith({startupScope: null});
+  expect(screen.queryByRole('region', {name: '配置详情测试'})).not.toBeInTheDocument();
+  directory = {...directory, preference: {...pref, startupScope: null}};
+  page.rerender(<Page/>);
+  expect(screen.getByRole('button', {name: '清除启动空间偏好'})).toBeDisabled();
+});
+
+it('toggles preferences for a card without changing the selected configuration or usage space', () => {
+  directory = {
+    ...directory,
+    records: [...directory.records, {...executeSpace, name: '空间 C', defaultWorkspace: false}]
+  };
+  const page = render(<Page/>);
+  choose();
+  const favorite = screen.getByRole('button', {name: '收藏 空间 C'});
+  const startup = screen.getByRole('button', {name: '启动空间 空间 C'});
+  expect(favorite).toHaveAttribute('aria-pressed', 'false');
+  expect(startup).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(favorite);
+  fireEvent.click(startup);
+  expect(directory.updatePreference).toHaveBeenNthCalledWith(1, {favorites: [executeSpace.scope]});
+  expect(directory.updatePreference).toHaveBeenNthCalledWith(2, {startupScope: executeSpace.scope});
+
+  directory = {...directory, preference: {...pref, startupScope: executeSpace.scope, favorites: [executeSpace.scope]}};
+  page.rerender(<Page/>);
+  expect(favorite).toHaveAttribute('aria-pressed', 'true');
+  expect(startup).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', {name: '启动空间 空间 B'})).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(favorite);
+  fireEvent.click(startup);
+  expect(directory.updatePreference).toHaveBeenNthCalledWith(3, {favorites: []});
+  expect(directory.updatePreference).toHaveBeenNthCalledWith(4, {startupScope: null});
+  expect(screen.getByText('编辑目标 B · overview')).toBeInTheDocument();
+  expect(retainWorkspaceSelection).not.toHaveBeenCalled();
+});
+
+it('keeps preference saving silent and offers original-operation recovery in a dialog only after failure', async () => {
+  const page = render(<Page/>, {wrapper: withoutMotion});
+  choose();
+  fireEvent.click(screen.getByRole('button', {name: '收藏 空间 B'}));
+  const preferencePending = {
+    kind: 'preference' as const, key: 'original',
+    request: {expectedPreferenceVersion: 0, favorites: [space.scope], startupScope: space.scope, lastScope: null}
+  };
+  directory = {...directory, preferenceSaving: true, preferencePending};
+  page.rerender(<Page/>);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.queryByText('有待确认空间操作，请处理原操作。')).not.toBeInTheDocument();
+  expect(screen.getByText('编辑目标 B · overview')).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: '收藏 空间 B'})).toHaveAttribute('aria-pressed', 'false');
+  fireEvent.click(screen.getByRole('button', {name: '启动空间 空间 B'}));
+  expect(directory.updatePreference).toHaveBeenCalledOnce();
+
+  directory = {...directory, preferenceSaving: false, preferenceFailure: new Error('network')};
+  page.rerender(<Page/>);
+  expect(await screen.findByRole('dialog', {name: '偏好保存结果待确认'})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '重试原操作'}));
+  expect(directory.retry).toHaveBeenCalledOnce();
+  directory = {
+    ...directory,
+    preferencePending: null,
+    preferenceFailure: null,
+    preference: {...pref, favorites: [space.scope]}
+  };
+  page.rerender(<Page/>);
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(screen.getByRole('button', {name: '收藏 空间 B'})).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('shows a failure-only dialog when the server rejects a preference', async () => {
+  const page = render(<Page/>, {wrapper: withoutMotion});
+  directory = {...directory, preferenceFailure: new Error('偏好已在其他操作中更新，请核对后重试。')};
+  page.rerender(<Page/>);
+  expect(await screen.findByRole('dialog', {name: '偏好保存失败'})).toHaveTextContent('偏好已在其他操作中更新');
+  expect(screen.queryByRole('button', {name: '重试原操作'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: '知道了'}));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });
 
 it.each(['ai', 'policy'])('validates an explicit %s link and opens the corresponding detail tab', async tab => {

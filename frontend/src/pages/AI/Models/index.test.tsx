@@ -32,7 +32,8 @@ vi.mock('@/services/platform/ai', async original => ({
   ...await original<typeof import('@/services/platform/ai')>(),
   getConfigurationCapabilities: vi.fn(), listWorkspaceModelOptions: vi.fn(),
 }));
-vi.mock('@/features/ainew/ModelManager', () => ({
+vi.mock('@/features/ainew/ModelManager', async original => ({
+  ...await original<typeof import('@/features/ainew/ModelManager')>(),
   default: ({context, executionScope, initialModel, scopeFilter, onConfigureWorkspace, onUnsafeChange}: EditorProps) =>
     <>{scopeFilter}<Editor name="模型草稿" onUnsafeChange={onUnsafeChange}/>
       <span>管理：{context?.scope.workspaceId}</span>
@@ -114,6 +115,15 @@ it('orders tabs, starts with a local empty selection and keeps the platform inde
   await screen.findByRole('tab', {name: '供应商连接'});
   expect(screen.getAllByRole('tab').map(item => item.textContent)).toEqual(['模型管理', '供应商连接', '模型方案与费率']);
   expect(screen.queryByLabelText('模型草稿')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '重新读取模型'})).not.toBeInTheDocument();
+  const addModel = screen.getByRole('button', {name: '添加模型'});
+  expect(addModel).toBeEnabled();
+  fireEvent.click(addModel);
+  expect(await screen.findByText('请先选择管理空间。')).toBeInTheDocument();
+  expect(screen.getByRole('combobox', {name: '选择管理空间'})).toBeEnabled();
+  expect(screen.getByRole('searchbox', {name: '搜索模型名称'})).toBeDisabled();
+  expect(screen.getByRole('combobox', {name: '筛选模型归属'})).toBeDisabled();
+  expect(screen.getByRole('combobox', {name: '筛选模型状态'})).toBeDisabled();
   expect(api.getWorkspace).not.toHaveBeenCalled();
   await tab('供应商连接');
   fireEvent.change(screen.getByLabelText('连接草稿'), {target: {value: '连接未保存'}});
@@ -121,6 +131,7 @@ it('orders tabs, starts with a local empty selection and keeps the platform inde
   await tab('模型管理');
   await choose('选择管理空间', '空间 B（tenant / B）');
   await screen.findByText('管理：B');
+  expect(api.getWorkspace).toHaveBeenCalledWith(b.scope, {signal: expect.any(AbortSignal)});
   await tab('供应商连接');
   expect(screen.getByLabelText('连接草稿')).toHaveValue('连接未保存');
   expect(directory.select).not.toHaveBeenCalled();
