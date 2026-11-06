@@ -83,18 +83,6 @@
         INSERT INTO arte_ai_conversation_message_fact(conversation_key,fact_key,message_role,generated_micros) VALUES
         (#{conversationKey},#{factKey},#{role},#{generatedMicros})
     </insert>
-    <resultMap id="LegacyRow" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$LegacyRow">
-        <constructor>
-            <arg column="id_key" javaType="java.lang.String"/>
-            <arg column="workspace_snapshot" javaType="java.lang.String"/>
-        </constructor>
-    </resultMap>
-    <select id="missing" resultMap="LegacyRow" useCache="false">
-        SELECT c.id_key,c.workspace_snapshot FROM arte_ai_conversation_new c
-        WHERE NOT EXISTS (SELECT 1 FROM arte_ai_conversation_metadata m WHERE m.id_key=c.id_key)
-        <if test="afterKey != null">AND c.id_key &gt; #{afterKey}</if>
-        ORDER BY c.id_key LIMIT #{limit}
-    </select>
     <select id="findCurrent" resultMap="Row" useCache="false">
         SELECT
         <include refid="columns"/>
@@ -104,44 +92,4 @@
         SELECT generated_micros FROM arte_ai_conversation_message_fact WHERE conversation_key=#{conversationKey} AND
         fact_key=#{factKey} FOR UPDATE
     </select>
-    <insert id="enqueue">
-        INSERT INTO arte_ai_conversation_projection_job(id_key,turn_sequence,invocation_index,event_sequence,incomplete)
-        VALUES (#{idKey},0,0,0,false)
-    </insert>
-    <resultMap id="Job" type="com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper$Job">
-        <constructor>
-            <arg column="id_key" javaType="java.lang.String"/>
-            <arg column="turn_sequence" javaType="_long"/>
-            <arg column="invocation_index" javaType="_int"/>
-            <arg column="event_sequence" javaType="_long"/>
-            <arg column="incomplete" javaType="_boolean"/>
-        </constructor>
-    </resultMap>
-    <select id="jobs" resultMap="Job" useCache="false">
-        SELECT id_key,turn_sequence,invocation_index,event_sequence,incomplete FROM arte_ai_conversation_projection_job
-        ORDER BY id_key LIMIT #{limit}
-    </select>
-    <select id="job" resultMap="Job" useCache="false">
-        SELECT id_key,turn_sequence,invocation_index,event_sequence,incomplete FROM arte_ai_conversation_projection_job
-        WHERE id_key=#{idKey} FOR UPDATE
-    </select>
-    <update id="saveJob">
-        UPDATE arte_ai_conversation_projection_job SET
-        turn_sequence=#{j.turnSequence},invocation_index=#{j.invocationIndex},
-        event_sequence=#{j.eventSequence},incomplete=#{j.incomplete} WHERE id_key=#{j.idKey}
-    </update>
-    <delete id="finishJob">DELETE FROM arte_ai_conversation_projection_job WHERE id_key=#{idKey}</delete>
-    <select id="userFacts" resultType="java.lang.Long" useCache="false">
-        SELECT COUNT(*) FROM arte_ai_conversation_message_fact WHERE conversation_key=#{idKey} AND message_role='USER'
-    </select>
-    <select id="lastFact" resultType="java.lang.Long" useCache="false">
-        SELECT MAX(generated_micros) FROM arte_ai_conversation_message_fact WHERE conversation_key=#{idKey}
-    </select>
-    <update id="savePreviewSequence">
-        UPDATE arte_ai_conversation_metadata SET preview_sequence=#{sequence} WHERE id_key=#{idKey}
-    </update>
-    <update id="backfillPreview">
-        UPDATE arte_ai_conversation_metadata SET preview_text=#{preview},preview_sequence=#{sequence}
-        WHERE id_key=#{idKey} AND preview_sequence &lt; #{sequence}
-    </update>
 </mapper>

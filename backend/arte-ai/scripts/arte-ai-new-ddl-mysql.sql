@@ -261,16 +261,6 @@ create table arte_ai_conversation_message_fact
     primary key (conversation_key, fact_key)
 ) engine=InnoDB comment '新 AI 会话消息身份及生成时间去重事实表';
 
--- 可恢复的有界离线回填任务；不在用户列表请求中遍历历史。
-create table arte_ai_conversation_projection_job
-(
-    id_key           char(64) not null comment '待回填会话 ID 哈希，每个会话最多一个任务' primary key,
-    turn_sequence    bigint   not null comment '已完成回填的轮次序号，初始为 0，后续从更大序号的轮次继续',
-    invocation_index int      not null comment '当前待回填轮次内的调用列表索引，从 0 开始，轮次完成后重置为 0',
-    event_sequence   bigint   not null comment '当前调用已扫描的事件序号，初始为 0，切换调用或轮次后重置为 0',
-    incomplete       boolean  not null comment '历史统计是否存在缺失：0-未发现；1-调用缺失或事件已裁剪，生成时间无法完整恢复'
-) engine=InnoDB comment '新 AI 会话历史消息统计可恢复回填任务表';
-
 -- AI TOOL S1-04：与 arte-ai-tool-catalog-migration.sql 的建表段保持一致。
 create table arte_ai_tool_provider
 (

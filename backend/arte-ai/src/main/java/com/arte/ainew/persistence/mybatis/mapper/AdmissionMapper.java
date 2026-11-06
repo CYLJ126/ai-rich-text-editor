@@ -61,7 +61,6 @@ public interface AdmissionMapper {
     List<String> conversationSnapshots(@Param("ownerKey") String ownerKey, @Param("offset") long offset,
                                        @Param("limit") long limit);
 
-    List<String> turnsAfter(@Param("conversationKey") String conversationKey, @Param("afterSequence") long afterSequence, @Param("limit") int limit);
 
     long countTurns(@Param("conversationKey") String conversationKey);
 

@@ -283,60 +283,36 @@ public class MybatisExecutionPersistenceTest {
     }
 
     @Test
-    public void legacyBackfillIsBoundedDurableAndUsesRealMessageTimes() {
+    public void historicalConversationWithoutMetadataCanStillExecuteById() {
         sidebarConversation("legacy", Instant.now());
-        var ask = question("legacy", "历史问题");
-        first.accept(ask).block();
+        jdbc.update("DELETE FROM arte_ai_conversation_metadata");
+        var original = second.findConversation(OWNER, "legacy").block();
+        assertEquals(NOT_FOUND, rename("legacy", 0, "无法从目录改名", "rename-legacy").code());
+
+        assertEquals(APPLIED, first.accept(question("legacy", "历史会话继续提问")).block().code());
         create("inv-legacy");
         dispatch("inv-legacy");
-        var output = first.appendBatch(new Append(guard("inv-legacy"), "old-output", List.of(batch("历史回答")))).block().value().getFirst();
-        jdbc.update("DELETE FROM arte_ai_conversation_metadata");
-        jdbc.update("DELETE FROM arte_ai_conversation_message_fact");
-        var p = first.backfillConversationMetadata(1).block();
-        assertTrue(p.hasMore());
-        assertNull(second.conversationMetadata(OWNER, "legacy").block().userMessageCount());
-        for (int i = 0; i < 10 && p.hasMore(); i++) p = second.backfillConversationMetadata(1).block();
-        assertFalse(p.hasMore());
-        var m = second.conversationMetadata(OWNER, "legacy").block();
-        assertEquals(Long.valueOf(1), m.userMessageCount());
-        assertEquals("历史问题", m.previewText());
-        assertEquals(output.occurredAt(), m.lastMessageGeneratedAt());
-        assertTrue(m.statisticsReady());
-        assertTrue(m.titleManuallyEdited());
-        assertTrue(m.autoTitleResolved());
-        assertEquals(0, m.metadataVersion());
-        assertFalse(first.backfillConversationMetadata(1).block().hasMore());
-        assertEquals(m, second.conversationMetadata(OWNER, "legacy").block());
+        assertEquals(APPLIED, first.appendBatch(new Append(guard("inv-legacy"), "new-output",
+                List.of(batch("新回答")))).block().code());
+
+        assertEquals(original.title(), second.findConversation(OWNER, "legacy").block().title());
+        assertNull(second.conversationMetadata(OWNER, "legacy").block());
+        assertTrue(second.conversationWindow(OWNER, new ConversationList.WindowQuery(20, null))
+                .block().normal().records().isEmpty());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_conversation_message_fact", Integer.class).intValue());
     }
 
     @Test
-    public void additiveMigrationPreservesOldConversationAndPrunedDatesRemainUnknown() {
-        sidebarConversation("pruned", Instant.now());
-        first.accept(question("pruned", "只有真实问题时间")).block();
-        create("inv-pruned");
-        dispatch("inv-pruned");
-        first.appendBatch(new Append(guard("inv-pruned"), "text", List.of(batch("被裁剪的回复")))).block();
-        var key = com.arte.ainew.serialization.CanonicalJson.key("inv-pruned");
-        jdbc.update("UPDATE arte_ai_invocation SET retained_after=100 WHERE id_key=?", key);
-        jdbc.update("DELETE FROM arte_ai_event WHERE invocation_key=?", key);
-        var before = second.findConversation(OWNER, "pruned").block();
-        for (String table : List.of("arte_ai_conversation_projection_job", "arte_ai_conversation_message_fact",
-                "arte_ai_conversation_metadata_command", "arte_ai_conversation_metadata"))
+    public void additiveMetadataMigrationPreservesOldConversation() {
+        sidebarConversation("legacy", Instant.now());
+        assertEquals(APPLIED, first.accept(question("legacy", "历史问题")).block().code());
+        var original = second.findConversation(OWNER, "legacy").block();
+        for (String table : List.of("arte_ai_conversation_message_fact", "arte_ai_conversation_metadata_command",
+                "arte_ai_conversation_metadata"))
             jdbc.execute("DROP TABLE " + table);
         new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-conversation-metadata-migration.sql")).execute(dataSource);
-        assertEquals(before, second.findConversation(OWNER, "pruned").block());
-        assertTrue(second.conversationWindow(OWNER, new ConversationList.WindowQuery(20, null)).block().normal().records().isEmpty());
-        var progress = first.backfillConversationMetadata(1).block();
-        for (int i = 0; i < 10 && progress.hasMore(); i++) progress = second.backfillConversationMetadata(1).block();
-        assertFalse(progress.hasMore());
-        var result = second.conversationMetadata(OWNER, "pruned").block();
-        assertEquals(Long.valueOf(1), result.userMessageCount());
-        assertNull(result.lastMessageGeneratedAt());
-        assertFalse(result.statisticsReady());
-        assertEquals("只有真实问题时间", result.previewText());
-        var window = second.conversationWindow(OWNER, new ConversationList.WindowQuery(20, null)).block();
-        assertEquals(List.of("pruned"), window.normal().records().stream().map(ConversationList.Item::conversationId).toList());
-        assertEquals(before, second.findConversation(OWNER, "pruned").block());
+        assertEquals(original, second.findConversation(OWNER, "legacy").block());
+        assertNull(second.conversationMetadata(OWNER, "legacy").block());
     }
 
     @Test

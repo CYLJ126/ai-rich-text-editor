@@ -3,8 +3,8 @@ package com.arte.ainew.persistence.mybatis;
 import com.arte.ainew.application.conversation.ConversationText;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.persistence.mybatis.mapper.*;
-import com.arte.ainew.pojo.conversation.AnswerCandidate;
+import com.arte.ainew.persistence.mybatis.mapper.AdmissionMapper;
+import com.arte.ainew.persistence.mybatis.mapper.ConversationMetadataMapper;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.Turn;
@@ -12,7 +12,6 @@ import com.arte.ainew.pojo.execution.ExecutionPayload;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.pojo.generation.GenerationEvent;
-import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.core.pojo.platform.ExecutionOwner;
@@ -34,24 +33,18 @@ import static com.arte.ainew.pojo.execution.StoreOutcome.Code.*;
  * @since 2026/10/15 09:28 ✾
  */
 final class ConversationMetadataPersistence {
+
     private final ConversationMetadataMapper metadata;
     private final AdmissionMapper admission;
-    private final ExecutionMapper execution;
-    private final ToolChatRunMapper runs;
-    private final EventMapper events;
     private final ExecutionRecordCodec codec;
     private final Consumer<String> lock;
     private final Supplier<Instant> now;
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
     ConversationMetadataPersistence(ConversationMetadataMapper metadata, AdmissionMapper admission,
-                                    ExecutionMapper execution, EventMapper events, ExecutionRecordCodec codec,
-                                    Consumer<String> lock, Supplier<Instant> now, ToolChatRunMapper runs) {
-        this.runs = runs;
+                                    ExecutionRecordCodec codec, Consumer<String> lock, Supplier<Instant> now) {
         this.metadata = metadata;
         this.admission = admission;
-        this.execution = execution;
-        this.events = events;
         this.codec = codec;
         this.lock = lock;
         this.now = now;
@@ -80,17 +73,14 @@ final class ConversationMetadataPersistence {
     }
 
     /**
-     * 调用前持有会话行锁，或为尚不可见的新会话。旧记录不能再次自动改名。
+     * 随新会话在同一事务中创建列表元数据。
      */
-    void initialize(Conversation c, boolean fresh) {
+    void initialize(Conversation c) {
         var id = key(c.conversationId());
         var owner = ownerKey(c.owner());
-        if (metadata.findCurrent(id, owner) != null) return;
         var created = micros(c.createdAt());
-        boolean empty = fresh || admission.maximumTurnSequence(id) == 0;
         metadata.insert(new ConversationMetadataMapper.Row(id, owner, c.conversationId(), c.title(), 0,
-                false, !fresh, !fresh, null, empty ? 0L : null, null, created, created, empty), c.state() == Conversation.State.ACTIVE);
-        if (!empty) metadata.enqueue(id);
+                false, false, false, null, 0L, null, created, created, true), c.state() == Conversation.State.ACTIVE);
     }
 
     ConversationList.Item find(ExecutionOwner owner, String id) {
@@ -119,8 +109,8 @@ final class ConversationMetadataPersistence {
         var conversation = codec.decode(snapshot, Conversation.class);
         if (!conversation.owner().equals(owner) || conversation.state() != Conversation.State.ACTIVE)
             return reject(ownerKey, commandKey, digest, c, NOT_FOUND);
-        initialize(conversation, false);
         var r = metadata.findCurrent(id, ownerKey);
+        if (r == null) return reject(ownerKey, commandKey, digest, c, NOT_FOUND);
         if (r.metadataVersion() != c.expectedMetadataVersion())
             return reject(ownerKey, commandKey, digest, c, VERSION_CONFLICT);
         var pinCount = metadata.count(ownerKey, true);
@@ -172,8 +162,9 @@ final class ConversationMetadataPersistence {
     String userMessage(Conversation c, Turn turn) {
         var id = key(c.conversationId());
         var owner = ownerKey(c.owner());
-        initialize(c, false);
         var r = metadata.findCurrent(id, owner);
+        // 缺少列表元数据的历史会话仍可按 ID 继续执行，保留原有标题和历史。
+        if (r == null) return c.title();
         var fact = key("USER", turn.userMessage().messageId());
         if (metadata.factCurrent(id, fact) != null) return r.title();
         var generated = micros(turn.createdAt());
@@ -185,7 +176,6 @@ final class ConversationMetadataPersistence {
                 r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(),
                 ConversationText.shorten(question, 30), count, last, last, r.createdMicros(), r.statisticsReady());
         metadata.saveStatistics(updated);
-        metadata.savePreviewSequence(id, turn.sequence());
         if (!r.autoTitleResolved()) {
             var title = r.titleManuallyEdited() || question.isBlank() ? r.title() : ConversationText.shorten(question, 20);
             metadata.saveMetadata(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), title,
@@ -212,10 +202,9 @@ final class ConversationMetadataPersistence {
         var snapshot = admission.conversationSnapshot(id, true);
         if (snapshot == null) return;
         var c = codec.decode(snapshot, Conversation.class);
-        initialize(c, false);
-        if (metadata.factCurrent(id, fact) != null) return;
-        metadata.insertFact(id, fact, "ASSISTANT", micros(e.occurredAt()));
         var r = metadata.findCurrent(id, ownerKey(c.owner()));
+        if (r == null || metadata.factCurrent(id, fact) != null) return;
+        metadata.insertFact(id, fact, "ASSISTANT", micros(e.occurredAt()));
         var last = r.lastMessageMicros() == null ? micros(e.occurredAt()) : Math.max(r.lastMessageMicros(), micros(e.occurredAt()));
         metadata.saveStatistics(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), r.title(),
                 r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(), r.previewText(),
@@ -226,12 +215,11 @@ final class ConversationMetadataPersistence {
      * Run 只在最终回答提交时记录可见助手消息；模型中间提议及工具正文不产生目录预览。
      */
     void runAssistantMessage(Conversation c, Invocation finalModel, Instant at) {
-        initialize(c, false);
         var id = key(c.conversationId());
         var fact = key("ASSISTANT", finalModel.request().context().executionId(), finalModel.activeAttemptId());
-        if (metadata.factCurrent(id, fact) != null) return;
-        metadata.insertFact(id, fact, "ASSISTANT", micros(at));
         var r = metadata.findCurrent(id, ownerKey(c.owner()));
+        if (r == null || metadata.factCurrent(id, fact) != null) return;
+        metadata.insertFact(id, fact, "ASSISTANT", micros(at));
         var last = r.lastMessageMicros() == null ? micros(at) : Math.max(micros(at), r.lastMessageMicros());
         metadata.saveStatistics(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), r.title(),
                 r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(), r.previewText(),
@@ -286,98 +274,5 @@ final class ConversationMetadataPersistence {
         var normal = page(scope, false, Math.min(query.normalSize(), 100 - pinned.records().size()),
                 anchor == null ? null : anchor.sortMicros(), anchor == null ? null : anchor.conversationId(), true, true);
         return new ConversationList.Window(pinned, normal, anchor == null ? null : anchor.conversationId(), fallback);
-    }
-
-    /**
-     * 每次最多初始化 limit 条、推进 limit 个任务，每任务只读取一轮或 100 个历史事件；不在列表请求中执行。
-     */
-    ConversationList.BackfillProgress backfill(int limit) {
-        ContractChecks.range(limit, "limit", 1, 100);
-        var missing = metadata.missing(null, limit);
-        for (var legacy : missing) {
-            var snapshot = admission.conversationSnapshot(legacy.idKey(), true);
-            if (snapshot != null) {
-                var c = codec.decode(snapshot, Conversation.class);
-                initialize(c, false);
-            }
-        }
-        var jobs = metadata.jobs(limit);
-        for (var job : jobs) rebuildStep(job);
-        return new ConversationList.BackfillProgress(missing.size() + jobs.size(),
-                !metadata.missing(null, 1).isEmpty() || !metadata.jobs(1).isEmpty());
-    }
-
-    private void rebuildStep(ConversationMetadataMapper.Job queued) {
-        var snapshot = admission.conversationSnapshot(queued.idKey(), true);
-        if (snapshot == null) {
-            metadata.finishJob(queued.idKey());
-            return;
-        }
-        var c = codec.decode(snapshot, Conversation.class);
-        var job = metadata.job(queued.idKey());
-        if (job == null) return;
-        var next = admission.turnsAfter(queued.idKey(), job.turnSequence(), 1);
-        if (next.isEmpty()) {
-            var r = metadata.findCurrent(queued.idKey(), ownerKey(c.owner()));
-            var last = metadata.lastFact(queued.idKey());
-            // 已裁剪且无法恢复的助手生成时间明确未知，不用终态更新时间伪造。
-            metadata.saveStatistics(new ConversationMetadataMapper.Row(r.idKey(), r.ownerKey(), r.conversationId(), r.title(),
-                    r.metadataVersion(), r.pinned(), r.titleManuallyEdited(), r.autoTitleResolved(), r.previewText(),
-                    metadata.userFacts(queued.idKey()), job.incomplete() ? null : last,
-                    last == null ? r.createdMicros() : last, r.createdMicros(), !job.incomplete()));
-            metadata.finishJob(queued.idKey());
-            return;
-        }
-        var turn = codec.decode(next.getFirst(), Turn.class);
-        var fact = key("USER", turn.userMessage().messageId());
-        if (metadata.factCurrent(queued.idKey(), fact) == null)
-            metadata.insertFact(queued.idKey(), fact, "USER", micros(turn.createdAt()));
-        metadata.backfillPreview(queued.idKey(), turn.sequence(), ConversationText.shorten(ConversationText.question(turn.userMessage()), 30));
-        if (job.invocationIndex() >= turn.candidates().size()) {
-            metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), turn.sequence(), 0, 0, job.incomplete()));
-            return;
-        }
-        var candidate = turn.candidates().get(job.invocationIndex());
-        if (candidate.kind() == AnswerCandidate.Kind.TOOL_CHAT_RUN) {
-            var link = runs.chat(key(candidate.executionId()));
-            boolean incomplete = job.incomplete();
-            if (link == null || !link.conversationId().equals(c.conversationId()) || !link.turnId().equals(turn.turnId())) {
-                incomplete = true;
-            } else if (link.finalInvocationId() != null) {
-                var childBytes = execution.invocationSnapshot(key(link.finalInvocationId()), false);
-                var child = childBytes == null ? null : codec.decode(childBytes, Invocation.class);
-                var finalLink = child == null ? null : ToolChatProjection.finalChat(runs, codec, child);
-                if (finalLink == null || !finalLink.runKey().equals(key(candidate.executionId()))) incomplete = true;
-                else {
-                    var run = codec.decode(runs.find(finalLink.runKey(), false).stateSnapshot(), ToolChatRun.class);
-                    runAssistantMessage(c, child, run.updatedAt());
-                }
-            }
-            metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex() + 1, 0, incomplete));
-            return;
-        }
-        var invocationKey = key(candidate.executionId());
-        var invSnapshot = execution.invocationSnapshot(invocationKey, false);
-        if (invSnapshot == null) {
-            metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex() + 1, 0, true));
-            return;
-        }
-        var invocation = codec.decode(invSnapshot, Invocation.class);
-        var retained = events.retainedAfter(invocationKey);
-        var batch = events.events(invocationKey, Math.max(job.eventSequence(), retained), 100);
-        for (var json : batch) {
-            var e = codec.decode(json, ExecutionEvent.class);
-            if (e.payload() instanceof ExecutionPayload.OutputBatch output
-                    && output.events().stream().anyMatch(GenerationEvent.TextDelta.class::isInstance)) {
-                var assistant = key("ASSISTANT", e.executionId(), e.attemptId());
-                if (metadata.factCurrent(job.idKey(), assistant) == null)
-                    metadata.insertFact(job.idKey(), assistant, "ASSISTANT", micros(e.occurredAt()));
-            }
-        }
-        var incomplete = job.incomplete() || retained > 0;
-        if (batch.size() < 100)
-            metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex() + 1, 0, incomplete));
-        else metadata.saveJob(new ConversationMetadataMapper.Job(job.idKey(), job.turnSequence(), job.invocationIndex(),
-                codec.decode(batch.getLast(), ExecutionEvent.class).sequence(), incomplete));
     }
 }

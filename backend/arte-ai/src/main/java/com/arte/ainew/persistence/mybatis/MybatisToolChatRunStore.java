@@ -73,7 +73,7 @@ public final class MybatisToolChatRunStore implements ToolChatRunStore {
         payloads = session.getMapper(PayloadMapper.class);
         outbox = session.getMapper(OutboxMapper.class);
         metadata = new ConversationMetadataPersistence(session.getMapper(ConversationMetadataMapper.class), admission,
-                executions, session.getMapper(EventMapper.class), codec, system::ensureLock, () -> Instant.ofEpochMilli(now()), mapper);
+                codec, system::ensureLock, () -> Instant.ofEpochMilli(now()));
         this.codec = Objects.requireNonNull(codec);
         this.scheduler = Objects.requireNonNull(scheduler);
         tx = new TransactionTemplate(new DataSourceTransactionManager(source));

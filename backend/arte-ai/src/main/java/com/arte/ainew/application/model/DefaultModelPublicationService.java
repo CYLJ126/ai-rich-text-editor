@@ -281,7 +281,7 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
         }
         return new NewAiProperties(base.enabled(), base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(), base.grants(),
                 List.copyOf(capabilities.values()), List.copyOf(bindings.values()), List.copyOf(connections.values()), List.copyOf(rates.values()), base.budgets(),
-                base.configurationMode(), base.conversationMetadataBackfill());
+                base.configurationMode());
     }
 
     private static <T> Map<DefinitionRef, T> index(List<T> values, java.util.function.Function<T, DefinitionRef> key) {

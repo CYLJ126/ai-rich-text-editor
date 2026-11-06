@@ -4,7 +4,7 @@
 本轮编码及本机隔离验收已完成，生产环境验证与部署仍待进行，具体证据和未覆盖项见 [M5 交付说明](MODEL_CONFIGURATION_M5.md)
 。本次文档复核未连接目标数据库或执行清理。
 
-M4／M5 没有新增模型业务表或结构迁移，物理结构仍以 M1～M3 初始化定义为准。当前处理范围为：15 张模型／控制面表、42
+M4／M5 没有新增模型业务表或结构迁移，物理结构仍以 M1～M3 初始化定义为准。当前处理范围为：15 张模型／控制面表、41
 张共用运行表，以及模型相关公共 ACL／回执／事件；另有 4 张已安装搜索进度表按第 1.4 节处理。11 张工具配置表默认保留。
 
 本清单适用于此前确认的“不保留历史模型／聊天／预算测试数据，从页面重新配置”。以下整表清理覆盖所有租户和空间的 New-AI 数据。
@@ -48,7 +48,9 @@ M4／M5 没有新增模型业务表或结构迁移，物理结构仍以 M1～M3 
 | arte_ai_model_definition_source | 旧精确引用的来源与摘要；避免新建同名引用被旧摘要阻塞                          |
 | arte_ai_model_acl_scope         | 旧 FIXED／迁移清单数据；保留表，当前仍有对应 Mapper 和 FIXED 路径             |
 
-### 1.2 New-AI 运行数据：42 张
+### 1.2 New-AI 运行数据：41 张
+
+旧版的 `arte_ai_conversation_projection_job` 已退出运行时和本清单。新装不再创建此表，已有表保留在原库。
 
 重建模型和费率后，以下旧调用、上下文、预算和工具聊天仍引用原版本／账户；按本轮不保留历史方案一起清理。 这会删除 New-AI
 聊天和工具执行历史。独立工具定义／绑定是否保留见第 3 节。
@@ -75,7 +77,6 @@ arte_ai_dispatch_rate
 arte_ai_conversation_metadata
 arte_ai_conversation_metadata_command
 arte_ai_conversation_message_fact
-arte_ai_conversation_projection_job
 arte_ai_tool_execution_snapshot
 arte_ai_scheduling_permit
 arte_ai_dispatch_cursor
@@ -101,8 +102,8 @@ arte_ai_tool_chat_run
 arte_ai_invocation
 ```
 
-这 42 张与第 3 节的 11 张工具配置表共同覆盖 [arte-ai-new-ddl-mysql.sql](../../arte-ai/scripts/arte-ai-new-ddl-mysql.sql)
-的 53 张表；M0～M5 本轮模型配置改造没有要求修改这 42 张运行表的物理结构。另行安装的搜索进度表见第 1.4 节。 若当前库尚未完成其他
+这 41 张与第 3 节的 11 张工具配置表共同覆盖 [arte-ai-new-ddl-mysql.sql](../../arte-ai/scripts/arte-ai-new-ddl-mysql.sql)
+的 52 张表；M0～M5 本轮模型配置改造没有要求修改这 41 张运行表的物理结构。另行安装的搜索进度表见第 1.4 节。 若当前库尚未完成其他
 Tool／搜索／调度批次的安装，需另行对照实际结构；当前全新 DDL 已包含的历史增量不能重复执行。
 
 ### 1.3 公共表：按模型条件清理，不整表清空
@@ -140,7 +141,7 @@ WHERE resource_type = 'model';
 
 ### 1.4 已安装搜索进度：额外 4 张，保留结构
 
-以下表来自单独的[搜索同步脚本](../../arte-ai/scripts/arte-ai-new-search-sync-migration.sql)，不在上方 42
+以下表来自单独的[搜索同步脚本](../../arte-ai/scripts/arte-ai-new-search-sync-migration.sql)，不在上方 41
 张中。只要此前安装并产生过本轮待删除聊天的同步记录，即使当前关闭搜索，也要把残留纳入处理；未安装时不必为了模型重置而新增搜索能力。
 
 ```text
@@ -280,7 +281,7 @@ arte_ai_tool_schema
 
 在开始页面重建、暂停搜索初始化／同步的状态下核对：
 
-- 15 张模型／控制面表中，除 head 外其余均应无旧记录；head 恰有一行 `(id=1, version=0)`。42 张运行表无旧记录，模型 ACL
+- 15 张模型／控制面表中，除 head 外其余均应无旧记录；head 恰有一行 `(id=1, version=0)`。41 张运行表无旧记录，模型 ACL
   根／授权及已识别旧回执／事件已按范围处理。
 - 若工具配置选择保留，11 张表的数据仍保留；若选择同时重建则均为空。已安装搜索表的待重建旧代际行按第 1.4 节处理，其他保留代际不受影响。
 - 公共身份、租户／空间／成员／政策／偏好、RBAC 和文章等无关业务保持；旧 personal_publication 表已按第 3 节处理。
@@ -409,7 +410,7 @@ SELECT @arte_reset_data_done AS completed_database;
 
 1. 核验实际库名、确认值、分支参数和公共 ACL／命令／Outbox／审计前置表。
 2. 删除唯一废弃的 `arte_ai_model_personal_publication` 表，解除旧发布表的外键依赖。
-3. 在一个数据事务中，先从模型 ACL 事件及可识别回执收集 operation_id，再按第 1.2 节顺序 DELETE 42 张运行表。
+3. 在一个数据事务中，先从模型 ACL 事件及可识别回执收集 operation_id，再按第 1.2 节顺序 DELETE 41 张运行表。
 4. 只在工具分支为 1 时，按第 3 节列出的子表优先顺序清 11 张工具配置表。
 5. 按 use_scope → sharing、publication、validation／draft／credential、version → resource 清模型记录，并清
    definition_source／acl_scope。
@@ -514,7 +515,7 @@ SOURCE scripts/model-reset/05-verify.sql;
 SOURCE scripts/model-reset/01-precheck.sql;
 ```
 
-完成标记应均等于目标库；head 恰有 `(1,0)`；42 张运行表、其余模型／控制面表和可识别模型 ACL／命令／事件应为 0。非模型
+完成标记应均等于目标库；head 恰有 `(1,0)`；41 张运行表、其余模型／控制面表和可识别模型 ACL／命令／事件应为 0。非模型
 ACL／grant、全部审计的计数应与 A.3 基线一致；工具表默认允许有原数据，仅分支为 1 时要求为 0。NULL
 基线、缺表错误或不符结果均不算通过。原有其他公共／业务表不在写脚本的修改目标内，仍应与备份核对需要保留的内容。
 

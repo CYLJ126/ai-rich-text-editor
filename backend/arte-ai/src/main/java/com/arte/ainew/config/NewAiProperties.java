@@ -34,7 +34,6 @@ import java.util.Set;
  * @param rates                        固定版本的模型 Token 或工具按次费率列表
  * @param budgets                      按原执行归属配置的预算定义列表，包含额度、币种和关联费率
  * @param configurationMode            配置来源模式：FIXED 使用固定配置，DATABASE 使用受信数据库控制面；默认 FIXED
- * @param conversationMetadataBackfill 会话目录历史元数据回填开关配置，默认关闭
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
@@ -43,28 +42,12 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
                               Persistence persistence, Limits limits, List<Grant> grants,
                               List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                               List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets,
-                              String configurationMode, ConversationMetadataBackfill conversationMetadataBackfill) {
+                              String configurationMode) {
 
     public NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef, Persistence persistence, Limits limits,
                            List<Grant> grants, List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
                            List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets) {
         this(enabled, dataSourceBean, releaseRef, persistence, limits, grants, capabilities, bindings, connections, rates, budgets, "FIXED");
-    }
-
-    public NewAiProperties(boolean enabled, String dataSourceBean, String releaseRef, Persistence persistence, Limits limits,
-                           List<Grant> grants, List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                           List<ConnectionDefinition> connections, List<Rate> rates, List<Budget> budgets,
-                           String configurationMode) {
-        this(enabled, dataSourceBean, releaseRef, persistence, limits, grants, capabilities, bindings, connections, rates, budgets,
-                configurationMode, null);
-    }
-
-    /**
-     * 控制应用就绪后是否启动会话目录历史元数据回填，须在完成表结构迁移后由运维显式开启。
-     *
-     * @param enabled 是否启用历史元数据回填，默认关闭；开启后执行有界、可恢复的数据回填，不执行 DDL
-     */
-    public record ConversationMetadataBackfill(boolean enabled) {
     }
 
     /**
@@ -188,7 +171,6 @@ public record NewAiProperties(boolean enabled, String dataSourceBean, String rel
     @ConstructorBinding
     public NewAiProperties {
         configurationMode = configurationMode == null ? "FIXED" : configurationMode;
-        conversationMetadataBackfill = conversationMetadataBackfill == null ? new ConversationMetadataBackfill(false) : conversationMetadataBackfill;
         ContractChecks.require(Set.of("FIXED", "DATABASE").contains(configurationMode), "Unknown AI configuration mode");
         dataSourceBean = dataSourceBean == null ? "appDataSource" : ContractChecks.id(dataSourceBean, "dataSourceBean");
         persistence = persistence == null ? new Persistence(4, 256) : persistence;

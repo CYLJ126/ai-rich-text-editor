@@ -318,7 +318,7 @@ public class ToolChatHistoryStoreTest {
     }
 
     @Test
-    public void renamePreservesRunGateAndMetadataBackfillRestoresOnlyFinalAnswerFact() {
+    public void renamePreservesRunGateAndFinalAnswerAddsOneMessageFact() {
         try (var c = new Chat()) {
             c.accept();
             long version = c.executions.conversationMetadata(c.r.owner, "conversation").block(WAIT).metadataVersion();
@@ -327,9 +327,6 @@ public class ToolChatHistoryStoreTest {
             assertEquals(key("run"), c.gate());
             var child = c.finalModel(ModelResult.FinishReason.STOP);
             assertTrue(c.r.advance(c.finish(ToolChatRun.State.SUCCEEDED, child.result())).successful());
-            c.r.jdbc.update("DELETE FROM arte_ai_conversation_message_fact WHERE message_role='ASSISTANT'");
-            c.r.jdbc.update("INSERT INTO arte_ai_conversation_projection_job(id_key,turn_sequence,invocation_index,event_sequence,incomplete) VALUES(?,0,0,0,FALSE)", key("conversation"));
-            for (int i = 0; i < 4; i++) c.executions.backfillConversationMetadata(10).block(WAIT);
             assertEquals(2, c.r.count("arte_ai_conversation_message_fact"));
             assertEquals("renamed", c.executions.findConversation(c.r.owner, "conversation").block(WAIT).title());
         }

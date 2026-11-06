@@ -89,15 +89,6 @@ public interface AdmissionCatalogStore {
     Mono<ConversationList.Window> conversationWindow(ExecutionOwner owner, ConversationList.WindowQuery query);
 
     /**
-     * 分批初始化旧会话的列表元数据并推进历史消息统计回填。
-     * 由运维可信控制面调用，无公开 HTTP 入口；循环至 hasMore=false，可中断后续跑。
-     *
-     * @param limit 单次初始化会话数与推进回填任务数各自的上限，范围为 1～100
-     * @return 本次初始化数与推进任务数之和，以及是否仍有待处理记录或任务；processed 最多为 limit 的两倍
-     */
-    Mono<ConversationList.BackfillProgress> backfillConversationMetadata(int limit);
-
-    /**
      * 按会话标识读取指定归属的会话快照。
      *
      * @param owner          由可信主体解析的租户、工作空间及主体归属，不能为 null

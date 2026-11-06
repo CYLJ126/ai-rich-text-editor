@@ -129,7 +129,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                 grant.enabled(), grant.scopes(), grant.bindingIds().stream().filter(registered::contains).collect(java.util.stream.Collectors.toSet()), grant.budgetRefs())).toList();
         return new NewAiProperties(configuration.enabled(), configuration.dataSourceBean(), configuration.releaseRef(), configuration.persistence(),
                 configuration.limits(), grants, configuration.capabilities(), configuration.bindings(), configuration.connections(), configuration.rates(),
-                configuration.budgets(), configuration.configurationMode(), configuration.conversationMetadataBackfill());
+                configuration.budgets(), configuration.configurationMode());
     }
 
     /**

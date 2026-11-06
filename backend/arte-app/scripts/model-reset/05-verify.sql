@@ -61,9 +61,6 @@ UNION ALL
 SELECT 'arte_ai_conversation_message_fact' AS table_name, COUNT(*) AS row_count
 FROM arte_ai_conversation_message_fact
 UNION ALL
-SELECT 'arte_ai_conversation_projection_job' AS table_name, COUNT(*) AS row_count
-FROM arte_ai_conversation_projection_job
-UNION ALL
 SELECT 'arte_ai_tool_execution_snapshot' AS table_name, COUNT(*) AS row_count
 FROM arte_ai_tool_execution_snapshot
 UNION ALL

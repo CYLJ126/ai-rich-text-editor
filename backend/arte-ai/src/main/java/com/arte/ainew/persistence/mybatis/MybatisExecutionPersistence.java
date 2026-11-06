@@ -142,7 +142,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         this.readTransaction.setTimeout(30);
         this.codec = Objects.requireNonNull(codec, "codec");
         this.conversationMetadata = new ConversationMetadataPersistence(sessions.getMapper(ConversationMetadataMapper.class),
-                admission, execution, event, codec, this::lock, this::now, sessions.getMapper(ToolChatRunMapper.class));
+                admission, codec, this::lock, this::now);
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
@@ -304,7 +304,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         Objects.requireNonNull(conversation, "conversation");
         return tx(() -> {
             admission.insertConversation(hash(conversation.conversationId()), ownerKey(conversation.owner()), conversation.version(), codec.encode(conversation));
-            conversationMetadata.initialize(conversation, true);
+            conversationMetadata.initialize(conversation);
             return true;
         }).then();
     }
@@ -327,7 +327,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 return StoreOutcome.replayed(original);
             }
             admission.insertConversation(hash(conversation.conversationId()), owner, 0, codec.encode(conversation));
-            conversationMetadata.initialize(conversation, true);
+            conversationMetadata.initialize(conversation);
             admission.insertConversationCreation(owner, key, requestDigest, hash(conversation.conversationId()));
             return StoreOutcome.applied(conversation);
         });
@@ -388,11 +388,6 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     @Override
     public Mono<ConversationList.Window> conversationWindow(ExecutionOwner owner, ConversationList.WindowQuery query) {
         return tx(readTransaction, () -> conversationMetadata.window(owner, query));
-    }
-
-    @Override
-    public Mono<ConversationList.BackfillProgress> backfillConversationMetadata(int limit) {
-        return tx(metadataTransaction, () -> conversationMetadata.backfill(limit));
     }
 
     @Override

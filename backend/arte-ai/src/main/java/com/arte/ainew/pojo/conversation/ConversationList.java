@@ -72,7 +72,4 @@ public final class ConversationList {
     public record CommandResult(String commandId, com.arte.ainew.pojo.execution.StoreOutcome.Code outcome,
                                 Receipt receipt) {
     }
-
-    public record BackfillProgress(int processed, boolean hasMore) {
-    }
 }

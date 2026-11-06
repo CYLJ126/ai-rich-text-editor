@@ -177,7 +177,6 @@ CALL arte_doc_model_reset_delete('arte_ai_dispatch_rate', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_conversation_metadata', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_conversation_metadata_command', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_conversation_message_fact', FALSE);
-CALL arte_doc_model_reset_delete('arte_ai_conversation_projection_job', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_tool_execution_snapshot', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_scheduling_permit', FALSE);
 CALL arte_doc_model_reset_delete('arte_ai_dispatch_cursor', FALSE);
