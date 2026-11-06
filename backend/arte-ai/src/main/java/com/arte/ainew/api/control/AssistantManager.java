@@ -1,14 +1,36 @@
 package com.arte.ainew.api.control;
 
+import com.arte.ainew.pojo.assistant.Assistants.*;
+import com.arte.core.pojo.platform.CommandMeta;
+import com.arte.core.pojo.platform.CommandReceipt;
+import com.arte.core.pojo.platform.Scope;
+import com.arte.core.pojo.platform.TrustedActor;
+import com.arte.core.pojo.reference.DefinitionRef;
+
 /**
- * 助手与聊天偏好管理服务
- * 管理助手、聊天配置、默认动作和偏好；保存复用定义，执行时记录实际解析的定义版本。
- * <p>
- * 主要操作：管理助手、ChatProfile、默认动作与偏好等。
- * 边界：保存复用定义，执行记录实际解析版本。
- *
- * @author CYLJ126 ≧◔◡◔≦
- * @since 2026/10/4 17:35 ✾
- **/
+ * Manages workspace-owned chat assistants and resolves immutable published configurations.
+ */
 public interface AssistantManager {
+    CommandReceipt<Receipt> create(TrustedActor actor, Scope scope, Content content, CommandMeta meta);
+
+    CommandReceipt<Receipt> copy(TrustedActor actor, Scope scope, String sourceId, Long sourceVersion,
+                                 Long sourceDraftRevision, CommandMeta meta);
+
+    CommandReceipt<Receipt> saveDraft(TrustedActor actor, Scope scope, String id, long expectedRevision,
+                                      Content content, CommandMeta meta);
+
+    CommandReceipt<Receipt> publish(TrustedActor actor, Scope scope, String id, long expectedVersion,
+                                    long expectedRevision, String trialId, CommandMeta meta);
+
+    CommandReceipt<Receipt> disable(TrustedActor actor, Scope scope, String id, long expectedVersion, CommandMeta meta);
+
+    Detail get(TrustedActor actor, Scope scope, String id);
+
+    Page<Managed> managed(TrustedActor actor, Scope scope, String afterId, String name, int limit);
+
+    Page<Summary> usable(TrustedActor actor, Scope scope, String afterId, String name, int limit);
+
+    Page<Release> versions(TrustedActor actor, Scope scope, String id, long afterVersion, int limit);
+
+    Release resolvePublished(TrustedActor actor, Scope scope, DefinitionRef profile, boolean newConversation);
 }
