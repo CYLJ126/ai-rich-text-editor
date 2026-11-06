@@ -37,7 +37,15 @@ public record ContextSnapshot(String snapshotId, ContextRequest.HistorySelection
                               DefinitionRef modelBinding, List<ChatMessage> messages, List<Fragment> fragments,
                               ContextBudget budget, long inputTokens, boolean estimatedTokens, String tokenizerVersion,
                               List<Truncation> truncations, String contentDigest, Instant createdAt,
-                              Instant expiresAt) implements Serializable {
+                              Instant expiresAt, AssistantSource assistant) implements Serializable {
+
+    public ContextSnapshot(String snapshotId, ContextRequest.HistorySelection history, DefinitionRef modelBinding,
+                           List<ChatMessage> messages, List<Fragment> fragments, ContextBudget budget, long inputTokens,
+                           boolean estimatedTokens, String tokenizerVersion, List<Truncation> truncations,
+                           String contentDigest, Instant createdAt, Instant expiresAt) {
+        this(snapshotId, history, modelBinding, messages, fragments, budget, inputTokens, estimatedTokens,
+                tokenizerVersion, truncations, contentDigest, createdAt, expiresAt, null);
+    }
 
     /**
      * 实际上下文片段的来源类别，用于来源追踪，不表示已获读取或外发权限。

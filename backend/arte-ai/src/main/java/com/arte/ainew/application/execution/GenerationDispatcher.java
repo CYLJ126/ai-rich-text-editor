@@ -247,10 +247,15 @@ public final class GenerationDispatcher {
         return policies.current(current).flatMap(policy -> Mono.defer(() -> {
                     var request = new InvocationRequest<>(persisted.capability(), persisted.binding(), persisted.kind(),
                             generation, persisted.options(), current);
-                    return capabilities.validate(request).then(bindings.resolve(request.binding(), request.capability(), current))
-                            .flatMap(binding -> contextSnapshotStore.find(message.owner(), invocation.contextSnapshotId())
-                                    .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)))
-                                    .flatMap(snapshot -> {
+                    return contextSnapshotStore.find(message.owner(), invocation.contextSnapshotId())
+                            .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_NOT_FOUND)))
+                            .flatMap(snapshot -> {
+                                var validation = capabilities.validate(request);
+                                if (snapshot.assistant() != null) {
+                                    validation = validation.contextWrite(values -> values.put(ContextSnapshot.class, snapshot));
+                                }
+                                return validation.then(bindings.resolve(request.binding(), request.capability(), current))
+                                        .flatMap(binding -> {
                                         if (!snapshot.messages().equals(generation.messages()) || !snapshot.expiresAt().isAfter(clock.instant())) {
                                             throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_EXPIRED_OR_INVALID);
                                         }
@@ -272,7 +277,8 @@ public final class GenerationDispatcher {
                                         return tools.flatMap(set -> publishedCatalog.rate(binding.rate(), current).flatMap(rate ->
                                                 admissionGuard.authorize(new AiAdmissionAuthorizationGuard.Check(request, binding, snapshot, set.orElse(null), AiAdmissionAuthorizationGuard.Boundary.DISPATCH))
                                                         .map(permit -> new Prepared(request, binding, snapshot, new ExecutionRuntimeContext(current, runtime.cancellation()), rate, set.orElse(null), permit, permit.connection().providerId()))));
-                                    }));
+                                        });
+                            });
                 }))
                 .onErrorResume(error -> predictable(error)
                         ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
@@ -313,6 +319,8 @@ public final class GenerationDispatcher {
                             });
                 })
                 .flatMap(GenerationDispatcher::applied)
+                .onErrorResume(AdmissionException.class, error -> assistantDenied(prepared, error)
+                        ? rejectBeforeAttempt(invocation, error).then(Mono.empty()) : Mono.error(error))
                 .flatMap(result -> new Session(result.invocation(), message, prepared, result.attempt(),
                         timing.withAttempt(result.attempt().attemptId())).run(result));
     }
@@ -355,6 +363,10 @@ public final class GenerationDispatcher {
         return completion.flatMap(GenerationDispatcher::applied)
                 .doOnNext(value -> log.warn("AI preflight rejection committed, invocationId={}, traceId={}, state={}, code={}, phase={}",
                         value.request().context().executionId(), value.request().context().traceId(), value.state(), code, fact.phase())).then();
+    }
+
+    private static boolean assistantDenied(Prepared prepared, AdmissionException error) {
+        return prepared.snapshot().assistant() != null && error.getResultCode() == ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE;
     }
 
     private static boolean predictable(Throwable error) {
@@ -458,6 +470,11 @@ public final class GenerationDispatcher {
 
         Mono<Void> run(DispatchPreparationStore.PreparedDispatch atomic) {
             Mono<Void> work = (atomic == null ? reserveAndSend() : sendPrepared(atomic)).onErrorResume(AdmissionException.class, error -> {
+                if (atomic == null && assistantDenied(prepared, error)) {
+                    return finish(new GenerationSignal.Failure(new ExecutionError(error.getResultCode().name(),
+                            ExecutionError.Phase.AUTHORIZATION, false, ExecutionError.SideEffect.NONE,
+                            ExecutionError.Certainty.KNOWN, prepared.request().context().traceId()), Usage.unknown(), null));
+                }
                 if (error.getResultCode() != ResultCodeEnum.AI_INSUFFICIENT_BUDGET) {
                     return Mono.error(error);
                 }
@@ -543,6 +560,9 @@ public final class GenerationDispatcher {
             var gatewayTerminal = new AtomicBoolean();
             var signals = Flux.defer(() -> {
                         timing.mark("GATEWAY_SUBSCRIBED");
+                        if (prepared.snapshot().assistant() != null) {
+                            return modelGateway.generate(call).contextWrite(context -> context.put(ContextSnapshot.class, prepared.snapshot()));
+                        }
                         return prepared.tools() == null ? modelGateway.generate(call) : modelGateway.generate(call, prepared.tools());
                     }).doOnNext(signal -> {
                         if (signal instanceof GenerationSignal.Delta(GenerationEvent.TextDelta delta)) {

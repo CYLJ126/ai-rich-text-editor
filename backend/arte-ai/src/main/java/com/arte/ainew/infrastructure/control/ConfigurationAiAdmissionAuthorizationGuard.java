@@ -41,6 +41,12 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
     private final AiExecutionPolicyProvider policies;
     private final AiExecutionPolicy ceiling;
     private final Clock clock;
+    private com.arte.ainew.spi.assistant.AssistantContextAccess assistants;
+
+    public ConfigurationAiAdmissionAuthorizationGuard assistants(com.arte.ainew.spi.assistant.AssistantContextAccess assistants) {
+        this.assistants = assistants;
+        return this;
+    }
 
     public ConfigurationAiAdmissionAuthorizationGuard(ControlConfigurationReader reader, AdmissionAuthorization authorization,
                                                       AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets,
@@ -108,9 +114,16 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
                             });
                         });
                     }));
-            return check.boundary() == Boundary.EXTERNAL_SEND
+            if (check.snapshot() != null && check.snapshot().assistant() != null && assistants == null) {
+                return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
+            }
+            var permit = check.boundary() == Boundary.EXTERNAL_SEND
                     ? authorization.revalidate(request.context(), prepare)
                     : authorization.prepare(request.context(), Set.of(AdmissionAuthorization.INVOKE), false, prepare);
+            if (check.snapshot() == null || check.snapshot().assistant() == null || check.boundary() == Boundary.ADMISSION) {
+                return permit;
+            }
+            return permit.flatMap(value -> assistants.requireEligible(request.context(), check.snapshot()).thenReturn(value));
         });
     }
 
@@ -142,6 +155,9 @@ public final class ConfigurationAiAdmissionAuthorizationGuard implements AiAdmis
             }
             // 在原事务中重新核验当前模型／连接使用资格及精确发布内容，与预检结果比对。
             entitlements.requireInCurrentTransaction(entitlement, actual.context());
+            if (check.snapshot() != null && check.snapshot().assistant() != null) {
+                assistants.requireCurrent(actual.context(), check.snapshot());
+            }
             requireOutputLimit(entitlement, actual);
             // 在原事务中重新读取所选预算定义并核验当前执行使用资格。
             BudgetDefinition budget = budgets.resolveInCurrentTransaction(check.budgetRef(), actual.context(), BudgetDefinitionProvider.Operation.EXECUTE);

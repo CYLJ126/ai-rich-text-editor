@@ -41,7 +41,7 @@ import java.util.concurrent.RejectedExecutionException;
 @RestControllerAdvice(assignableTypes = {WorkspaceController.class, TenantDirectoryController.class, WorkspaceAccessController.class, MembershipGovernanceController.class,
         WorkspaceAiConfigurationController.class, ResourceAccessController.class, ModelResourceController.class,
         ModelDraftController.class, ModelPublicationController.class, ReviewedModelPlanController.class, ModelSharingController.class,
-        ModelUsagePreparationController.class, AssistantManagementController.class})
+        ModelUsagePreparationController.class, AssistantManagementController.class, AssistantTrialController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class PlatformExceptionHandler {
@@ -51,6 +51,13 @@ public class PlatformExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
+        if ((request.getRequestURI().endsWith("/trialAssistantDraft") || request.getRequestURI().endsWith("/getInvocationAssistant"))
+                && (exception instanceof com.arte.ainew.application.support.AdmissionException
+                || exception instanceof com.arte.ainew.application.execution.DispatchSchedulingException
+                || exception instanceof java.util.concurrent.TimeoutException
+                || exception instanceof org.springframework.web.context.request.async.AsyncRequestTimeoutException)) {
+            return com.arte.ainew.web.ConversationExceptionHandler.handleNewAiFailure(exception, request, locale);
+        }
         PlatformErrorCodeEnum error = errorCode(exception);
         HttpStatus status = error == null ? HttpStatus.INTERNAL_SERVER_ERROR : status(error);
         String traceId = exception instanceof PlatformException platform

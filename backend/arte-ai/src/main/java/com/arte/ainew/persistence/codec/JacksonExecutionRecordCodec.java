@@ -130,6 +130,8 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         var node = mapper.createObjectNode();
         node.put("schemaVersion", schemaVersion(value)).put("type", alias);
         node.set("body", mapper.valueToTree(value));
+        if (value instanceof ContextSnapshot snapshot && snapshot.assistant() == null)
+            ((tools.jackson.databind.node.ObjectNode) node.get("body")).remove("assistant");
         if (value instanceof ToolChatRunSnapshot run && run.budgetPlan() == null)
             ((tools.jackson.databind.node.ObjectNode) node.get("body")).remove("budgetPlan");
         var json = mapper.writeValueAsString(node);
@@ -160,6 +162,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
                 || version == 2 && (expectedType == InvocationResult.class || expectedType == ToolDefinitionRevision.class
                 || expectedType == ToolBindingResolution.class || expectedType == ToolChatBudgetAllocation.class
                 || expectedType == ToolChatRunSnapshot.class || expectedType == Turn.class || expectedType == ResolvedBinding.class
+                || expectedType == ContextSnapshot.class
                 || expectedType == ToolBindingReceipt.class || expectedType == ToolExecutionSnapshot.class)
                 || expectedType == ToolExecutionSnapshot.class && version >= 3 && version <= 7
                 || expectedType == ToolChatRunSnapshot.class && (version == 3 || version == 4)
@@ -167,6 +170,9 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
         if (!supported || !alias.equals(node.path("type").asString()))
             throw new IllegalArgumentException("Unsupported snapshot schema");
         var body = node.required("body");
+        if (expectedType == ContextSnapshot.class && (!body.isObject() || (version == 2) != body.hasNonNull("assistant"))) {
+            throw new IllegalArgumentException("Assistant context shape does not match snapshot version");
+        }
         if (expectedType == ToolChatRunSnapshot.class && (!body.isObject() || version == 1 && body.has("budgetPlan")
                 || version == 2 && !body.hasNonNull("budgetPlan")))
             throw new IllegalArgumentException("Run budget shape does not match snapshot version");
@@ -189,6 +195,7 @@ public final class JacksonExecutionRecordCodec implements ExecutionRecordCodec {
     }
 
     private static int schemaVersion(Object value) {
+        if (value instanceof ContextSnapshot snapshot && snapshot.assistant() != null) return 2;
         if (value instanceof ToolExecutionSnapshot s) {
             if (s.binding().tool().mcp()) return 7;
             if (s.binding().tool().tool().price() != null) return 6;

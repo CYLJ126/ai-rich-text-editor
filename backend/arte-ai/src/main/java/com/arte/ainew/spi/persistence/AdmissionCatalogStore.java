@@ -38,6 +38,11 @@ public interface AdmissionCatalogStore {
      */
     Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey, String requestDigest);
 
+    default Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey,
+                                                                    String requestDigest, Runnable beforeInsert) {
+        return Mono.error(new UnsupportedOperationException("Transactional conversation creation guard is required"));
+    }
+
     /**
      * 按元数据版本原子修改会话标题或置顶状态，并保存命令回执；不推进会话执行版本。
      * 标题修改与置顶操作共用归属范围内的幂等键空间；相同请求重放首次回执或拒绝结果。

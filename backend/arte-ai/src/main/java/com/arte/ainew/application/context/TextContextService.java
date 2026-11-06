@@ -16,9 +16,12 @@ import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.AiExecutionPolicy;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.generation.ChatMessage;
+import com.arte.ainew.spi.assistant.AssistantContextAccess;
 import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.persistence.ContextSnapshotStore;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.reference.DefinitionRef;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
@@ -78,13 +81,42 @@ public final class TextContextService implements ContextService {
         return this;
     }
 
-    @Override
-    public Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding, ExecutionContext executionContext) {
-        return policies.current(executionContext).flatMap(policy -> assemble(contextRequest, resolvedBinding, executionContext,
-                policy.intersect(ExecutionPolicies.from(properties.limits()))));
+    private AssistantContextAccess assistants;
+
+    public TextContextService assistants(AssistantContextAccess assistants) {
+        this.assistants = assistants;
+        return this;
     }
 
-    private Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding, ExecutionContext executionContext, AiExecutionPolicy policy) {
+    @Override
+    public Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding, ExecutionContext executionContext) {
+        return assemble(contextRequest, resolvedBinding, executionContext, null, null);
+    }
+
+    @Override
+    public Mono<ContextSnapshot> assembleForAssistant(ContextRequest request, ResolvedBinding binding,
+                                                      ExecutionContext context, DefinitionRef profile) {
+        if (assistants == null) return ContextService.super.assembleForAssistant(request, binding, context, profile);
+        return assemble(request, binding, context, profile, null);
+    }
+
+    public Mono<ContextSnapshot> assembleTrial(ContextRequest request, ResolvedBinding binding,
+                                               ExecutionContext context, AssistantContextAccess.Prompt prompt) {
+        if (request.history() != null || prompt.source().trialId() == null) {
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT));
+        }
+        return assemble(request, binding, context, null, prompt);
+    }
+
+    private Mono<ContextSnapshot> assemble(ContextRequest request, ResolvedBinding binding, ExecutionContext context,
+                                           DefinitionRef profile, AssistantContextAccess.Prompt trial) {
+        return policies.current(context).flatMap(policy -> assemble(request, binding, context,
+                policy.intersect(ExecutionPolicies.from(properties.limits())), profile, trial));
+    }
+
+    private Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding,
+                                           ExecutionContext executionContext, AiExecutionPolicy policy, DefinitionRef profile,
+                                           AssistantContextAccess.Prompt trial) {
         return admissionAuthorization.require(executionContext, AdmissionAuthorization.INVOKE)
                 .flatMap(currentContext -> bindingManager.resolve(resolvedBinding.definition(), resolvedBinding.capability().definition(), currentContext))
                 .flatMap(actualBinding -> {
@@ -105,11 +137,27 @@ public final class TextContextService implements ContextService {
                     // 同一幂等请求重放时复用原快照中的历史，避免后续轮次改变原请求的输入语义。
                     return contextRequest.history() == null ? Mono.just(new ChatHistoryLoader.Loaded(List.of(), null))
                             : chatHistoryLoader.load(contextRequest.history(), resolvedBinding.capability().definition().id(), executionContext);
+                }).flatMap(loaded -> {
+                    if (loaded.assistant() != null) {
+                        if (profile == null || !profile.equals(loaded.assistant().profile())) {
+                            return Mono.error(new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT));
+                        }
+                        return Mono.just(loaded);
+                    }
+                    if (profile == null && trial == null) return Mono.just(loaded);
+                    var prompt = trial == null ? assistants.resolve(executionContext, profile) : Mono.just(trial);
+                    return prompt.map(value -> {
+                        var messages = new ArrayList<ChatMessage>();
+                        messages.add(new ChatMessage(UUID.randomUUID().toString(), ChatMessage.Role.SYSTEM,
+                                List.of(new ChatMessage.Text(value.instruction())), List.of(), null));
+                        messages.addAll(loaded.messages());
+                        return new ChatHistoryLoader.Loaded(messages, loaded.selection(), value.source());
+                    });
                 }).map(loaded -> {
                     var messages = new ArrayList<>(loaded.messages());
                     // 添加本轮用户输入的消息（即提问的问题）
                     messages.addAll(contextRequest.messages());
-                    TextInputs.validateContext(messages, ExecutionPolicies.legacy(policy));
+                    TextInputs.validateContext(messages, ExecutionPolicies.legacy(policy), loaded.assistant() != null);
                     var tokenCount = TextInputs.estimatedTokens(messages);
                     // 历史消息与本轮用户输入共同占用输入额度；按 UTF-8 字节数加固定开销估算 Token。
                     // 超过 maxInputTokens 就明确拒绝，不静默截断历史或用户文本；估算值不用于冒充实际计费用量。
@@ -124,7 +172,7 @@ public final class TextContextService implements ContextService {
                     // 此处只组装快照，由协调器在受理阶段持久化；到期禁止新调用，不表示立即删除存储字节。
                     return new ContextSnapshot(UUID.randomUUID().toString(), loaded.selection(), resolvedBinding.definition(), messages, List.of(),
                             contextRequest.budget(), tokenCount, true, TextInputs.TOKENIZER, List.of(), TextInputs.contentDigest(messages),
-                            now, now.plus(ExecutionPolicies.legacy(policy).snapshotRetention()));
+                            now, now.plus(ExecutionPolicies.legacy(policy).snapshotRetention()), loaded.assistant());
                 }).doOnNext(snapshot -> log.debug("AI context assembled, invocationId={}, traceId={}, snapshotId={}, messageCount={}, inputTokens={}, historyTurns={}",
                         executionContext.executionId(), executionContext.traceId(), snapshot.snapshotId(), snapshot.messages().size(), snapshot.inputTokens(),
                         snapshot.history() == null ? 0 : snapshot.history().turnIds().size()));

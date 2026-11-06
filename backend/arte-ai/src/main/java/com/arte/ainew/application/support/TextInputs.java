@@ -43,13 +43,20 @@ public final class TextInputs {
      * 仅供受信组装器及已保存快照复核；HTTP 调用方仍只能提交一个 USER 文本。
      */
     public static void validateContext(List<ChatMessage> messages, NewAiProperties.Limits limits) {
-        if (messages.isEmpty() || messages.size() > 21 || messages.size() % 2 != 1) {
+        validateContext(messages, limits, false);
+    }
+
+    public static void validateContext(List<ChatMessage> messages, NewAiProperties.Limits limits, boolean assistant) {
+        int offset = assistant ? 1 : 0;
+        int chatSize = messages.size() - offset;
+        if (chatSize < 1 || chatSize > 21 || chatSize % 2 != 1) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
         }
         for (int i = 0; i < messages.size(); i++) {
             var message = messages.get(i);
-            // 非 USER/ASSISTANT 角色消息、工具调用、工具调用 ID 不为空、非纯文本内容的消息，拒绝接收（暂只支持文本输入）
-            if (message.role() != (i % 2 == 0 ? ChatMessage.Role.USER : ChatMessage.Role.ASSISTANT)
+            var expected = i < offset ? ChatMessage.Role.SYSTEM
+                    : (i - offset) % 2 == 0 ? ChatMessage.Role.USER : ChatMessage.Role.ASSISTANT;
+            if (message.role() != expected
                     || !message.toolCalls().isEmpty() || message.toolCallId() != null
                     || message.content().stream().anyMatch(part -> !(part instanceof ChatMessage.Text))) {
                 throw new AdmissionException(ResultCodeEnum.AI_ONLY_SINGLE_USER_TEXT_SUPPORTED);
@@ -96,10 +103,11 @@ public final class TextInputs {
     }
 
     public static void verify(ContextSnapshot snapshot, ResolvedBinding binding, NewAiProperties.Limits limits) {
-        validateContext(snapshot.messages(), limits);
+        validateContext(snapshot.messages(), limits, snapshot.assistant() != null);
+        int chatSize = snapshot.messages().size() - (snapshot.assistant() == null ? 0 : 1);
         if (!snapshot.modelBinding().equals(binding.definition())
-                || (snapshot.history() == null ? snapshot.messages().size() != 1
-                : snapshot.messages().size() != snapshot.history().turnIds().size() * 2 + 1)
+                || chatSize != (snapshot.history() == null ? 1 : snapshot.history().turnIds().size() * 2 + 1)
+                || snapshot.assistant() != null && snapshot.assistant().trialId() != null && snapshot.history() != null
                 || !snapshot.fragments().isEmpty() || !snapshot.truncations().isEmpty()
                 || snapshot.budget().contextWindowTokens() != binding.contextWindowTokens()
                 || snapshot.budget().reservedToolTokens() != 0

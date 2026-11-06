@@ -43,6 +43,10 @@ public class ConversationExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
+        return handleNewAiFailure(exception, request, locale);
+    }
+
+    public static ResponseEntity<IResult> handleNewAiFailure(Exception exception, HttpServletRequest request, Locale locale) {
         if (exception instanceof DispatchSchedulingException scheduling) {
             boolean full = scheduling.reason() == DispatchSchedulingException.Reason.QUEUE_FULL;
             var code = full ? ResultCodeEnum.AI_DISPATCH_QUEUE_FULL : ResultCodeEnum.AI_DISPATCH_UNAVAILABLE;

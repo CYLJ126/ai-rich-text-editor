@@ -322,9 +322,10 @@ public class NewAiAdmissionConfiguration {
     AiAdmissionAuthorizationGuard admissionGuard(NewAiProperties properties, AdmissionAuthorization authorization,
                                                  AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
                                                  ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
-                                                 @Qualifier("newAiClock") Clock clock) {
+                                                 @Qualifier("newAiClock") Clock clock,
+                                                 ObjectProvider<com.arte.ainew.spi.assistant.AssistantContextAccess> assistants) {
         return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(properties, selectedSource(properties, sources), scheduler), authorization,
-                entitlements, budgets, policies, properties.limits(), clock);
+                entitlements, budgets, policies, properties.limits(), clock).assistants(assistants.getIfAvailable());
     }
 
     /**
@@ -354,12 +355,13 @@ public class NewAiAdmissionConfiguration {
 
     /**
      * 会话应用服务，负责幂等创建，以及校验当前权限和归属后的会话／Turn 读取。
-     * 使用新会话存储；当前不支持历史选择、ChatProfile 或资源配置。
+     * 使用新会话存储；助手适配启用后可选用固定 ChatProfile。
      */
     @Bean("newAiConversationService")
     ConversationService conversationService(MybatisExecutionPersistence store, AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock,
-                                            ObjectProvider<ConversationArchiveReader> archives) {
-        return new DefaultConversationService(store, authorization, clock, archives.getIfAvailable());
+                                            ObjectProvider<ConversationArchiveReader> archives,
+                                            ObjectProvider<com.arte.ainew.spi.assistant.AssistantContextAccess> assistants) {
+        return new DefaultConversationService(store, authorization, clock, archives.getIfAvailable(), assistants.getIfAvailable());
     }
 
     /**
@@ -367,12 +369,14 @@ public class NewAiAdmissionConfiguration {
      * assemble 只构造快照，由协调器受理时持久化；find 从字节存储读取并检查当前权限及归属。
      */
     @Bean("newAiContextService")
-    ContextService contextService(AdmissionAuthorization authorization, BindingManager bindings, MybatisPayloadPersistence store,
+    TextContextService contextService(AdmissionAuthorization authorization, BindingManager bindings, MybatisPayloadPersistence store,
                                   NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
                                   ConversationService conversations, MybatisExecutionPersistence executions,
-                                  ObjectProvider<ToolChatRunStore> runs, AiExecutionPolicyProvider policies) {
+                                      ObjectProvider<ToolChatRunStore> runs, AiExecutionPolicyProvider policies,
+                                      ObjectProvider<com.arte.ainew.spi.assistant.AssistantContextAccess> assistants) {
         return new TextContextService(authorization, bindings, store, properties, clock,
-                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()), policies);
+                new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()), policies)
+                .assistants(assistants.getIfAvailable());
     }
 
     /**

@@ -73,7 +73,8 @@ public final class ModelControlService implements CapabilityCatalog, BindingMana
 
     @Override
     public Mono<Void> validate(InvocationRequest<?> request) {
-        return published.inSnapshot(request.context(), configuration -> resolve(request.binding(), request.capability(), request.context())
+        return Mono.deferContextual(values -> published.inSnapshot(request.context(), configuration ->
+                resolve(request.binding(), request.capability(), request.context())
                 .flatMap(binding -> {
                     if (!(request.input() instanceof GenerationRequest generation)
                             || request.kind() != CapabilityDescriptor.Kind.GENERATION
@@ -93,9 +94,10 @@ public final class ModelControlService implements CapabilityCatalog, BindingMana
                                     return Mono.error(new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
                                 }
                                 return policies.current(current).doOnNext(policy -> ExecutionPolicyChecks.require(
-                                        new AiAdmissionAuthorizationGuard.Check(request, binding, null, null,
+                                        new AiAdmissionAuthorizationGuard.Check(request, binding,
+                                                values.getOrDefault(com.arte.ainew.pojo.context.ContextSnapshot.class, null), null,
                                                 AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND), policy.intersect(ceiling), clock)).then();
                             });
-                }));
+                })));
     }
 }

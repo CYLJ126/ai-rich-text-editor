@@ -72,7 +72,7 @@ public final class DefaultChatService implements ChatService {
                             if (conversation.state() != Conversation.State.ACTIVE) {
                                 throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_ACTIVE);
                             }
-                            if (request.parentTurnId() != null || request.supersedesTurnId() != null || conversation.chatProfile() != null
+                            if (request.parentTurnId() != null || request.supersedesTurnId() != null
                                     || !conversation.resources().isEmpty() || request.context().history() != null) {
                                 throw new AdmissionException(ResultCodeEnum.AI_CHAT_SELECTION_NOT_SUPPORTED);
                             }
@@ -83,7 +83,9 @@ public final class DefaultChatService implements ChatService {
                             // 解析绑定
                             return bindingManager.resolve(request.binding(), request.capability(), currentContext)
                                     // 组装上下文
-                                    .flatMap(binding -> contextService.assemble(selection, binding, currentContext))
+                                    .flatMap(binding -> conversation.chatProfile() == null
+                                            ? contextService.assemble(selection, binding, currentContext)
+                                            : contextService.assembleForAssistant(selection, binding, currentContext, conversation.chatProfile()))
                                     // 提交执行
                                     .flatMap(snapshot -> admissionCatalogStore.nextTurnSequence(ExecutionOwners.from(currentContext), conversation.conversationId())
                                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
@@ -155,14 +157,15 @@ public final class DefaultChatService implements ChatService {
         var snapshot = new ContextSnapshot(UUID.randomUUID().toString(), saved.history(), saved.modelBinding(),
                 saved.messages(), saved.fragments(), saved.budget(), saved.inputTokens(), saved.estimatedTokens(),
                 saved.tokenizerVersion(), saved.truncations(), saved.contentDigest(), at,
-                at.plus(properties.limits().snapshotRetention()));
+                at.plus(properties.limits().snapshotRetention()), saved.assistant());
         var candidates = new ArrayList<>(turn.candidates());
         if (!replay) candidates.add(AnswerCandidate.invocation(context.executionId()));
         // 重放不追加候选（包括候选已达到上限时）；协调器仍核对完整语义摘要。
+        var turnUpdatedAt = at.isBefore(turn.updatedAt()) ? turn.updatedAt() : at;
         var updated = replay ? turn : Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), candidates,
                 turn.effectiveCandidate(),
-                turn.version() + 1, turn.createdAt(), at);
+                turn.version() + 1, turn.createdAt(), turnUpdatedAt);
         var generation = (GenerationRequest) original.request().input();
         var input = new GenerationRequest(snapshot.messages(), generation.options(), generation.tools(), generation.outputFormat());
         var invocation = new InvocationRequest<>(original.request().capability(), original.request().binding(), input.kind(), input, request.options(), context);

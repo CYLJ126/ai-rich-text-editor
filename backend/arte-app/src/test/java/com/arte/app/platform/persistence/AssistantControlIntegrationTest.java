@@ -74,7 +74,7 @@ class AssistantControlIntegrationTest {
         if (fixture.mysql == null) {
             ddl = ddl.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
                     .replaceAll("(?i)ENGINE=InnoDB(?: DEFAULT CHARSET=utf8mb4)?", "")
-                    .replace("example_prompts JSON", "example_prompts LONGTEXT");
+                    .replaceAll("(?i)example_prompts\\s+JSON", "example_prompts LONGTEXT");
         }
         try (var connection = fixture.source.getConnection()) {
             ScriptUtils.executeSqlScript(connection, new ByteArrayResource(ddl.getBytes(StandardCharsets.UTF_8)));

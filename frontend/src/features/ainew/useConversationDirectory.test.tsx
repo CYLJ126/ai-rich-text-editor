@@ -447,6 +447,27 @@ it('creates a date-named conversation without a form, restores its timeout key, 
   expect(fresh[1]).not.toBe(original[1]);
 });
 
+it('restores the original assistant profile and title after a lost creation response', async () => {
+  const h = await loaded();
+  const chatProfile = {type: 'chat-profile', id: 'outline', version: '1'};
+  const request = {title: 'Outline', chatProfile};
+  vi.mocked(api.createConversation).mockRejectedValueOnce(new Error('timeout'));
+  await act(async () => {
+    await h.result.current.create(request);
+  });
+  const original = vi.mocked(api.createConversation).mock.calls[0].slice(0, 2);
+  expect(original[0]).toEqual({scope, ...request});
+  h.unmount();
+
+  const next = await loaded();
+  vi.mocked(api.createConversation).mockResolvedValueOnce(reply(detail('new')));
+  await act(async () => {
+    await next.result.current.create({title: 'Outline new', chatProfile: {...chatProfile, version: '2'}});
+  });
+  expect(vi.mocked(api.createConversation).mock.calls[1].slice(0, 2)).toEqual(original);
+  expect(api.createDefaultConversation).not.toHaveBeenCalled();
+});
+
 it('captures the click date before waiting for an existing title save across midnight', async () => {
   vi.useFakeTimers({toFake: ['Date']});
   vi.setSystemTime(new Date('2026-10-14T15:59:59Z'));

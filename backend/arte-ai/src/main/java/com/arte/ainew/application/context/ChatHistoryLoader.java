@@ -47,7 +47,11 @@ public final class ChatHistoryLoader {
      * @param messages  历史消息，按轮次顺序排列为 USER／ASSISTANT 对，不包含本轮用户输入。
      * @param selection 实际选入历史的会话版本及 Turn ID 列表；没有选入历史时为 null。
      */
-    public record Loaded(List<ChatMessage> messages, ContextRequest.HistorySelection selection) {
+    public record Loaded(List<ChatMessage> messages, ContextRequest.HistorySelection selection,
+                         com.arte.ainew.pojo.context.AssistantSource assistant) {
+        public Loaded(List<ChatMessage> messages, ContextRequest.HistorySelection selection) {
+            this(messages, selection, null);
+        }
     }
 
     /**
@@ -140,7 +144,8 @@ public final class ChatHistoryLoader {
                                 log.debug("AI history restored from accepted snapshot, invocationId={}, originalInvocationId={}, traceId={}, conversationId={}, snapshotId={}",
                                         executionContext.executionId(), originalInvocation.request().context().executionId(), executionContext.traceId(),
                                         selection.conversationId(), contextSnapshot.snapshotId());
-                                var loaded = new Loaded(contextSnapshot.messages().subList(0, contextSnapshot.messages().size() - 1), contextSnapshot.history());
+                                var loaded = new Loaded(contextSnapshot.messages().subList(0, contextSnapshot.messages().size() - 1),
+                                        contextSnapshot.history(), contextSnapshot.assistant());
                                 // 无历史时不需要额外的历史读取权限；有历史时，即使是幂等重放也重新校验 ai:read。
                                 return loaded.messages().isEmpty() ? Mono.just(loaded)
                                         : admissionAuthorization.require(executionContext, AdmissionAuthorization.READ).thenReturn(loaded);

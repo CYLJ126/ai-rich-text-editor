@@ -62,7 +62,7 @@ public final class AdmissionDigests {
                     "options", options, "context", submission.snapshot().contentDigest(), "contextBudget", submission.snapshot().budget()));
         var link = submission.conversation();
         var turn = submission.newTurn();
-        return CanonicalJson.digest(CanonicalJson.fields("schema", "text-admission-v1",
+        var fields = CanonicalJson.fields("schema", "text-admission-v1",
                 "owner", ExecutionOwners.from(context), "scopes", new TreeSet<>(context.authorization().scopes()),
                 "parentExecutionId", context.parentExecutionId(), "budgetRef", context.budgetRef(), "releaseRef", context.releaseRef(),
                 "capability", request.capability(), "binding", request.binding(), "kind", request.kind(),
@@ -77,6 +77,8 @@ public final class AdmissionDigests {
                 "conversationVersion", link == null ? null : link.conversationVersion(),
                 "parentTurnId", turn == null ? null : turn.parentTurnId(),
                 "supersedesTurnId", turn == null ? null : turn.supersedesTurnId(),
-                "replacesInvocationId", submission.replacesInvocationId()));
+                "replacesInvocationId", submission.replacesInvocationId());
+        if (submission.snapshot().assistant() != null) fields.put("assistant", submission.snapshot().assistant());
+        return CanonicalJson.digest(fields);
     }
 }

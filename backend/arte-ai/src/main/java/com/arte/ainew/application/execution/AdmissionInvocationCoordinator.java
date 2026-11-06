@@ -16,6 +16,7 @@ import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.control.ExecutionPolicies;
+import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.AiExecutionPolicy;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ResolvedBinding;
@@ -97,7 +98,11 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
                             var request = new InvocationRequest<>(original.capability(), original.binding(), original.kind(), generation, original.options(), current);
                             var refreshed = new InvocationSubmission<>(request, submission.snapshot(), submission.conversation(),
                                     submission.newTurn(), submission.replacesInvocationId());
-                            return capabilityCatalog.validate(request).then(bindingManager.resolve(request.binding(), request.capability(), current))
+                            var validation = capabilityCatalog.validate(request);
+                            if (submission.snapshot().assistant() != null) {
+                                validation = validation.contextWrite(values -> values.put(ContextSnapshot.class, submission.snapshot()));
+                            }
+                            return validation.then(bindingManager.resolve(request.binding(), request.capability(), current))
                                     .flatMap(binding -> admit(refreshed, binding));
                         })
                 .doOnError(error -> log.warn("AI admission failed, invocationId={}, traceId={}, capabilityId={}, code={}, type={}",

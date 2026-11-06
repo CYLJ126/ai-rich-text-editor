@@ -49,7 +49,8 @@ public final class EntitledConnectionManager implements ConnectionManager {
     public Mono<ConnectionDefinition> resolveCurrent(DefinitionRef reference, GatewayCall<?> call) {
         if (!call.binding().connection().equals(reference))
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONFIGURATION_NOT_AVAILABLE));
-        return Mono.deferContextual(values -> guard.authorize(new AiAdmissionAuthorizationGuard.Check(call.request(), call.binding(), null,
+        return Mono.deferContextual(values -> guard.authorize(new AiAdmissionAuthorizationGuard.Check(call.request(), call.binding(),
+                        values.getOrDefault(com.arte.ainew.pojo.context.ContextSnapshot.class, null),
                         values.getOrDefault(ToolSetSnapshot.class, null), AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND))
                 .map(AiAdmissionAuthorizationGuard.Permit::connection));
     }

@@ -201,8 +201,12 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     }
 
     private Instant conversationUpdateTime(Conversation conversation) {
+        return updateTime(conversation.updatedAt());
+    }
+
+    private Instant updateTime(Instant previous) {
         var at = now();
-        return at.isBefore(conversation.updatedAt()) ? conversation.updatedAt() : at;
+        return at.isBefore(previous) ? previous : at;
     }
 
     private Instant now() {
@@ -311,6 +315,13 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     @Override
     public Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey, String requestDigest) {
+        return createConversationOnce(conversation, idempotencyKey, requestDigest, () -> {
+        });
+    }
+
+    @Override
+    public Mono<StoreOutcome<Conversation>> createConversationOnce(Conversation conversation, String idempotencyKey,
+                                                                   String requestDigest, Runnable beforeInsert) {
         Objects.requireNonNull(conversation, "conversation");
         ContractChecks.id(idempotencyKey, "idempotencyKey");
         ContractChecks.digest(requestDigest, "requestDigest");
@@ -326,6 +337,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 require(original != null && original.owner().equals(conversation.owner()), NOT_FOUND);
                 return StoreOutcome.replayed(original);
             }
+            beforeInsert.run();
             admission.insertConversation(hash(conversation.conversationId()), owner, 0, codec.encode(conversation));
             conversationMetadata.initialize(conversation);
             admission.insertConversationCreation(owner, key, requestDigest, hash(conversation.conversationId()));
@@ -775,10 +787,16 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     public Mono<Invocation> find(ExecutionOwner owner, String invocationId) {
         Objects.requireNonNull(owner, "owner");
         ContractChecks.id(invocationId, "invocationId");
-        return tx(() -> {
-            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            return invocation != null && ExecutionOwners.from(invocation.request().context()).equals(owner) ? invocation : null;
-        });
+        return tx(() -> findInCurrentTransaction(owner, invocationId));
+    }
+
+    public Invocation findInCurrentTransaction(ExecutionOwner owner, String invocationId) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.hasResource(dataSource)) {
+            throw new IllegalStateException("Current AI execution transaction required");
+        }
+        var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+        return invocation != null && ExecutionOwners.from(invocation.request().context()).equals(owner) ? invocation : null;
     }
 
     @Override
@@ -1458,7 +1476,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         require(turn != null && turn.candidates().getLast().equals(AnswerCandidate.invocation(id(completed))), INVALID_STATE);
         admission.saveTurn(codec.encode(Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), turn.candidates(), AnswerCandidate.invocation(id(completed)), turn.version() + 1,
-                turn.createdAt(), now())), hash(turn.turnId()));
+                turn.createdAt(), updateTime(turn.updatedAt()))), hash(turn.turnId()));
         var updated = new Conversation(conversation.conversationId(), conversation.owner(), conversation.title(),
                 conversation.version() + 1, conversation.chatProfile(), conversation.resources(), conversation.state(),
                 conversation.createdAt(), conversationUpdateTime(conversation));

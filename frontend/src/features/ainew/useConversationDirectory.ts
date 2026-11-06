@@ -9,8 +9,10 @@ import {
   type ConversationResponse,
   type ConversationTitleMetadata,
   type ConversationWindow,
+  createConversation,
   createDefaultConversation,
   type CreateDefaultConversationRequest,
+  type DefinitionRef,
   getConversationMetadata,
   getMetadataCommandReceipt,
   listConversationsCursor,
@@ -29,6 +31,9 @@ import {
   writeValue,
 } from './storage';
 import {useConversations} from './useConversations';
+
+type AssistantConversation = { title: string; chatProfile: DefinitionRef };
+type DirectoryCreateRequest = CreateDefaultConversationRequest | (AssistantConversation & { scope: AiScope });
 
 export const DIRECTORY_LIMIT = 100;
 export const DIRECTORY_PAGE_SIZE = 20;
@@ -125,7 +130,7 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
   };
   const [restored] = useState(() => ({
     command: readOperation<ConversationMetadataRequest>(context, 'conversation-metadata', ''),
-    create: readOperation<CreateDefaultConversationRequest>(context, 'create-default', ''),
+    create: readOperation<DirectoryCreateRequest>(context, 'create-default', ''),
     editor: (() => {
       const stored = readValue<TitleEditor>(storageKey(context, 'title-editor'));
       const v = stored.value;
@@ -595,11 +600,15 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
     return readWindow(true);
   }
 
-  async function create(): Promise<boolean> {
+  async function create(assistant?: AssistantConversation): Promise<boolean> {
     if (creatingPromise.current) return creatingPromise.current;
-    // 在编辑保存等异步保护前固定点击时的日期；旧待确认请求不补日期、不换键。
+    // 在异步离开保护前固定新请求；已有待确认请求始终按原版本、标题及原键恢复。
     const candidate = pendingCreate.current ?? {
-      key: crypto.randomUUID(), request: {scope, localDate: creationDate()}
+      key: crypto.randomUUID(),
+      request: assistant ? {scope, title: assistant.title, chatProfile: assistant.chatProfile} : {
+        scope,
+        localDate: creationDate()
+      }
     };
     if (!await finishEdit() || pending.current || recoveryBlocked) return false;
     if (creatingPromise.current) return creatingPromise.current;
@@ -619,7 +628,9 @@ export function useConversationDirectory(scope: AiScope, context: BrowserContext
       setCreating(true);
       setCreateError(null);
       try {
-        const {body} = await createDefaultConversation(original.request, original.key, {signal: controller.signal});
+        const {body} = await ('chatProfile' in original.request
+          ? createConversation(original.request, original.key, {signal: controller.signal})
+          : createDefaultConversation(original.request, original.key, {signal: controller.signal}));
         if (!alive.current || controller.signal.aborted) return false;
         pendingCreate.current = null;
         setHasPendingCreate(false);

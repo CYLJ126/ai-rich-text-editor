@@ -23,6 +23,12 @@ public interface ContextService {
      */
     Mono<ContextSnapshot> assemble(ContextRequest request, ResolvedBinding binding, ExecutionContext context);
 
+    default Mono<ContextSnapshot> assembleForAssistant(ContextRequest request, ResolvedBinding binding,
+                                                       ExecutionContext context, com.arte.core.pojo.reference.DefinitionRef profile) {
+        return Mono.error(new com.arte.ainew.application.support.AdmissionException(
+                com.arte.core.enums.ResultCodeEnum.AI_CONVERSATION_CONFIGURATION_NOT_SUPPORTED));
+    }
+
     /**
      * 按当前权限读取已有快照；过期快照可用于审计，但不得未经重建用于新调用。
      */

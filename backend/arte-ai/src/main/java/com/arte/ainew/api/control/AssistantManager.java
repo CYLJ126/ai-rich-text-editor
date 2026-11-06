@@ -9,6 +9,9 @@ import com.arte.core.pojo.reference.DefinitionRef;
 
 /**
  * Manages workspace-owned chat assistants and resolves immutable published configurations.
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/10/4 17:35 ✾
  */
 public interface AssistantManager {
     CommandReceipt<Receipt> create(TrustedActor actor, Scope scope, Content content, CommandMeta meta);

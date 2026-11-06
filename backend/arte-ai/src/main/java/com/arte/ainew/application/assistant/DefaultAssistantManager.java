@@ -139,7 +139,7 @@ public final class DefaultAssistantManager implements AssistantManager {
                     check(resource.state() != State.DISABLED, ACCESS_DENIED);
                     var draft = draft(resource, true);
                     check(resource.version() == expectedVersion && draft.revision() == expectedRevision, VERSION_CONFLICT);
-                    validate(draft.content(), true);
+                    requireComplete(draft.content());
                     check(trials != null, CAPABILITY_NOT_ENABLED);
                     if (resource.releaseVersion() != null) {
                         check(release(resource, resource.releaseVersion()).draftRevision() < expectedRevision, VERSION_CONFLICT);
@@ -319,6 +319,10 @@ public final class DefaultAssistantManager implements AssistantManager {
         var values = new ArrayList<>(List.of(content.displayName(), content.description(), content.systemInstruction(), content.expectedOutput()));
         values.addAll(content.examplePrompts());
         return values;
+    }
+
+    public static void requireComplete(Content content) {
+        validate(content, true);
     }
 
     private static void validate(Content content, boolean complete) {

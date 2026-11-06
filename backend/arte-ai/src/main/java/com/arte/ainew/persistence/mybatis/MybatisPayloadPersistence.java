@@ -38,6 +38,7 @@ import static com.arte.ainew.serialization.CanonicalJson.key;
  */
 public final class MybatisPayloadPersistence implements ContextSnapshotStore, ExecutionResultStore {
 
+    private final DataSource source;
     private final PayloadMapper payloadMapper;
     private final ExecutionMapper executionMapper;
     private final SystemMapper systemMapper;
@@ -46,6 +47,7 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
     private final Scheduler scheduler;
 
     public MybatisPayloadPersistence(DataSource dataSource, ExecutionRecordCodec executionRecordCodec, Scheduler scheduler) {
+        this.source = dataSource;
         var sessions = new SqlSessionTemplate(ExecutionSqlSessionFactory.create(dataSource));
         payloadMapper = sessions.getMapper(PayloadMapper.class);
         executionMapper = sessions.getMapper(ExecutionMapper.class);
@@ -88,42 +90,55 @@ public final class MybatisPayloadPersistence implements ContextSnapshotStore, Ex
 
     @Override
     public Mono<StoreOutcome<ContextSnapshot>> put(ExecutionOwner owner, ContextSnapshot workspaceSnapshot) {
+        return tx(() -> putInCurrentTransaction(owner, workspaceSnapshot));
+    }
+
+    public StoreOutcome<ContextSnapshot> putInCurrentTransaction(ExecutionOwner owner, ContextSnapshot workspaceSnapshot) {
+        requireTransaction();
         var ownerId = ownerKey(owner);
         Objects.requireNonNull(workspaceSnapshot, "workspaceSnapshot");
-        return tx(() -> {
-            var id = key(ownerId, workspaceSnapshot.snapshotId());
-            lock(key("context-payload", id));
-            var encoded = bytes(workspaceSnapshot);
-            var digest = CanonicalJson.sha256(encoded);
-            var existing = payloadMapper.context(id);
-            if (existing != null) {
-                integrity(existing);
-                if (!ownerId.equals(existing.ownerKey()) || !digest.equals(existing.payloadDigest())) {
-                    return StoreOutcome.rejected(IDEMPOTENCY_CONFLICT);
-                }
-                return StoreOutcome.replayed(executionRecordCodec.decode(existing.workspaceSnapshot(), ContextSnapshot.class));
+        var id = key(ownerId, workspaceSnapshot.snapshotId());
+        lock(key("context-payload", id));
+        var encoded = bytes(workspaceSnapshot);
+        var digest = CanonicalJson.sha256(encoded);
+        var existing = payloadMapper.context(id);
+        if (existing != null) {
+            integrity(existing);
+            if (!ownerId.equals(existing.ownerKey()) || !digest.equals(existing.payloadDigest())) {
+                return StoreOutcome.rejected(IDEMPOTENCY_CONFLICT);
             }
-            payloadMapper.insertContext(id, ownerId, digest, encoded);
-            return StoreOutcome.applied(workspaceSnapshot);
-        });
+            return StoreOutcome.replayed(executionRecordCodec.decode(existing.workspaceSnapshot(), ContextSnapshot.class));
+        }
+        payloadMapper.insertContext(id, ownerId, digest, encoded);
+        return StoreOutcome.applied(workspaceSnapshot);
     }
 
     @Override
     public Mono<ContextSnapshot> find(ExecutionOwner owner, String snapshotId) {
+        return tx(() -> findInCurrentTransaction(owner, snapshotId));
+    }
+
+    public ContextSnapshot findInCurrentTransaction(ExecutionOwner owner, String snapshotId) {
+        requireTransaction();
         var ownerId = ownerKey(owner);
         ContractChecks.id(snapshotId, "snapshotId");
-        return tx(() -> {
-            var row = payloadMapper.context(key(ownerId, snapshotId));
-            if (row == null || !row.ownerKey().equals(ownerId)) {
-                return null;
-            }
-            integrity(row);
-            var workspaceSnapshot = executionRecordCodec.decode(row.workspaceSnapshot(), ContextSnapshot.class);
-            if (!workspaceSnapshot.snapshotId().equals(snapshotId)) {
-                throw new IllegalStateException("Snapshot identity mismatch");
-            }
-            return workspaceSnapshot;
-        });
+        var row = payloadMapper.context(key(ownerId, snapshotId));
+        if (row == null || !row.ownerKey().equals(ownerId)) {
+            return null;
+        }
+        integrity(row);
+        var workspaceSnapshot = executionRecordCodec.decode(row.workspaceSnapshot(), ContextSnapshot.class);
+        if (!workspaceSnapshot.snapshotId().equals(snapshotId)) {
+            throw new IllegalStateException("Snapshot identity mismatch");
+        }
+        return workspaceSnapshot;
+    }
+
+    private void requireTransaction() {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                || !org.springframework.transaction.support.TransactionSynchronizationManager.hasResource(source)) {
+            throw new IllegalStateException("Current AI payload transaction required");
+        }
     }
 
     @Override

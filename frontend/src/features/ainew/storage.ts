@@ -81,7 +81,14 @@ const schemas = {
     timeoutSeconds: z.number().int().positive()
   }),
   stop: z.object({scope: scopeSchema, invocationId: id}),
-  'create-default': z.object({scope: scopeSchema, localDate: z.iso.date().optional()}),
+  'create-default': z.union([
+    z.object({
+      scope: scopeSchema,
+      title: z.string().min(1).max(256),
+      chatProfile: ref.extend({type: z.literal('chat-profile')})
+    }).strict(),
+    z.object({scope: scopeSchema, localDate: z.iso.date().optional()}).strict()
+  ]),
   'model-egress-policy': z.object({
     scope: scopeSchema,
     command: egressPolicyUpdate,

@@ -38,6 +38,7 @@ public final class DefaultConversationService implements ConversationService {
     private final AdmissionAuthorization authorization;
     private final Clock clock;
     private final ConversationArchiveReader archives;
+    private final com.arte.ainew.spi.assistant.AssistantContextAccess assistants;
 
     public DefaultConversationService(AdmissionCatalogStore admissionCatalogStore, AdmissionAuthorization authorization, Clock clock) {
         this(admissionCatalogStore, authorization, clock, null);
@@ -45,6 +46,12 @@ public final class DefaultConversationService implements ConversationService {
 
     public DefaultConversationService(AdmissionCatalogStore admissionCatalogStore, AdmissionAuthorization authorization, Clock clock,
                                       ConversationArchiveReader archives) {
+        this(admissionCatalogStore, authorization, clock, archives, null);
+    }
+
+    public DefaultConversationService(AdmissionCatalogStore admissionCatalogStore, AdmissionAuthorization authorization, Clock clock,
+                                      ConversationArchiveReader archives, com.arte.ainew.spi.assistant.AssistantContextAccess assistants) {
+        this.assistants = assistants;
         this.admissionCatalogStore = admissionCatalogStore;
         this.authorization = authorization;
         this.clock = clock;
@@ -60,15 +67,17 @@ public final class DefaultConversationService implements ConversationService {
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
             var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
-            if (profile != null || !selections.isEmpty()) {
+            if (profile != null && (assistants == null || !"chat-profile".equals(profile.type())) || !selections.isEmpty()) {
                 throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_CONFIGURATION_NOT_SUPPORTED);
             }
             ContractChecks.id(current.idempotencyKey(), "idempotencyKey");
             var now = clock.instant();
-            var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwners.from(current), title, 0, null,
+            var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwners.from(current), title, 0, profile,
                     selections, Conversation.State.ACTIVE, now, now);
-            return admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
-                    .map(outcome -> {
+            var creation = profile == null ? admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
+                    : admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest,
+                    () -> assistants.requireNewConversation(current, profile));
+            return creation.map(outcome -> {
                         if (!outcome.successful()) {
                             log.warn("AI conversation creation rejected, invocationId={}, traceId={}, code={}", current.executionId(), current.traceId(), outcome.code());
                             throw AdmissionException.fromStoreRejection(outcome.code());

@@ -69,6 +69,27 @@ public final class JdbcAssistantStore implements AssistantStore {
                 assistantId, trialId);
     }
 
+    public record TrialCommand(Trial trial, String requestDigest) {
+    }
+
+    public Optional<TrialCommand> trialByKey(String key) {
+        tx.requireWritable();
+        return one("SELECT * FROM arte_ai_assistant_trial WHERE idempotency_digest=? FOR UPDATE",
+                (row, index) -> new TrialCommand(new Trial(row.getString("trial_id"), row.getString("assistant_id"),
+                        row.getLong("draft_revision"), row.getString("actor_id"), row.getString("content_digest"),
+                        row.getString("context_snapshot_id"), row.getString("invocation_id")), row.getString("request_digest")), key);
+    }
+
+    public void insertTrial(Trial trial, String key, String requestDigest, Instant createdAt) {
+        tx.requireWritable();
+        jdbc.update("""
+                        INSERT INTO arte_ai_assistant_trial
+                        (trial_id,assistant_id,draft_revision,actor_id,idempotency_digest,request_digest,content_digest,context_snapshot_id,invocation_id,created_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)
+                        """, trial.id(), trial.assistantId(), trial.draftRevision(), trial.actorId(), key, requestDigest,
+                trial.contentDigest(), trial.snapshotId(), trial.invocationId(), utc(createdAt));
+    }
+
     @Override
     public List<Resource> scan(Scope scope, String afterId, boolean activeOnly, int limit) {
         String active = activeOnly ? " AND state=" + State.ACTIVE.code() : "";

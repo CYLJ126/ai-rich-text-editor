@@ -93,7 +93,7 @@ export interface CreateDefaultConversationRequest {
 export interface CreateConversationRequest {
   scope: AiScope;
   title: string;
-  /** 当前最小链路只支持省略或 null。 */
+  /** 可选的固定助手聊天配置。 */
   chatProfile?: DefinitionRef | null;
   /** 当前最小链路只支持省略或空数组。 */
   resources?: ResourceRef[];

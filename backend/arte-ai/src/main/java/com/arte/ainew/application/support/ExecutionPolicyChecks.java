@@ -75,6 +75,9 @@ public final class ExecutionPolicyChecks {
                     throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
                 }
             } else if (check.tools() == null) {
+                if (snapshot.assistant() != null && (!snapshot.messages().equals(messages) || !tools.isEmpty())) {
+                    throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+                }
                 TextInputs.verify(snapshot, check.binding(), limits);
             } else {
                 ToolChatInputs.verify(snapshot, check.tools(), limits);
