@@ -1,10 +1,10 @@
-# ======================== Server 配置 ========================
+# ======================== 服务端配置 ========================
 server.port=12636
 server.servlet.context-path=/arte
-# ======================== redis 配置 ========================
+# ======================== Redis 配置 ========================
 redis.singleServerConfig.address=redis://127.0.0.1:6379
 redis.singleServerConfig.password=
-# ======================== app 数据库连接池配置 ========================
+# ======================== 应用数据库连接池配置 ========================
 spring.datasource.druid.app.url=your-database-url-here
 spring.datasource.druid.app.username=your-database-username-here
 spring.datasource.druid.app.password=your-database-password-here
@@ -37,7 +37,7 @@ security.sm2.publicKey=your-sm2-public-key-here
 http.proxy.host=your-proxy-host-here
 http.proxy.port=your-proxy-port-here
 # ======================== 首页资讯网站配置 ========================
-# 是否在启动时加载网站资讯，默认开启
+# 控制应用启动时是否加载首页资讯
 arte.homepage.website.loadWhenStart=true
 # ======================== 文件上传下载配置 ========================
 spring.servlet.multipart.max-file-size=10MB
@@ -93,19 +93,19 @@ spring.ai.embedding.transformer.onnx.gpu-device-id=-1
 # 重要，防止输入长度不一致报错
 spring.ai.embedding.transformer.tokenizer.options.padding=true
 # ======================== Spring AI 配置 ========================
-# Legacy Spring AI also reads the process environment; no plaintext key in build resources.
+# 旧版 Spring AI 从应用进程的环境变量读取密钥，构建资源只保存变量引用。
 spring.ai.deepseek.api-key=${ARTE_DEEPSEEK_API_KEY}
-# ======================== mcp client 配置 ========================
+# ======================== MCP 客户端配置 ========================
 spring.ai.mcp.client.name=arte-mcp-client
-# ======================== mcp server 配置 ========================
+# ======================== MCP 服务端配置 ========================
 spring.ai.mcp.server.name=arte-mcp-server
 # 配置路径为 项目根路径加端点路径，如 http://localhost:8000/arte/mcp
 spring.ai.mcp.server.endpoint=/mcp
 spring.ai.mcp.server.disallow-delete=true
 
-# ======================== Public platform / workspace ========================
-# Filtered into classpath:platform/config/application.properties, imported by application.yml.
-# Rebuild Maven resources and restart the application after changing these values.
+# ======================== 公共平台与工作空间配置 ========================
+# Maven 将本段过滤到 classpath:platform/config/application.properties，由 application.yml 导入。
+# 修改配置后重新构建 Maven 资源并重启应用。
 # 安装公共身份和工作空间表，参见 ../arte-app/docs/PLATFORM_PERSISTENCE.md。
 # 下方账号 ID、迁移上限和主体 ID 是示例。部署前按目标库核对并替换。
 arte.platform.identity.enabled=true
@@ -117,17 +117,17 @@ arte.platform.identity.bindings[0].user-id=1
 arte.platform.identity.bindings[0].subject-id=example-subject-id
 
 arte.platform.persistence.enabled=true
-# Space CRUD does not require event delivery. Enable when testing Redis Streams / Outbox consumers.
+# 工作空间的日常读写可独立运行。需要 Redis Streams 或 Outbox 消费时开启事件投递。
 arte.platform.persistence.outbox-enabled=false
-# Advanced persistence defaults are in common.properties. Override individual keys here as needed.
+# 高级持久化参数的默认值见 common.properties，可在部署文件中逐项覆盖。
 
 arte.platform.workspace.enabled=true
-# NEW personal tenant defaults are versioned in the database; see arte-app/docs/PLATFORM_WORKSPACE_POLICY.md.
-# Existing policies change only through authorized governance commands.
+# 新个人租户的默认政策以版本形式保存在数据库，参见 ../arte-app/docs/PLATFORM_WORKSPACE_POLICY.md。
+# 已有政策通过受权的治理操作修改。
 
-# ======================== New AI DATABASE 配置 ========================
-# Maven filters this file into classpath:ainew/config/application.properties.
-# application-ai.yml imports that runtime file; changing this file requires rebuilding resources.
+# ======================== 新版 AI 数据库模式配置 ========================
+# Maven 将本段过滤到 classpath:ainew/config/application.properties，由 application-ai.yml 导入。
+# 修改部署配置后重新构建运行资源。
 # 1. 启动前在 appDataSource 所用 MySQL 库安装新 AI 执行、控制面和模型表。
 #    依赖和安装顺序见 ../arte-app/docs/MODEL_CONFIGURATION_M5.md 的「新装和部署边界」。
 #    另执行 arte-ai-model-egress-policy-ddl-mysql.sql 和 arte-ai-model-egress-rbac-dml-mysql.sql。
@@ -165,19 +165,19 @@ arte.ai-new-generation.secrets[0].reference.id=example-credential
 arte.ai-new-generation.secrets[0].reference.version=v1
 arte.ai-new-generation.secrets[0].environment-variable=ARTE_DEEPSEEK_API_KEY
 
-# Manual dispatch by default; set worker-enabled=true for automatic database polling.
-# Execute the manual DDL and initialize the budget first. No startup DDL/account creation.
+# 示例采用手动派发。设置 worker-enabled=true 后，Worker 自动轮询数据库。
+# 启动前按部署说明安装表结构，调用前按需准备对应预算账户。
 # 工具聊天部署也在这里开启总执行 Worker，和上方工具聊天 Worker 开关配合使用。
 arte.ai-new-execution.enabled=true
 arte.ai-new-execution.worker-enabled=false
-# Worker tuning, dispatch limits, and retry defaults are in common.properties.
+# Worker 调优、派发限流和重试参数的默认值见 common.properties。
 
-# AI SSE notification transport (reuse application RedissonClient).
+# AI 实时事件传输。Redis 模式复用应用的 RedissonClient。
 arte.ai-new-events.transport=local
-# Redis deployments can override the channel and publish timeout from common.properties.
+# Redis 部署可覆盖 common.properties 中的通道和发布超时。
 
-# Conversation search. Apply the search MySQL migration before startup.
-# Initialize the index, expose queries, and keep historical/new conversations synchronized.
+# 会话搜索。启动前安装搜索所需的 MySQL 表结构。
+# 以下开关分别控制索引初始化、查询开放、增量同步、历史回填及定期校准。
 arte.ai-new-search.enabled=${ARTE_AI_NEW_SEARCH_ENABLED:true}
 arte.ai-new-search.initialize-on-startup=${ARTE_AI_NEW_SEARCH_INITIALIZE_ON_STARTUP:true}
 arte.ai-new-search.query-enabled=${ARTE_AI_NEW_SEARCH_QUERY_ENABLED:true}
@@ -196,11 +196,10 @@ arte.ai-new-execution.scheduling.enabled=false
 arte.ai-new-tool-write.enabled=true
 arte.ai-new-tool-approval.enabled=true
 
-# S5-01: enable only after reviewing the fixed endpoint, network origin and deployment manifest.
+# S5-01 匿名 HTTP 工具。核对固定端点、网络出口和部署清单后再启用。
 arte.ai-new-tool-http.enabled=false
 # HTTP 工具开启前，在部署配置中填写 endpoint 和 allowed-origins。
-
-# S5-02: apply billing migration and upgrade consumers before enabling.
+# S5-02 工具计费。应用计费迁移并升级消费者后再启用。
 arte.ai-new-tool-billing.enabled=false
 
 # MCP 健康检查工具独立启用。保持 true 时，启动前必须填写 endpoint 和 allowed-origins。

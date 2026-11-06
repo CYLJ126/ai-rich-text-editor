@@ -1,5 +1,5 @@
-# Legacy FIXED mode only: append these example values to app.properties only when explicitly enabling ai-fixed.
-# DATABASE deployments manage definitions in the database and must not load this profile.
+# 旧版 FIXED 模式专用。显式启用 ai-fixed 时，才将所需的示例配置追加到 app.properties。
+# DATABASE 模式的模型定义在「环境配置 → 模型配置」中维护。
 arte.ai-new-generation.allowed-origins=https://api.deepseek.com
 arte.ai-new.grants[0].subject-name=zhangsc
 arte.ai-new.grants[0].subject-id=example-subject-id
