@@ -203,12 +203,14 @@ public final class WorkspaceAiGovernanceService implements ModelSelectionSource 
             Set<String> providers = new TreeSet<>();
             Set<String> hosts = new TreeSet<>();
             if (catalog != null) {
+                var origins = control.getObject().modelOrigins(false);
                 for (ConnectionDefinition connection : catalog.connections()) {
                     String protocol = connection.protocol().id();
                     String provider = connection.providerId();
                     String host = connection.endpoint().getHost();
                     if (host == null || connection.state() != ConnectionDefinition.State.ENABLED
-                            || catalog.disabledConnections().contains(connection.definition().id())) {
+                            || catalog.disabledConnections().contains(connection.definition().id())
+                            || !com.arte.ainew.infrastructure.http.HttpEgressPolicy.allows(origins, connection.endpoint())) {
                         continue;
                     }
                     if (platformCatalog || ceiling.allowedProtocols().contains(protocol)

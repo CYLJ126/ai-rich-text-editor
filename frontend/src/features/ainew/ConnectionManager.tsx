@@ -15,7 +15,7 @@ import {type Operation, readOperation, saveOperation} from './storage';
 import MasterDetailLayout from '@/components/MasterDetailLayout';
 
 type Saved = { scope: { tenantId: string; workspaceId: string }; command: ConnectionCommand };
-type Props = { userId: string; onUnsafeChange?: (unsafe: boolean) => void };
+type Props = { userId: string; onUnsafeChange?: (unsafe: boolean) => void; egressRevision?: number };
 const defaults: ConnectionSettings = {
   id: '',
   providerId: 'deepseek',
@@ -30,7 +30,7 @@ export default function ConnectionManager(props: Props) {
   return <Manager key={props.userId} {...props}/>;
 }
 
-function Manager({userId, onUnsafeChange}: Props) {
+function Manager({userId, onUnsafeChange, egressRevision}: Props) {
   const context = useMemo(() => ({userId, scope: {tenantId: 'control-admin', workspaceId: 'connections'}}), [userId]);
   const [restored] = useState(() => readOperation<Saved>(context, 'connection-configuration', ''));
   const pendingRef = useRef<Operation<Saved> | null>(restored.value);
@@ -83,7 +83,7 @@ function Manager({userId, onUnsafeChange}: Props) {
       if (error.httpStatus === 401) return '登录已失效，请重新登录后确认原操作。';
       if (error.httpStatus === 403) return '只有平台配置管理员可以管理审核连接；租户或空间角色不会自动获得此权限。';
       if (error.httpStatus === 409) return '目录版本已变化或原操作参数不一致，请确认原操作或重新读取目录后修改。';
-      if (error.httpStatus === 400) return '连接未保存，请检查字段、受支持供应商以及部署允许的 HTTP origin。';
+      if (error.httpStatus === 400) return '连接未保存，请检查字段、受支持供应商及平台出口策略允许的 origin。';
       if (error.httpStatus === 404) return '当前部署尚未开放数据库连接管理，请确认后端版本与 DATABASE 模式。';
     }
     return '请求结果暂时无法确认；若有待确认操作，请按原参数和原操作键重试。';
@@ -113,12 +113,14 @@ function Manager({userId, onUnsafeChange}: Props) {
     live.current = true;
     const command = pendingRef.current?.request.command;
     if (command?.kind === 'publish') form.setFieldsValue(command.request.settings);
-    void load();
     return () => {
       live.current = false;
       reader.current?.abort();
     };
   }, []);
+  useEffect(() => {
+    void load();
+  }, [egressRevision]);
 
   async function run(command?: ConnectionCommand) {
     if (writing.current || blocked || !live.current) return;
@@ -212,7 +214,7 @@ function Manager({userId, onUnsafeChange}: Props) {
     if (connection) edit(connection);
   }}
     emptyText="尚无审核连接。"
-    listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} · 部署允许的
+    listHeader={view && <Typography.Paragraph type="secondary">目录版本 {view.version} · 平台出口策略允许的
       origin：{view.allowedOrigins.join('、') || '未配置，当前不能发布连接'}</Typography.Paragraph>}
     items={[...(view?.connections ?? [])].reverse().map(connection => ({
       key: JSON.stringify(connection.reference),

@@ -17,7 +17,6 @@ import reactor.netty.http.client.HttpClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
@@ -43,7 +42,11 @@ public final class HttpModelConnectionValidator implements ModelConnectionValida
     private final JsonMapper json = JsonMapper.builder().build();
 
     public HttpModelConnectionValidator(NewAiGenerationProperties properties) {
-        egress = new HttpEgressPolicy(properties);
+        this(properties, new HttpEgressPolicy(properties));
+    }
+
+    public HttpModelConnectionValidator(NewAiGenerationProperties properties, HttpEgressPolicy egress) {
+        this.egress = egress;
         capacity = new Semaphore(Math.min(8, properties.connectionsPerPool()));
     }
 
@@ -67,11 +70,11 @@ public final class HttpModelConnectionValidator implements ModelConnectionValida
             if (!probe.connection().protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)) {
                 throw new IllegalArgumentException("Unsupported validation protocol");
             }
-            egress.validateOrigin(endpoint);
-            return egress.validateAddresses(endpoint, InetAddress.getAllByName(endpoint.getHost()));
+            return egress.resolveAddresses(endpoint);
         }).subscribeOn(Schedulers.boundedElastic()).flatMap(addresses -> {
             ConnectionDefinition connection = probe.connection();
             URI endpoint = connection.endpoint();
+            egress.validateOrigin(endpoint);
             AddressResolverGroup<InetSocketAddress> resolver = HttpEgressPolicy.pinnedResolver(endpoint, addresses);
             HttpClient http = HttpClient.newConnection().resolver(resolver).followRedirect(false).disableRetry(true)
                     .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.clamp(connection.connectTimeout().toMillis(), 1, 5000))

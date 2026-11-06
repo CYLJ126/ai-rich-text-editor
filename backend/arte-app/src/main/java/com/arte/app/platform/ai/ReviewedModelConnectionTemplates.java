@@ -51,18 +51,12 @@ public final class ReviewedModelConnectionTemplates implements ModelConnectionTe
     public List<ConnectionDefinition> available(Scope scope) {
         TenantPolicy tenant = policies.findCurrentTenantPolicy(scope.tenantId()).orElseThrow(ReviewedModelConnectionTemplates::unavailable);
         WorkspacePolicy workspace = policies.findCurrentWorkspacePolicy(scope).orElseThrow(ReviewedModelConnectionTemplates::unavailable);
+        var origins = egress.allowedOrigins();
         return source.get().connections().stream()
                 .filter(c -> c.state() == ConnectionDefinition.State.ENABLED
                         && c.protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)
                         && allowed(tenant.rules(), c) && allowed(workspace.rules(), c))
-                .filter(connectionDefinition -> {
-                    try {
-                        egress.validateOrigin(connectionDefinition.endpoint());
-                        return true;
-                    } catch (RuntimeException denied) {
-                        return false;
-                    }
-                })
+                .filter(connection -> HttpEgressPolicy.allows(origins, connection.endpoint()))
                 .map(connectionDefinition -> new ConnectionDefinition(connectionDefinition.definition(),
                         connectionDefinition.providerId(), connectionDefinition.protocol(), connectionDefinition.endpoint(),
                         null, connectionDefinition.state(), connectionDefinition.connectTimeout(),

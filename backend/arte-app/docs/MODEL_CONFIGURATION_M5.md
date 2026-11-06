@@ -139,6 +139,9 @@ npm run tsc
 
 ## 新装和部署边界
 
+当前 DATABASE 模式另需按[平台模型出口策略安装说明](PLATFORM_AI_CONTROL.md#平台模型出口策略)建表、登记操作权限并配置初始白名单。以下记录
+M5 交付当时的安装和验证边界。
+
 新装表和顺序沿用 [M3 安装说明](MODEL_CONFIGURATION_M3.md)及[重建清单](MODEL_CONFIGURATION_M3_RESET.md)：审核方案与
 RESOURCE 模型发布证据、空间实际版本选择、独立费率规则及原账户／账本表必须一起匹配当前代码。M5 无需新增表、删表或结构迁移。不要把现有
 Catalog／配置载荷带进这套新数据契约，也不要只清一部分账本关系。

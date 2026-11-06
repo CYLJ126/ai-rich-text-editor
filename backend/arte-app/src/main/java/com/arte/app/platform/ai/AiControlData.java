@@ -29,6 +29,12 @@ public final class AiControlData {
     private AiControlData() {
     }
 
+    public record EgressPolicyView(long version, List<String> origins) {
+        public EgressPolicyView {
+            origins = List.copyOf(origins);
+        }
+    }
+
     public record BudgetPreset(DefinitionRef rate, Money limit) {
         public BudgetPreset {
             Objects.requireNonNull(rate).requireType("rate");

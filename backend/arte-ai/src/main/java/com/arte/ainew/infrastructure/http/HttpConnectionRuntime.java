@@ -152,12 +152,18 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
 
     public HttpConnectionRuntime(ConnectionManager connections, AdmissionAuthorization authorization,
                                  ConnectionCredentialResolver credentials, NewAiGenerationProperties properties, Clock clock) {
+        this(connections, authorization, credentials, properties, clock, new HttpEgressPolicy(properties));
+    }
+
+    public HttpConnectionRuntime(ConnectionManager connections, AdmissionAuthorization authorization,
+                                 ConnectionCredentialResolver credentials, NewAiGenerationProperties properties, Clock clock,
+                                 HttpEgressPolicy egress) {
         this.connections = connections;
         this.authorization = authorization;
         this.credentials = credentials;
         this.properties = properties;
         this.clock = clock;
-        this.egress = new HttpEgressPolicy(properties);
+        this.egress = egress;
     }
 
     /**
@@ -197,12 +203,11 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
     private Mono<Lease<Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext runtime, Mode mode) {
         return Mono.<Lease<Handle>>defer(() -> {
                     checkActive(runtime);
-                    egress.validateOrigin(definition.endpoint());
                     return connections.resolve(definition.definition(), runtime.execution()).flatMap(current -> {
                         if (!current.equals(definition) || current.state() != ConnectionDefinition.State.ENABLED) {
                             return Mono.error(GenerationException.beforeSend("CONNECTION_CONFIGURATION_CHANGED"));
                         }
-                        return Mono.fromCallable(() -> egress.validateAddresses(definition.endpoint(), InetAddress.getAllByName(definition.endpoint().getHost())))
+                        return Mono.fromCallable(() -> egress.resolveAddresses(definition.endpoint()))
                                 .subscribeOn(dns).timeout(properties.acquireTimeout())
                                 .map(addresses -> borrow(definition, runtime, addresses, mode));
                     });
@@ -270,10 +275,16 @@ public final class HttpConnectionRuntime implements ConnectionRuntime<HttpConnec
                             return credentials.resolve(definition.credential(), runtime.execution())
                                     .switchIfEmpty(Mono.error(GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE")))
                                     .flatMap(credential -> {
-                                        lease.active();
-                                        checkActive(runtime);
-                                        var authenticated = ClientRequest.from(request).headers(headers -> headers.setBearerAuth(credential.token())).build();
-                                        return next.exchange(authenticated);
+                                        Mono<Void> egressCheck = mode == Mode.MODEL
+                                                ? Mono.<Void>fromRunnable(() -> egress.validateOrigin(request.url()))
+                                                .subscribeOn(Schedulers.boundedElastic())
+                                                : Mono.empty();
+                                        return egressCheck.then(Mono.defer(() -> {
+                                            lease.active();
+                                            checkActive(runtime);
+                                            var authenticated = ClientRequest.from(request).headers(headers -> headers.setBearerAuth(credential.token())).build();
+                                            return next.exchange(authenticated);
+                                        }));
                                     });
                         });
                     })).build();

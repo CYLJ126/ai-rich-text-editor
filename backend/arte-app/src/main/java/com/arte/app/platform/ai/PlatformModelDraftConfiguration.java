@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new-model-management.enabled", "ai-new.enabled", "platform.identity.enabled", "platform.persistence.enabled", "platform.workspace.enabled"}, havingValue = "true")
@@ -43,20 +44,29 @@ public class PlatformModelDraftConfiguration {
 
     @Bean
     ModelConnectionTemplates modelConnectionTemplates(NewAiProperties fixed, ObjectProvider<AiControlConfigurationSource> source,
-                                                      PolicyStore policies, NewAiGenerationProperties http) {
+                                                      PolicyStore policies, NewAiGenerationProperties http,
+                                                      @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
         return new ReviewedModelConnectionTemplates(() -> {
             var selected = source.getIfAvailable();
             if (selected != null) return selected.definitions();
             if ("DATABASE".equals(fixed.configurationMode()))
                 throw new IllegalStateException("DATABASE model templates require a database configuration source");
             return fixed;
-        }, policies, new HttpEgressPolicy(http));
+        }, policies, modelEgress(fixed, http, egress));
     }
 
     @Bean
     @ConditionalOnMissingBean(ModelConnectionValidator.class)
-    ModelConnectionValidator modelConnectionValidator(NewAiGenerationProperties properties) {
-        return new HttpModelConnectionValidator(properties);
+    ModelConnectionValidator modelConnectionValidator(NewAiGenerationProperties properties, NewAiProperties admission,
+                                                      @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
+        return new HttpModelConnectionValidator(properties, modelEgress(admission, properties, egress));
+    }
+
+    private static HttpEgressPolicy modelEgress(NewAiProperties admission, NewAiGenerationProperties properties,
+                                                ObjectProvider<HttpEgressPolicy> egress) {
+        return "DATABASE".equals(admission.configurationMode())
+                ? egress.getIfAvailable(() -> new HttpEgressPolicy(List::of))
+                : new HttpEgressPolicy(properties);
     }
 
     @Bean

@@ -49,6 +49,7 @@ public final class PlatformJson {
                     Map.entry("workspace:ai:view:v2", AiControlData.WorkspaceView.class),
                     Map.entry("workspace:ai:rules:v1", AiControlData.BudgetRulesView.class),
                     Map.entry("ai:catalog:view:v1", AiControlData.CatalogView.class),
+                    Map.entry("ai:egress:view:v1", AiControlData.EgressPolicyView.class),
                     Map.entry("resource:access:v1", com.arte.core.pojo.access.ResourceAccessViews.AccessView.class),
                     Map.entry("resource:grant:v1", com.arte.core.pojo.access.ResourceAccessViews.GrantResult.class),
                     Map.entry("resource:void:v1", Void.class),

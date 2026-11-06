@@ -1,6 +1,7 @@
 import {z} from 'zod';
 import {connectionCommandSchema} from '@/services/platform/connection';
 import {modelPlanCommandSchema} from '@/services/platform/modelPlan';
+import {egressPolicyUpdate} from '@/services/platform/modelEgress';
 import {defaultAiPolicySchema} from '@/services/platform/defaultAiPolicyContract';
 import type {AiScope} from '@/services/arte-ai';
 
@@ -81,6 +82,10 @@ const schemas = {
   }),
   stop: z.object({scope: scopeSchema, invocationId: id}),
   'create-default': z.object({scope: scopeSchema, localDate: z.iso.date().optional()}),
+  'model-egress-policy': z.object({
+    scope: scopeSchema,
+    command: egressPolicyUpdate,
+  }).strict(),
   'conversation-metadata': z.discriminatedUnion('kind', [
     z.object({
       kind: z.literal('rename'),

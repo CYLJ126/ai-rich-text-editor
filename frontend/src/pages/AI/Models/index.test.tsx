@@ -9,6 +9,7 @@ import ModelSharingPage from '@/pages/AI/ModelSharing';
 import * as coordination from '@/features/workspace/useWorkspace';
 import * as api from '@/services/platform/workspace';
 import {getConfigurationCapabilities, listWorkspaceModelOptions, type ModelSelection} from '@/services/platform/ai';
+import {getEgressPolicy, updateEgressPolicy} from '@/services/platform/modelEgress';
 import {aiLocation, parseAiIntent} from '@/features/ainew/aiNavigation';
 
 vi.mock('@umijs/max', () => ({
@@ -31,6 +32,10 @@ vi.mock('@/services/platform/workspace', async original => ({
 vi.mock('@/services/platform/ai', async original => ({
   ...await original<typeof import('@/services/platform/ai')>(),
   getConfigurationCapabilities: vi.fn(), listWorkspaceModelOptions: vi.fn(),
+}));
+vi.mock('@/services/platform/modelEgress', async original => ({
+  ...await original<typeof import('@/services/platform/modelEgress')>(),
+  getEgressPolicy: vi.fn(), updateEgressPolicy: vi.fn(),
 }));
 vi.mock('@/features/ainew/ModelManager', async original => ({
   ...await original<typeof import('@/features/ainew/ModelManager')>(),
@@ -73,7 +78,13 @@ const spaces: api.WorkspaceView[] = ['A', 'B', 'C'].map(id => ({
   scope: {tenantId: 'tenant', workspaceId: id}, name: `空间 ${id}`, state: 0, currentRole: 0, version: 0,
 }));
 const [a, b, c] = spaces;
-const full = {available: true, manageConnections: true, managePlans: true, manageDefaultTemplate: true};
+const full = {
+  available: true,
+  manageConnections: true,
+  managePlans: true,
+  manageDefaultTemplate: true,
+  manageEgress: false
+};
 let user: { id: string; menus?: string[] } | null;
 let directory: Pick<ReturnType<typeof coordination.useWorkspaceDirectory>, 'current' | 'records' | 'loading' | 'exhausted'
   | 'cursorExpired' | 'nextCursor' | 'error' | 'select' | 'load' | 'loadMore'>;
@@ -142,7 +153,7 @@ it('does not mount platform editors when the capability is denied or unavailable
     ...full,
     manageConnections: false,
     managePlans: false,
-    manageDefaultTemplate: false
+    manageDefaultTemplate: false, manageEgress: false
   });
   const first = render(<ConnectionsPage/>);
   await screen.findByText('当前账号没有该平台配置权限。');
@@ -153,6 +164,26 @@ it('does not mount platform editors when the capability is denied or unavailable
   render(<ModelPlansPage/>);
   await screen.findByText('平台配置资格暂不可核验，请重试。');
   expect(screen.queryByLabelText('费率草稿')).not.toBeInTheDocument();
+});
+
+it('allows a security operator to save the platform egress policy independently of model configuration', async () => {
+  vi.mocked(getConfigurationCapabilities).mockResolvedValue({
+    available: true, manageConnections: false, managePlans: false, manageDefaultTemplate: false, manageEgress: true,
+  });
+  const origins = ['https://api.deepseek.com'];
+  vi.mocked(getEgressPolicy).mockResolvedValueOnce({version: 0, origins: []}).mockResolvedValue({version: 1, origins});
+  vi.mocked(updateEgressPolicy).mockResolvedValue({version: 1, origins});
+  render(<ModelsPage/>);
+  await tab('平台出口策略');
+  const editor = await screen.findByRole('textbox', {name: '模型出口 origin 白名单'});
+  await waitFor(() => expect(editor).toBeEnabled());
+  expect(screen.queryByRole('tab', {name: '供应商连接'})).not.toBeInTheDocument();
+  fireEvent.change(editor, {target: {value: origins[0]}});
+  fireEvent.click(screen.getByRole('button', {name: '保存策略'}));
+  fireEvent.click(await screen.findByRole('button', {name: '确认保存'}));
+  expect(await screen.findByText('策略版本 1 已保存。')).toBeInTheDocument();
+  expect(updateEgressPolicy).toHaveBeenCalledWith({expectedVersion: 0, origins}, expect.any(String));
+  expect(api.getWorkspace).not.toHaveBeenCalled();
 });
 
 it('guards leaving a dirty model when returning to the original chat', async () => {

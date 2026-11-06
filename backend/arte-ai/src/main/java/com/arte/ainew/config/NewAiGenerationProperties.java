@@ -11,8 +11,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 第 4 步独立开关及受信 HTTP 配置；不在配置或日志中保存明文凭据。
+ * AI 生成网关的启动开关、HTTP 出口策略和传输限制。
  *
+ * @param enabled                     是否在应用启动时装配生成网关，默认关闭
+ * @param allowedOrigins              FIXED 模式和直接构造的工具 HTTP 运行时使用的出口白名单。DATABASE 模式的模型出口由平台策略管理
+ * @param secrets                     固定版本的凭据引用到环境变量名的映射，默认为空，凭据值在实际发送时读取
+ * @param maxPools                    单个 HTTP 运行时可保留的连接池数量上限，默认 32
+ * @param connectionsPerPool          每个连接池的连接数上限，默认 8
+ * @param pendingAcquires             每个连接池中等待获取连接的请求数上限，默认 32
+ * @param acquireTimeout              DNS 解析和等待获取连接各自的超时，默认 5 秒
+ * @param maxFrameBytes               单个 SSE 响应帧的字节上限，也用于配置解码器的内存上限，默认 65,536 字节
+ * @param maxRequestBytes             序列化后的单次 HTTP 请求体字节上限，默认 1,048,576 字节
+ * @param completedStreamDrainTimeout 收到 {@code [DONE]} 后继续读取 HTTP 响应尾部的最长时间，默认 100 毫秒
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
  */
@@ -27,6 +37,7 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
         this(enabled, allowedOrigins, secrets, maxPools, connectionsPerPool, pendingAcquires, acquireTimeout,
                 maxFrameBytes, maxRequestBytes, null);
     }
+
     /**
      * 仅固定版本 SecretRef 到环境变量名称的映射；环境变量值在实际发送时读取。
      */

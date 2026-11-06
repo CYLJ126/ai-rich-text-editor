@@ -204,10 +204,14 @@ class PersonalModelPublicationIntegrationTest {
     }
 
     Invocation accept(ApplicationContext c, ModelResourceVersion version, int output) {
+        return accept(c, version, output, f.conversation(c));
+    }
+
+    Invocation accept(ApplicationContext c, ModelResourceVersion version, int output, String conversation) {
         ExecutionContext execution = f.execution(c, "submit-" + UUID.randomUUID());
         ContextRequest input = new ContextRequest(List.of(new ChatMessage("user", ChatMessage.Role.USER, List.of(new ChatMessage.Text("hello")), List.of(), null)),
                 null, List.of(), List.of(), null, new ContextBudget(8192, 4096, 512, 0));
-        EntryRequests.Chat request = new EntryRequests.Chat(f.conversation(c), 0, null, null, input,
+        EntryRequests.Chat request = new EntryRequests.Chat(conversation, 0, null, null, input,
                 version.publication().binding().capability().definition(), version.publication().binding().definition(),
                 new GenerationOptions(output, null, null, List.of()), new ExecutionOptions(execution.deadline(), 1, 4096, 0, 0, Duration.ofSeconds(60)));
         AcceptedExecution accepted = c.getBean(ChatService.class).submit(request, execution).block(WAIT);
@@ -426,7 +430,8 @@ class PersonalModelPublicationIntegrationTest {
                 })).bindNow();
         try {
             String origin = "http://127.0.0.1:" + server.port();
-            ApplicationContextRunner runner = realGenerationContext(false).withPropertyValues("arte.ai-new-generation.allowed-origins[0]=" + origin);
+            f.f.allowOrigins(origin);
+            ApplicationContextRunner runner = realGenerationContext(false);
             java.util.concurrent.atomic.AtomicReference<ModelResourceVersion> published = new java.util.concurrent.atomic.AtomicReference<>();
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
@@ -479,6 +484,19 @@ class PersonalModelPublicationIntegrationTest {
                 assertEquals(1, calls.get());
                 assertEquals(1L, f.f.f.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_settlement WHERE evidence_kind='PROVIDER_BILL'", Long.class));
                 assertTrue(f.f.f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_settlement", String.class).contains("SETTLED"));
+
+                String conversation = c.getBean(com.arte.ainew.api.conversation.ConversationService.class)
+                        .create("出口撤销验证", null, List.of(), f.f.execution(db, f.scope,
+                                Set.of(AdmissionAuthorization.CONVERSATION), "egress-conversation")).block(WAIT).conversationId();
+                Invocation pending = accept(c, version, 128, conversation);
+                f.f.f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','aiSecurity:manageEgress')");
+                db.updateEgressPolicy(f.f.f.actor, f.f.meta("revoke-independent-egress"), 0, List.of());
+                OutboxMessage revoked = executions.claim(OutboxMessage.Kind.DISPATCH, "independent-worker", Duration.ofSeconds(60), 1).block(WAIT).getFirst();
+                dispatcher.dispatch(revoked, ExecutionRuntimeContext.start(pending.request().context())).block(WAIT);
+                Invocation denied = executions.find(revoked.owner(), revoked.invocationId()).block(WAIT);
+                assertEquals(Invocation.State.FAILED, denied.state());
+                assertEquals(1, calls.get());
+                db.updateEgressPolicy(f.f.f.actor, f.f.meta("restore-independent-egress"), 1, List.of(origin));
             });
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
@@ -527,7 +545,8 @@ class PersonalModelPublicationIntegrationTest {
                 })).bindNow();
         try {
             String origin = "http://127.0.0.1:" + server.port();
-            realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1", "arte.ai-new-generation.allowed-origins[0]=" + origin,
+            f.f.allowOrigins(origin);
+            realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1",
                     "arte.ai-new.capabilities[0].features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT"),
                     "arte.ai-new.bindings[0].capability.features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT")).run(c -> {
                 assertNull(c.getStartupFailure());

@@ -289,7 +289,7 @@ class WorkspaceAiGovernanceIntegrationTest {
                 String route = "/workspace/ai/getConfigurationCapabilities";
                 var login = ManagementHttpHarness.login(f.f.f.f.jdbc, 1, "alice");
                 var allowed = http.ok(route, "{}", null, login).getJSONObject("data");
-                assertEquals(Set.of("available", "manageConnections", "managePlans", "manageDefaultTemplate"), allowed.keySet());
+                assertEquals(Set.of("available", "manageConnections", "managePlans", "manageDefaultTemplate", "manageEgress"), allowed.keySet());
                 assertTrue(allowed.getBool("manageConnections"));
                 assertTrue(allowed.getBool("managePlans"));
                 assertTrue(allowed.getBool("manageDefaultTemplate"));

@@ -88,7 +88,7 @@ class ModelResourceIntegrationTest {
     @BeforeEach
     void setup() throws Exception {
         f.setup();
-        for (String file : List.of("arte-platform-resource-acl-ddl-mysql.sql", "arte-platform-ai-control-ddl-mysql.sql", "arte-ai-model-resource-ddl-mysql.sql")) {
+        for (String file : List.of("arte-platform-resource-acl-ddl-mysql.sql", "arte-platform-ai-control-ddl-mysql.sql", "arte-ai-model-egress-policy-ddl-mysql.sql", "arte-ai-model-resource-ddl-mysql.sql")) {
             var sql = Files.readString(Path.of("scripts", file));
             if (f.mysql == null)
                 sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replaceAll("(?i)ENGINE=InnoDB", "").replaceAll("(?im)^SET\\s+[^;]*;", "");

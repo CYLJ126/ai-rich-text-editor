@@ -421,8 +421,9 @@ class TenantModelSharingIntegrationTest {
                 })).bindNow();
         try {
             String origin = "http://127.0.0.1:" + server.port();
+            f.f.f.allowOrigins(origin);
             ApplicationContextRunner runner = f.realGenerationContext().withUserConfiguration(PlatformModelSharingConfiguration.class, ModelSharingStartupSafety.class)
-                    .withPropertyValues("arte.ai-new-model-sharing.enabled=true", "arte.ai-new.connections[0].endpoint=" + origin + "/v1", "arte.ai-new-generation.allowed-origins[0]=" + origin);
+                    .withPropertyValues("arte.ai-new-model-sharing.enabled=true", "arte.ai-new.connections[0].endpoint=" + origin + "/v1");
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
                 prepare(c, "127.0.0.1", true);

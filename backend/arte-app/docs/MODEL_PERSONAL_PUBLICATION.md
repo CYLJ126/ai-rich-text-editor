@@ -76,7 +76,7 @@ WORKSPACE_AI_UNAVAILABLE，发布不暗中调用 ensure。
 | MODEL_USE_DENIED                     | 当前主体没有所需空间或模型使用资格                                     |
 | CREDENTIAL_STALE                     | 凭据缺失、撤销或代次不匹配                                             |
 | CREDENTIAL_USE_DENIED                | 当前主体不是个人凭据责任主体                                           |
-| TEMPLATE_STALE／TEMPLATE_UNAVAILABLE | 模板摘要变化，或当前政策、模板、部署出口条件不再允许                   |
+| TEMPLATE_STALE／TEMPLATE_UNAVAILABLE | 模板摘要变化，或连接受当前租户／空间政策、模板状态或平台出口白名单限制 |
 | NO_COMPATIBLE_BUDGET                 | 当前主体没有获准使用且费率匹配的预算                                   |
 | WORKSPACE_AI_UNAVAILABLE             | 当前空间 AI 尚未准备、关闭或没有操作资格                               |
 

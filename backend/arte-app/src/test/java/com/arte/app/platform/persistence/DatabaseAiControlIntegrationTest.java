@@ -69,7 +69,7 @@ class DatabaseAiControlIntegrationTest {
     @BeforeEach
     void setup() throws Exception {
         f.setup();
-        for (String file : List.of("../arte-ai/scripts/arte-ai-new-ddl-mysql.sql", "scripts/arte-platform-ai-control-ddl-mysql.sql")) {
+        for (String file : List.of("../arte-ai/scripts/arte-ai-new-ddl-mysql.sql", "scripts/arte-platform-ai-control-ddl-mysql.sql", "scripts/arte-ai-model-egress-policy-ddl-mysql.sql")) {
             String sql = Files.readString(Path.of(file));
             if (f.mysql == null) sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
                     .replaceAll("(?i)ENGINE\\s*=\\s*InnoDB", "").replaceAll("(?im)^SET\\s+[^;]*;", "");
@@ -77,6 +77,11 @@ class DatabaseAiControlIntegrationTest {
                 ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             }
         }
+        allowOrigins("https://api.deepseek.com");
+    }
+
+    void allowOrigins(String... origins) {
+        f.jdbc.update("UPDATE arte_ai_model_egress_policy SET payload=? WHERE id=1", f.json.write(List.of(origins)));
     }
 
     @AfterEach

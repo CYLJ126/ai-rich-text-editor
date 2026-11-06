@@ -89,7 +89,7 @@ class PlatformToolManagementAccessTest {
     void setup() throws Exception {
         f.setup();
         ddl = f.source.getConnection();
-        for (String file : List.of("../arte-ai/scripts/arte-ai-new-ddl-mysql.sql", "scripts/arte-platform-ai-control-ddl-mysql.sql"))
+        for (String file : List.of("../arte-ai/scripts/arte-ai-new-ddl-mysql.sql", "scripts/arte-platform-ai-control-ddl-mysql.sql", "scripts/arte-ai-model-egress-policy-ddl-mysql.sql"))
             ScriptUtils.executeSqlScript(ddl, new ByteArrayResource(Files.readAllBytes(Path.of(file))));
         f.jdbc.execute("CREATE TABLE arte_rbac_relation(id BIGINT AUTO_INCREMENT PRIMARY KEY,source VARCHAR(64),binding_type VARCHAR(32),target VARCHAR(64), UNIQUE(source,binding_type,target))");
         f.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(64) PRIMARY KEY,status VARCHAR(4))");

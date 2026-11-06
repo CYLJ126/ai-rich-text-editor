@@ -174,7 +174,7 @@ arte.ai-new.limits.workspaceSnapshot-retention=15m
 # 服务器/容器：将变量注入实际 Java 应用进程；只给 Maven 构建进程配置还不够。
 # 修改本文件或 app.properties 后需重新构建资源；不会自动建表或初始化预算账户。
 arte.ai-new-generation.enabled=true
-arte.ai-new-generation.allowed-origins=https://api.deepseek.com
+# DATABASE mode: set model origins in 环境配置 → 模型配置 → 平台出口策略.
 arte.ai-new-generation.secrets[0].reference.type=secret
 arte.ai-new-generation.secrets[0].reference.id=example-credential
 arte.ai-new-generation.secrets[0].reference.version=v1

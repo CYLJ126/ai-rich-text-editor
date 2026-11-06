@@ -26,15 +26,19 @@
 
 ## 启用
 
-参考 [完整配置示例](examples/ainew-generation.yml)，它包含前 3 步所需配置，适合替换原 admission 示例后显式导入。不要把两份示例中的列表简单叠加。先按实际主体、预算、费率、模型容量调整示例值；示例费率不是供应商价格。
+FIXED 模式参考[完整配置示例](examples/ainew-generation.yml)，按实际主体、预算、费率和模型容量调整。DATABASE
+模式通过平台页面发布连接和模型方案，出口按[平台模型出口策略](../arte-app/docs/PLATFORM_AI_CONTROL.md#平台模型出口策略)配置。
 
 - 前 3 步开关仍为 `arte.ai-new.enabled=true`；本步独立开关为 `arte.ai-new-generation.enabled=true`，默认关闭。
 - 连接 `provider-id=deepseek`，协议引用为 `protocol/chat-completions-sse/v1`，绑定模型为所需远端模型；首批采用 `deepseek-chat`，请求显式发送 `thinking.type=disabled`。
 - `endpoint` 是 base URL，如 `https://api.deepseek.com/v1`；协议在其后添加 `/chat/completions`。
-- `allowed-origins` 仅填写精确 scheme／host／port，如 `https://api.deepseek.com`，不含 `/v1`。仅本地测试允许显式登记 HTTP 回环 origin。
+- FIXED 模式通过 `arte.ai-new-generation.allowed-origins` 配置出口。DATABASE 模式的生成网关读取数据库策略，在解析 DNS
+  前和发送前校验。两种模式均按协议、主机和端口精确匹配，例如 `https://api.deepseek.com`，省略 `/v1`。HTTP 仅允许显式登记的回环
+  origin。
 - `secrets` 保存 SecretRef 和环境变量**名称**，如 `ARTE_DEEPSEEK_API_KEY`；实际值通过部署环境注入，在发送时解析。缺失密钥会拒绝发送，不在启动时读取密钥值或连接供应商。环境变量轮换通常需要重启进程；在线轮换可替换凭据解析器。
 - 池、单池连接数、待领取数量、领取超时、SSE 帧和请求字节都有独立上限。连接的 `max-response-bytes` 限制整个响应（包括心跳和协议开销），调用的 `maxOutputBytes` 限制文本 UTF-8 输出；这些上限含义不同。
-- 启动仅构造组件，不连接数据库、不执行 DDL、不初始化预算、不启动 Worker。启用后缺少匹配的 DeepSeek SSE 绑定会启动失败；未知配置字段也会失败。
+- 生成网关装配阶段只构造组件。DATABASE 模式另有应用启动核验，检查控制面和出口策略是否可读。FIXED 模式启动时要求匹配的
+  DeepSeek SSE 绑定。Worker 由独立开关控制。
 
 ## 交互及结束规则
 

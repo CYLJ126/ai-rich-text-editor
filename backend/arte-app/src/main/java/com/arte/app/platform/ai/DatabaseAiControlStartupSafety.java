@@ -29,5 +29,6 @@ public final class DatabaseAiControlStartupSafety implements SmartInitializingSi
         }
         source.definitions();
         source.workspaceSafety();
+        source.egressSafety();
     }
 }

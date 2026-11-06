@@ -1,5 +1,6 @@
 # Legacy FIXED mode only: append these example values to app.properties only when explicitly enabling ai-fixed.
 # DATABASE deployments manage definitions in the database and must not load this profile.
+arte.ai-new-generation.allowed-origins=https://api.deepseek.com
 arte.ai-new.grants[0].subject-name=zhangsc
 arte.ai-new.grants[0].subject-id=example-subject-id
 arte.ai-new.grants[0].principal-kind=USER

@@ -60,6 +60,7 @@ import reactor.core.scheduler.Scheduler;
 import tools.jackson.core.JacksonException;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,6 +82,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
 @Import(WorkspaceAiGovernanceConfiguration.class)
 public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
 
+    private static final String MANAGE_EGRESS = "aiSecurity:manageEgress";
     private final PlatformAiControlMapper mapper;
     private final PlatformJson json;
     private final RbacIdentityProvider identities;
@@ -94,8 +96,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final DefaultCommandExecutor commands;
     private final PreferenceStore preferences;
     private final RbacToolPermissionReader catalogPermissions;
-    private final HttpEgressPolicy connectionEgress;
-    private final List<String> connectionOrigins;
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
     private ObjectProvider<ModelPublicationRuntime> resourceModels;
     private ObjectProvider<ModelGateway> modelGateways;
@@ -149,7 +149,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                                     @Qualifier("newAiPersistenceScheduler") Scheduler scheduler, @Qualifier("platformWorkspaceClock") Clock clock,
                                     PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, CommandReceiptStore receipts,
                                     PreferenceStore preferences, @Qualifier("platformAuthorizationService") ObjectProvider<com.arte.core.api.access.AuthorizationService> authorizationService, Environment environment,
-                                    @Qualifier("appDataSource") javax.sql.DataSource source, NewAiGenerationProperties generation) {
+                                    @Qualifier("appDataSource") javax.sql.DataSource source) {
         for (String key : List.of("identity", "persistence", "workspace")) {
             if (!environment.getProperty("arte.platform." + key + ".enabled", Boolean.class, false))
                 throw new IllegalStateException("Database AI requires public identity, persistence and workspace services");
@@ -169,8 +169,6 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         this.commands = new DefaultCommandExecutor(tx, new CurrentPrincipalResolver(identities), receipts, ids, clock);
         this.preferences = preferences;
         this.catalogPermissions = new RbacToolPermissionReader(source);
-        this.connectionEgress = new HttpEgressPolicy(generation);
-        this.connectionOrigins = generation.allowedOrigins().stream().map(java.net.URI::toASCIIString).toList();
         this.authorizationService = authorizationService;
     }
 
@@ -748,7 +746,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     public record ConfigurationCapabilities(boolean available, boolean manageConnections,
-                                            boolean managePlans, boolean manageDefaultTemplate) {
+                                            boolean managePlans, boolean manageDefaultTemplate, boolean manageEgress) {
     }
 
     /**
@@ -757,8 +755,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     public ConfigurationCapabilities configurationCapabilities(TrustedActor actor) {
         return tx.required(() -> {
             preferences.lockSubject(actor.principal().subjectId());
-            boolean manage = canManageCatalog(actor);
-            return new ConfigurationCapabilities(true, manage, manage, manage);
+            var permissions = currentPermissions(actor);
+            boolean manage = permissions.contains("admin") || permissions.contains("aiConfiguration:manage");
+            return new ConfigurationCapabilities(true, manage, manage, manage, permissions.contains(MANAGE_EGRESS));
         });
     }
 
@@ -834,11 +833,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     public CommandReceipt<CatalogView> publishConnection(TrustedActor actor, CommandMeta meta, long expected, ConnectionSettings settings) {
         return changeCatalog(actor, meta, expected, "ai:connection:publish", settings.toString(), old -> {
-            try {
-                connectionEgress.validateOrigin(settings.endpoint());
-            } catch (RuntimeException denied) {
-                throw new IllegalArgumentException("Connection origin is not permitted by deployment policy");
-            }
+            requireConnectionOrigin(settings.endpoint());
             var connections = new ArrayList<>(old.connections());
             // 全局目录修订号保证版本唯一；相同原键重放保留原引用，不再创建新版本。
             connections.add(new ConnectionDefinition(new DefinitionRef("connection", settings.id(), "db-v" + Math.incrementExact(expected)),
@@ -875,13 +870,69 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     public List<String> allowedConnectionOrigins() {
-        return connectionOrigins;
+        return egressPolicy(false).origins();
+    }
+
+    private EgressPolicyView egressPolicy(boolean lock) {
+        var row = mapper.modelEgress(lock);
+        if (row == null) throw unavailable();
+        return new EgressPolicyView(row.getVersion(), List.of(json.read(row.getPayload(), String[].class)));
+    }
+
+    List<URI> modelOrigins(boolean lock) {
+        return egressPolicy(lock).origins().stream().map(URI::create).map(HttpEgressPolicy::normalizeOrigin).toList();
+    }
+
+    void egressSafety() {
+        modelOrigins(false);
+    }
+
+    private void requireConnectionOrigin(URI endpoint) {
+        if (!HttpEgressPolicy.allows(modelOrigins(true), endpoint))
+            throw new IllegalArgumentException("Connection origin is not permitted by platform egress policy");
+    }
+
+    public EgressPolicyView getEgressPolicy(TrustedActor actor) {
+        return tx.required(() -> {
+            preferences.lockSubject(actor.principal().subjectId());
+            requireEgressManager(actor);
+            return egressPolicy(false);
+        });
+    }
+
+    public CommandReceipt<EgressPolicyView> updateEgressPolicy(TrustedActor actor, CommandMeta meta, long expected, List<String> origins) {
+        if (origins.size() > 64) throw new IllegalArgumentException("Too many model egress origins");
+        var canonical = origins.stream().map(URI::create).map(HttpEgressPolicy::normalizeOrigin)
+                .map(URI::toASCIIString).sorted().toList();
+        if (new HashSet<>(canonical).size() != canonical.size())
+            throw new IllegalArgumentException("Duplicate model egress origin");
+        var scope = new CommandScope(null, null);
+        String payload = json.write(canonical);
+        return commands.execute(actor, meta, scope, "ai:egress:update", "ai:egress:view:v1", EgressPolicyView.class,
+                List.of(Long.toString(expected), payload), () -> {
+                    preferences.lockSubject(actor.principal().subjectId());
+                    requireEgressManager(actor);
+                }, saved -> requireEgressManager(actor), operation -> {
+                    long next = Math.incrementExact(expected);
+                    check(mapper.replaceModelEgress(expected, next, payload) == 1);
+                    effects.append(actor, scope, "ai:egress:updated", operation, next, Map.of());
+                    return new DefaultCommandExecutor.Result<>(new EgressPolicyView(next, canonical), next);
+                });
+    }
+
+    private void requireEgressManager(TrustedActor actor) {
+        if (!currentPermissions(actor).contains(MANAGE_EGRESS))
+            throw new PlatformException(PlatformErrorCodeEnum.ACCESS_DENIED, "model-egress");
+    }
+
+    private Set<String> currentPermissions(TrustedActor actor) {
+        var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() ->
+                new PlatformException(PlatformErrorCodeEnum.UNAUTHENTICATED, "connection"));
+        return catalogPermissions.current(name);
     }
 
     private void requireCatalogManager(TrustedActor actor) {
-        var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() ->
-                new PlatformException(PlatformErrorCodeEnum.UNAUTHENTICATED, "connection"));
-        var permissions = catalogPermissions.current(name);
+        var permissions = currentPermissions(actor);
         if (!permissions.contains("admin") && !permissions.contains("aiConfiguration:manage"))
             throw new PlatformException(PlatformErrorCodeEnum.ACCESS_DENIED, "connection");
     }
@@ -903,11 +954,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     || !"deepseek".equals(connection.providerId()) || !ChatCompletionsSseProtocolAdapter.DEFINITION.equals(connection.protocol())) {
                 throw new IllegalArgumentException("Reviewed connection is disabled or unsupported");
             }
-            try {
-                connectionEgress.validateOrigin(connection.endpoint());
-            } catch (RuntimeException denied) {
-                throw new IllegalArgumentException("Connection origin is not permitted by deployment policy");
-            }
+            requireConnectionOrigin(connection.endpoint());
             String family = "reviewed-" + settings.id();
             List<ReviewedModelPlan> familyPlans = old.reviewedPlans().stream().filter(plan -> plan.planRef().id().equals(family)).toList();
             ReviewedModelPlan previous = familyPlans.isEmpty() ? null : familyPlans.getLast();

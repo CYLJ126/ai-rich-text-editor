@@ -1,5 +1,7 @@
 package com.arte.app.platform.ai;
 
+import com.arte.ainew.infrastructure.http.GenerationException;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.spi.model.ModelPublicationStore;
 import com.arte.ainew.spi.model.ModelResourceStore;
 import com.arte.app.platform.persistence.PlatformJson;
@@ -18,7 +20,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 /**
- * DATABASE 空间治理及运行时精确选择共用同一持久化权威。
+ * 装配 DATABASE 模式下的空间 AI 治理和模型出口策略。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/03 15:30 ✾
@@ -26,6 +28,17 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
 public class WorkspaceAiGovernanceConfiguration {
+
+    @Bean("newAiModelEgressPolicy")
+    HttpEgressPolicy modelEgressPolicy(DatabaseAiControlService control) {
+        return new HttpEgressPolicy(() -> {
+            try {
+                return control.modelOrigins(false);
+            } catch (RuntimeException failure) {
+                throw GenerationException.transientBeforeSend("EGRESS_POLICY_UNAVAILABLE");
+            }
+        });
+    }
 
     @Bean
     WorkspaceAiGovernanceService workspaceAiGovernanceService(PlatformAiControlMapper mapper, PlatformJson json,

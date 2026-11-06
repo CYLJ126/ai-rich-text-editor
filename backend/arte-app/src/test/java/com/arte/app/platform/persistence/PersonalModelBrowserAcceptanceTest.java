@@ -73,9 +73,9 @@ class PersonalModelBrowserAcceptanceTest {
                             "data: {\"id\":\"browser\",\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"场景验收回答\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")).then());
                 })).bindNow();
         String origin = "http://127.0.0.1:" + provider.port();
+        f.f.f.allowOrigins(origin);
         try {
-            f.realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1",
-                    "arte.ai-new-generation.allowed-origins[0]=" + origin).run(c -> {
+            f.realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1").run(c -> {
                 assertNull(c.getStartupFailure());
                 DatabaseAiControlService control = c.getBean(DatabaseAiControlService.class);
                 DatabaseAiTestCatalog.publish(control, c, f.f.f.f.actor, f.f.f.meta("browser-import"));

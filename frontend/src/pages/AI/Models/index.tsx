@@ -6,6 +6,7 @@ import ViewportPage from '@/components/MasterDetailLayout/ViewportPage';
 import ModelManager, {modelAddAction, ModelListControls} from '@/features/ainew/ModelManager';
 import ConnectionManager from '@/features/ainew/ConnectionManager';
 import ModelPlanManager from '@/features/ainew/ModelPlanManager';
+import ModelEgressPolicyEditor from '@/features/ainew/ModelEgressPolicyEditor';
 import DefaultAiTemplateEditor from '@/features/ainew/DefaultAiTemplateEditor';
 import {useCurrentWorkspace, useWorkspaceManagement} from '@/features/workspace/useWorkspace';
 import {
@@ -30,7 +31,7 @@ import ConfigurationBoundary, {
 } from '@/features/configuration/ConfigurationBoundary';
 import {useConfigurationDirectory} from '@/features/configuration/useConfigurationDirectory';
 
-export type ModelConfigurationTab = 'models' | 'sharing' | 'connections' | 'plans';
+export type ModelConfigurationTab = 'models' | 'sharing' | 'connections' | 'plans' | 'egress';
 const scopeKey = (scope: WorkspaceScope) => JSON.stringify([scope.tenantId, scope.workspaceId]);
 const spaceKey = (space: WorkspaceSummary) => scopeKey(space.scope);
 const modelUpdated = () => {
@@ -59,7 +60,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   const route = useMemo(() => {
     try {
       const intent = parseAiIntent(search, userId);
-      if (!oldSpaceLink && requestedTab !== null && !['models', 'connections', 'plans', 'sharing'].includes(requestedTab))
+      if (!oldSpaceLink && requestedTab !== null && !['models', 'connections', 'plans', 'sharing', 'egress'].includes(requestedTab))
         throw new Error('模型配置页签无效。');
       if (intent.returnTo === 'chat' && !intent.chat) throw new Error('返回聊天定位缺少原聊天空间。');
       if (intent.model && !intent.scope) throw new Error('缺少模型所属管理空间。');
@@ -86,6 +87,7 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   const [capabilityRevision, setCapabilityRevision] = useState(0);
   const [modelUnsafe, setModelUnsafe] = useState(false);
   const [connectionUnsafe, setConnectionUnsafe] = useState(false);
+  const [egressRevision, setEgressRevision] = useState(0);
   const [planUnsafe, setPlanUnsafe] = useState(false);
   const [templateUnsafe, setTemplateUnsafe] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -126,7 +128,8 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
   }, [userId, capabilityRevision, closed]);
 
   useEffect(() => {
-    if (requestedTab === 'connections' || requestedTab === 'plans' || requestedTab === 'models') setTab(requestedTab);
+    if (requestedTab === 'connections' || requestedTab === 'plans' || requestedTab === 'models' || requestedTab === 'egress')
+      setTab(requestedTab);
     else if (requestedTab === 'sharing') setTab('models');
   }, [requestedTab]);
 
@@ -202,8 +205,10 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
 
   const canConnections = capabilities?.available === true && capabilities.manageConnections;
   const canPlans = capabilities?.available === true && capabilities.managePlans;
-  const active = (tab === 'connections' && canConnections) || (tab === 'plans' && canPlans) ? tab : 'models';
-  const requestedPlatform = tab === 'connections' || tab === 'plans';
+  const canEgress = capabilities?.available === true && capabilities.manageEgress;
+  const active = (tab === 'connections' && canConnections) || (tab === 'plans' && canPlans) || (tab === 'egress' && canEgress)
+    ? tab : 'models';
+  const requestedPlatform = tab === 'connections' || tab === 'plans' || tab === 'egress';
   const canTemplate = capabilities?.available === true && capabilities.manageDefaultTemplate;
 
   if (closed) return <Alert type="warning" title="账号会话已结束，请重新登录后打开模型配置。"/>;
@@ -263,12 +268,17 @@ function ModelConfiguration({userId, initialTab, hasWorkspaceMenu}: {
       ...(canConnections ? [{
         key: 'connections',
         label: '供应商连接',
-        children: <ConnectionManager userId={userId} onUnsafeChange={setConnectionUnsafe}/>,
+        children: <ConnectionManager userId={userId} onUnsafeChange={setConnectionUnsafe}
+                                     egressRevision={egressRevision}/>,
       }] : []),
       ...(canPlans ? [{
         key: 'plans', label: '模型方案与费率', children: <ModelPlanManager userId={userId}
                                                                            onUnsafeChange={setPlanUnsafe}
                                                                            onOpenTemplate={canTemplate ? () => setTemplateOpen(true) : undefined}/>,
+      }] : []),
+      ...(canEgress ? [{
+        key: 'egress', label: '平台出口策略', style: {height: '100%'},
+        children: <ModelEgressPolicyEditor userId={userId} onSaved={() => setEgressRevision(value => value + 1)}/>,
       }] : []),
     ]}/>
     {canTemplate && <Modal title="平台默认 AI 模板" open={templateOpen} footer={null} width={800}

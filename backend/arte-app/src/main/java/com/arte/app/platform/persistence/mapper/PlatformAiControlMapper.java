@@ -33,6 +33,10 @@ public interface PlatformAiControlMapper {
 
     Long head(@Param("lock") boolean lock);
 
+    PlatformAiControlRow modelEgress(@Param("lock") boolean lock);
+
+    int replaceModelEgress(@Param("expected") long expected, @Param("version") long version, @Param("payload") String payload);
+
     /**
      * 当前读发布版本，MySQL 使用共享锁避免不同主体的复核互相排斥。
      */

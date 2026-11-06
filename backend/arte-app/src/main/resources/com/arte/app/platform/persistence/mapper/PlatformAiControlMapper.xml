@@ -42,6 +42,16 @@
 
     <update id="advance">UPDATE arte_ai_control_head SET version=#{version} WHERE id=1 AND version=#{expected}</update>
 
+    <update id="replaceModelEgress">UPDATE arte_ai_model_egress_policy SET version=#{version},payload=#{payload}
+        WHERE id=1 AND version=#{expected}
+    </update>
+
+    <select id="modelEgress" resultType="com.arte.app.pojo.platform.PlatformAiControlRow" useCache="false"
+            flushCache="true">
+        SELECT version,payload FROM arte_ai_model_egress_policy WHERE id=1
+        <if test="lock">FOR UPDATE</if>
+    </select>
+
     <select id="head" resultType="java.lang.Long" useCache="false" flushCache="true">
         SELECT version FROM arte_ai_control_head WHERE id=1
         <if test="lock">FOR UPDATE</if>

@@ -6,15 +6,13 @@ import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
-import com.arte.ainew.infrastructure.http.EnvironmentCredentialResolver;
-import com.arte.ainew.infrastructure.http.GenerationJson;
-import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
+import com.arte.ainew.infrastructure.http.*;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProviderAdapter;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -24,6 +22,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 import java.time.Clock;
+import java.util.List;
 
 /**
  * 第 4 步的显式装配，仅构造运行组件，不连接供应商、不执行派发或启动 Worker。
@@ -70,8 +69,12 @@ public class NewAiGenerationConfiguration {
     @Bean(name = "newAiHttpConnectionRuntime", initMethod = "warmupResources", destroyMethod = "close")
     HttpConnectionRuntime runtime(ConnectionManager connections, AdmissionAuthorization authorization,
                                   ConnectionCredentialResolver credentials, NewAiGenerationProperties properties,
-                                  @Qualifier("newAiClock") Clock clock) {
-        return new HttpConnectionRuntime(connections, authorization, credentials, properties, clock);
+                                  @Qualifier("newAiClock") Clock clock, NewAiProperties admission,
+                                  @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
+        var policy = "DATABASE".equals(admission.configurationMode())
+                ? egress.getIfAvailable(() -> new HttpEgressPolicy(List::of))
+                : new HttpEgressPolicy(properties);
+        return new HttpConnectionRuntime(connections, authorization, credentials, properties, clock, policy);
     }
 
     /**

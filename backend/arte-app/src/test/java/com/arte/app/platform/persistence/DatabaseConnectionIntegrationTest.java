@@ -1,6 +1,6 @@
 package com.arte.app.platform.persistence;
 
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.infrastructure.http.GenerationException;
 import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.app.platform.ai.DatabaseAiControlService;
 import com.arte.app.platform.ai.DatabaseAiControlStartupSafety;
@@ -235,6 +235,44 @@ class DatabaseConnectionIntegrationTest {
     }
 
     @Test
+    void egressIsIndependentOfCatalogPermissionAndTakesEffectOnExistingPolicyInstances() {
+        f.allowOrigins();
+        context().run(c -> {
+            var db = c.getBean(DatabaseAiControlService.class);
+            var policy = c.getBean("newAiModelEgressPolicy", HttpEgressPolicy.class);
+            var actor = f.f.actor;
+            var endpoint = settings("v1").endpoint();
+            assertFalse(db.configurationCapabilities(actor).manageEgress());
+            assertThrows(PlatformException.class, () -> db.getEgressPolicy(actor));
+            assertThrows(PlatformException.class, () -> db.updateEgressPolicy(actor, f.meta("unauthorized"), 0, List.of()));
+            assertThrows(GenerationException.class, () -> policy.validateOrigin(endpoint));
+            assertThrows(IllegalArgumentException.class, () -> db.publishConnection(actor, f.meta("empty-denied"), 0, settings("v1")));
+
+            f.f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','aiSecurity:manageEgress')");
+            assertTrue(db.configurationCapabilities(actor).manageEgress());
+            assertThrows(IllegalArgumentException.class, () -> db.updateEgressPolicy(actor, f.meta("bad-origin"), 0,
+                    List.of("https://api.deepseek.com/v1")));
+            var allowed = db.updateEgressPolicy(actor, f.meta("allow"), 0, List.of("HTTPS://API.DEEPSEEK.COM:443/"));
+            assertEquals(List.of("https://api.deepseek.com"), allowed.value().origins());
+            assertEquals(allowed.operationId(), db.updateEgressPolicy(actor, f.meta("allow"), 0,
+                    List.of("https://api.deepseek.com")).operationId());
+            policy.validateOrigin(endpoint);
+            db.publishConnection(actor, f.meta("allowed-connection"), 0, settings("v1"));
+
+            assertThrows(PlatformException.class, () -> db.updateEgressPolicy(actor, f.meta("stale"), 0, List.of()));
+            assertEquals(2, db.updateEgressPolicy(actor, f.meta("revoke"), 1, List.of()).value().version());
+            assertEquals("EGRESS_ORIGIN_DENIED", assertThrows(GenerationException.class,
+                    () -> policy.validateOrigin(endpoint)).getMessage());
+            assertEquals(1, db.catalog().catalog().connections().size());
+        });
+        context().run(c -> {
+            var current = c.getBean(DatabaseAiControlService.class).getEgressPolicy(f.f.actor);
+            assertEquals(2, current.version());
+            assertTrue(current.origins().isEmpty());
+        });
+    }
+
+    @Test
     void httpPublishesSafeDtoRejectsSecretsAndRequiresCurrentPlatformPermission() {
         context().withUserConfiguration(DatabaseAiControlIntegrationTest.HttpSecurity.class, WorkspaceAiConfigurationController.class)
                 .withBean("pcs", com.arte.app.web.security.PermissionCheckService.class, com.arte.app.web.security.PermissionCheckService::new)
@@ -248,6 +286,7 @@ class DatabaseConnectionIntegrationTest {
                     var auth = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(new com.arte.app.pojo.rbac.JwtUserDto(online), null, List.of());
                     try {
                         assertEquals(403, f.http(mvc, "getConnections", "{}", null, auth, online, false));
+                        assertEquals(403, f.http(mvc, "getEgressPolicy", "{}", null, auth, online, true));
                         String request = mapper.writeValueAsString(java.util.Map.of("expectedVersion", 0, "settings", settings("v1")));
                         var saved = f.httpResponse(mvc, "publishConnection", request, "http-create", auth, online, true);
                         assertEquals(200, saved.getStatus(), saved.getContentAsString());
@@ -259,6 +298,10 @@ class DatabaseConnectionIntegrationTest {
                         assertEquals(400, f.http(mvc, "publishConnection", request, null, auth, online, true));
                         f.f.jdbc.update("DELETE FROM arte_rbac_relation");
                         assertEquals(403, f.http(mvc, "publishConnection", request, "http-create", auth, online, true));
+                        f.f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','aiSecurity:manageEgress')");
+                        assertEquals(200, f.http(mvc, "getEgressPolicy", "{}", null, auth, online, false));
+                        assertEquals(200, f.http(mvc, "updateEgressPolicy", "{\"expectedVersion\":0,\"origins\":[]}", "http-egress", auth, online, false));
+                        assertEquals(403, f.http(mvc, "getConnections", "{}", null, auth, online, true));
                     } catch (Exception failure) {
                         throw new AssertionError(failure);
                     }
@@ -284,7 +327,7 @@ class DatabaseConnectionIntegrationTest {
                     c.getBean(TenantMembershipStore.class), c.getBean(WorkspaceMembershipStore.class), c.getBean(PreferenceStore.class))
                     .scopes(f.f.actor.principal().subjectId(), List.of(scope));
             return new ReviewedModelConnectionTemplates(c.getBean(DatabaseAiControlService.class)::definitions, c.getBean(PolicyStore.class),
-                    new HttpEgressPolicy(c.getBean(NewAiGenerationProperties.class))).available(scope);
+                    c.getBean("newAiModelEgressPolicy", HttpEgressPolicy.class)).available(scope);
         });
     }
 }

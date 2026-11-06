@@ -10,8 +10,11 @@ import io.netty.util.concurrent.Promise;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * 精确 origin 白名单及 DNS 地址校验；解析结果固定到本次连接，避免校验后重新解析目标。
@@ -21,20 +24,60 @@ import java.util.List;
  */
 public final class HttpEgressPolicy {
 
-    private final List<URI> origins;
+    private final Supplier<List<URI>> origins;
 
     public HttpEgressPolicy(NewAiGenerationProperties properties) {
-        origins = properties.allowedOrigins();
+        this(properties::allowedOrigins);
+    }
+
+    public HttpEgressPolicy(Supplier<List<URI>> origins) {
+        this.origins = origins;
     }
 
     public void validateOrigin(URI endpoint) {
-        if (origins.stream().noneMatch(origin -> sameOrigin(origin, endpoint))) {
+        if (!allows(allowedOrigins(), endpoint)) {
             throw GenerationException.beforeSend("EGRESS_ORIGIN_DENIED");
         }
     }
 
+    public List<URI> allowedOrigins() {
+        return origins.get();
+    }
+
+    public static boolean allows(List<URI> origins, URI endpoint) {
+        return origins.stream().anyMatch(origin -> sameOrigin(origin, endpoint));
+    }
+
+    public static URI normalizeOrigin(URI origin) {
+        String scheme = origin.getScheme();
+        String host = origin.getHost();
+        int port = origin.getPort();
+        if (scheme == null || host == null || port == 0 || port > 65535 || origin.getRawUserInfo() != null
+                || origin.getRawQuery() != null || origin.getRawFragment() != null
+                || !(origin.getRawPath().isEmpty() || origin.getRawPath().equals("/"))
+                || !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)
+                && ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)))) {
+            throw new IllegalArgumentException("Invalid model egress origin");
+        }
+        scheme = scheme.toLowerCase(Locale.ROOT);
+        String authority = host.toLowerCase(Locale.ROOT);
+        if (port != -1 && port != ("https".equals(scheme) ? 443 : 80)) {
+            authority += ":" + port;
+        }
+        return URI.create(scheme + "://" + authority);
+    }
+
+    public List<InetAddress> resolveAddresses(URI endpoint) throws UnknownHostException {
+        validateOrigin(endpoint);
+        return validateResolvedAddresses(endpoint, InetAddress.getAllByName(endpoint.getHost()));
+    }
+
     public List<InetAddress> validateAddresses(URI endpoint, InetAddress[] addresses) {
         validateOrigin(endpoint);
+        return validateResolvedAddresses(endpoint, addresses);
+    }
+
+    private List<InetAddress> validateResolvedAddresses(URI endpoint, InetAddress[] addresses) {
         boolean loopback = endpoint.getHost().equals("127.0.0.1") || endpoint.getHost().equalsIgnoreCase("localhost");
         if (addresses.length == 0 || Arrays.stream(addresses).anyMatch(address -> loopback
                 ? !address.isLoopbackAddress() : !publicAddress(address))) {

@@ -102,6 +102,11 @@ public class WorkspaceAiConfigurationController {
                                @NotNull @Size(max = 100) List<@NotNull @Valid DefaultRateCap> rules) implements StrictPlatformRequest {
     }
 
+    public record UpdateEgressPolicyRequest(@NotNull @Min(0) Long expectedVersion,
+                                            @NotNull @Size(max = 64) List<@NotBlank @Size(max = 2048) String> origins)
+            implements StrictPlatformRequest {
+    }
+
     private <T> Mono<ResultContext<T>> call(Authentication authentication, Locale locale, Function<TrustedActor, T> work) {
         // Capture the immutable account identity before dispatch; actor() rechecks the current account in the DB thread.
         if (authentication == null || !authentication.isAuthenticated()
@@ -116,14 +121,29 @@ public class WorkspaceAiConfigurationController {
     public record CapabilitiesRequest() implements StrictPlatformRequest {
     }
 
+    public record PolicyConnectionOptionsRequest(@NotBlank @Size(max = 256) String tenantId, Scope scope)
+            implements StrictPlatformRequest {
+    }
+
     @PostMapping("/getConfigurationCapabilities")
-    public Mono<ResultContext<DatabaseAiControlService.ConfigurationCapabilities>> capabilities(
-            Authentication auth, @Valid @RequestBody CapabilitiesRequest request, Locale locale) {
+    public Mono<ResultContext<DatabaseAiControlService.ConfigurationCapabilities>> capabilities(Authentication auth,
+                                                                                                @Valid @RequestBody CapabilitiesRequest request,
+                                                                                                Locale locale) {
         return call(auth, locale, service::configurationCapabilities);
     }
 
-    public record PolicyConnectionOptionsRequest(@NotBlank @Size(max = 256) String tenantId, Scope scope)
-            implements StrictPlatformRequest {
+    @PostMapping("/getEgressPolicy")
+    public Mono<ResultContext<EgressPolicyView>> egressPolicy(Authentication auth, @Valid @RequestBody CapabilitiesRequest request,
+                                                              Locale locale) {
+        return call(auth, locale, service::getEgressPolicy);
+    }
+
+    @PostMapping("/updateEgressPolicy")
+    public Mono<ResultContext<CommandReceipt<EgressPolicyView>>> updateEgressPolicy(
+            Authentication auth, @Valid @RequestBody UpdateEgressPolicyRequest request,
+            @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> service.updateEgressPolicy(actor, new CommandMeta(key, PlatformHttpContext.traceId(http)),
+                request.expectedVersion(), request.origins()));
     }
 
     @PostMapping("/listPolicyConnectionOptions")

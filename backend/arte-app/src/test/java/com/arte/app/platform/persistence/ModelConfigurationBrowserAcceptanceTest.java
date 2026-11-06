@@ -118,9 +118,10 @@ class ModelConfigurationBrowserAcceptanceTest {
                             "data: {\"id\":\"m5\",\"model\":\"deepseek-chat\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"M5 回环模型实际回答\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":2,\"total_tokens\":5}}\n\ndata: [DONE]\n\n")).then());
                 })).bindNow();
         String origin = "http://127.0.0.1:" + provider.port();
+        fixture.f.f.allowOrigins(origin);
         try {
             fixture.realGenerationContext(false).withUserConfiguration(PlatformModelSharingConfiguration.class, ModelSharingStartupSafety.class)
-                    .withPropertyValues("arte.ai-new-model-sharing.enabled=true", "arte.ai-new-generation.allowed-origins[0]=" + origin).run(context -> {
+                    .withPropertyValues("arte.ai-new-model-sharing.enabled=true").run(context -> {
                         assertNull(context.getStartupFailure());
                         fixture.policy(context, "127.0.0.1", true);
                         DefaultWorkspaceServices services = context.getBean(DefaultWorkspaceServices.class);

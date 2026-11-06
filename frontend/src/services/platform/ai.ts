@@ -77,7 +77,8 @@ export interface CatalogView {
 const base = '/arte/workspace/ai';
 const configurationCapabilities = z.object({
   available: z.boolean(), manageConnections: z.boolean(), managePlans: z.boolean(), manageDefaultTemplate: z.boolean(),
-}).strict().refine(value => value.available || !(value.manageConnections || value.managePlans || value.manageDefaultTemplate));
+  manageEgress: z.boolean().default(false),
+}).strict().refine(value => value.available || !(value.manageConnections || value.managePlans || value.manageDefaultTemplate || value.manageEgress));
 export type ConfigurationCapabilities = z.infer<typeof configurationCapabilities>;
 
 export async function getConfigurationCapabilities(options?: AiRequestOptions): Promise<ConfigurationCapabilities> {
