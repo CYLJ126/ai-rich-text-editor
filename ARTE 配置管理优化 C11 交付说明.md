@@ -30,14 +30,13 @@
 - 命令、审计和 Outbox 同事务写入。结果不确定时保留会话存储中的原范围、载荷和键。已确认结果可经 `getWorkspaceCommandReceipt`
   再核验，服务端检查当前资格和记录状态。
 
-## 启用及停用
+## 部署
 
 1. 确认目标环境已安装平台身份和工作空间基础表，且平台身份、持久化、工作空间模块已启用。若需要新建组织租户，还需按 C10
    配置组织创建权限与模板。
 2. 在目标环境审批后，执行 [邀请表 DDL](backend/arte-app/scripts/arte-platform-membership-invitation-ddl-mysql.sql)
    。可重复执行。邀请表使用同一个 `appDataSource`，以空 `workspace_id` 区分租户邀请。
-3. 设置 `arte.platform.membership.enabled=true` 后重启。该能力默认关闭，启用时启动会核验邀请表。
-4. 停用时将该开关设为 `false` 后重启，保留已写入的成员资格、邀请和审计数据。成员访问仍由基础授权服务按当前数据判断。
+3. 部署并重启后端。成员治理随工作空间模块一起启用，启动时会核验邀请表。
 
 ## 验证范围
 

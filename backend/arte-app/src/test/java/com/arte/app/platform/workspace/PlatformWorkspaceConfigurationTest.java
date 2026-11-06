@@ -2,6 +2,7 @@ package com.arte.app.platform.workspace;
 
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.persistence.PlatformPersistenceExecutor;
+import com.arte.app.web.controller.platform.MembershipGovernanceController;
 import com.arte.core.api.access.AuthorizationService;
 import com.arte.core.api.workspace.*;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
@@ -14,11 +15,12 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import java.time.Clock;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 
 class PlatformWorkspaceConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(PlatformWorkspaceConfiguration.class);
+            .withUserConfiguration(PlatformWorkspaceConfiguration.class, MembershipGovernanceController.class);
 
     @Test
     void disabledDoesNotRequireIdentityDatabaseRedisOrRegisterServices() {
@@ -28,6 +30,7 @@ class PlatformWorkspaceConfigurationTest {
             assertTrue(context.getBeansOfType(TenantQueryService.class).isEmpty());
             assertTrue(context.getBeansOfType(ReactiveTenantQueries.class).isEmpty());
             assertTrue(context.getBeansOfType(ReactiveWorkspaceOperations.class).isEmpty());
+            assertTrue(context.getBeansOfType(MembershipGovernanceController.class).isEmpty());
         });
     }
 
@@ -55,7 +58,9 @@ class PlatformWorkspaceConfigurationTest {
                     assertSame(services.workspaces(), context.getBean(WorkspaceService.class));
                     assertSame(services.tenantQueries(), context.getBean(TenantQueryService.class));
                     assertEquals(1, context.getBeansOfType(ReactiveTenantQueries.class).size());
-                    assertTrue(context.getBeansOfType(TenantService.class).isEmpty());
+                    assertSame(services.membership(), context.getBean(TenantService.class));
+                    assertSame(services.membership(), context.getBean(MembershipService.class));
+                    assertEquals(1, context.getBeansOfType(MembershipGovernanceController.class).size());
                     assertSame(services.preferences(), context.getBean(WorkspacePreferenceService.class));
                     assertSame(services.policies(), context.getBean(WorkspacePolicyService.class));
                     assertSame(services.scopes(), context.getBean(ScopeResolver.class));
@@ -66,7 +71,6 @@ class PlatformWorkspaceConfigurationTest {
                     assertEquals(java.time.ZoneOffset.UTC, context.getBean("platformWorkspaceClock", Clock.class).getZone());
                     assertEquals(1, context.getBeansOfType(com.arte.app.api.rbac.AuthorizationService.class).size());
                     assertTrue(context.getBeansOfType(org.springframework.transaction.PlatformTransactionManager.class).isEmpty());
-                    assertTrue(context.getBeansOfType(MembershipService.class).isEmpty());
                     assertTrue(context.getBeansOfType(WorkspaceLifecycleService.class).isEmpty());
                 });
     }
@@ -83,7 +87,7 @@ class PlatformWorkspaceConfigurationTest {
     private ApplicationContextRunner dependencies() {
         return runner.withBean(RbacIdentityProvider.class, () -> mock(RbacIdentityProvider.class))
                 .withBean(com.arte.app.platform.persistence.PlatformJson.class, com.arte.app.platform.persistence.PlatformJson::new)
-                .withBean("appDataSource", javax.sql.DataSource.class, () -> mock(javax.sql.DataSource.class))
+                .withBean("appDataSource", javax.sql.DataSource.class, () -> mock(javax.sql.DataSource.class, RETURNS_DEEP_STUBS))
                 .withBean("platformTransactionRunner", PublicTransactionRunner.class, () -> mock(PublicTransactionRunner.class))
                 .withBean(com.arte.core.spi.access.ResourceGrantStore.class, () -> mock(com.arte.core.spi.access.ResourceGrantStore.class))
                 .withBean(TenantStore.class, () -> mock(TenantStore.class))

@@ -4,7 +4,6 @@ import cn.hutool.json.JSONObject;
 import com.arte.app.platform.identity.PlatformIdentityConfiguration;
 import com.arte.app.platform.identity.RbacAccountMapperConfiguration;
 import com.arte.app.platform.identity.RbacAccountReader;
-import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.workspace.PlatformWorkspaceConfiguration;
 import com.arte.app.platform.workspace.ReactiveWorkspaceOperations;
 import com.arte.app.pojo.rbac.JwtUserDto;
@@ -12,7 +11,6 @@ import com.arte.app.service.platform.AuditSinkServiceImpl;
 import com.arte.app.web.controller.platform.MembershipGovernanceController;
 import com.arte.app.web.controller.platform.TenantDirectoryController;
 import com.arte.app.web.controller.platform.WorkspaceController;
-import com.arte.core.application.workspace.DefaultMembershipGovernanceService;
 import com.arte.core.application.workspace.DefaultWorkspaceServices;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.workspace.MembershipStateEnum;
@@ -40,8 +38,6 @@ import org.springframework.boot.test.context.assertj.AssertableApplicationContex
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Mono;
@@ -86,7 +82,7 @@ class PlatformWorkspaceAssemblyIntegrationTest {
     private ApplicationContextRunner context() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(PlatformWorkspaceConfiguration.class, PlatformIdentityConfiguration.class,
-                        PlatformPersistenceConfiguration.class, Stores.class)
+                        PlatformPersistenceConfiguration.class, MembershipGovernanceController.class, Stores.class)
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
                         "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true")
                 .withBean("appDataSource", DataSource.class, () -> fixture.source)
@@ -590,19 +586,10 @@ class PlatformWorkspaceAssemblyIntegrationTest {
             fixture.jdbc.update("INSERT INTO arte_rbac_user VALUES(?,?,1,?)", id, id == 2 ? "bob" : "carol",
                     java.sql.Timestamp.valueOf("2026-10-10 10:00:00"));
         }
-        String ddl = java.nio.file.Files.readString(java.nio.file.Path.of("scripts/arte-platform-membership-invitation-ddl-mysql.sql"));
-        if (fixture.mysql == null) {
-            ddl = ddl.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "").replace("ENGINE=InnoDB", "");
-        }
-        try (java.sql.Connection connection = fixture.source.getConnection()) {
-            ByteArrayResource sql = new ByteArrayResource(ddl.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            ScriptUtils.executeSqlScript(connection, sql);
-            ScriptUtils.executeSqlScript(connection, sql);
-        }
+        fixture.installDdl(java.nio.file.Path.of("scripts/arte-platform-membership-invitation-ddl-mysql.sql"));
         PolicyRules rules = new PolicyRules(Set.of(com.arte.core.constant.platform.PlatformResourceTypes.ARTICLE), Map.of(),
                 false, false, Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of());
-        return context().withPropertyValues("arte.platform.membership.enabled=true",
-                "arte.platform.tenant-governance.organization-creation-enabled=true",
+        return context().withPropertyValues("arte.platform.tenant-governance.organization-creation-enabled=true",
                 "arte.platform.tenant-governance.organization-policy-template=" +
                         fixture.json.write(new OrganizationTenantPolicyTemplate(7, rules, false, 1, 1)));
     }
@@ -611,9 +598,7 @@ class PlatformWorkspaceAssemblyIntegrationTest {
         return new ManagementHttpHarness(
                 new TenantDirectoryController(c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class)),
                 new WorkspaceController(c.getBean(ReactiveWorkspaceOperations.class)),
-                new MembershipGovernanceController(c.getBean(DefaultMembershipGovernanceService.class),
-                        c.getBean(RbacIdentityProvider.class), c.getBean(PlatformPersistenceExecutor.class),
-                        fixture.tenants, fixture.workspaces));
+                c.getBean(MembershipGovernanceController.class));
     }
 
     private String memberTarget(ManagementHttpHarness http, Authentication actor, String tenant, String account) {

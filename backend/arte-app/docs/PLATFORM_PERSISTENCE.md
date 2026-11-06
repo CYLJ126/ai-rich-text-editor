@@ -131,6 +131,7 @@ runner 共享；失败标记实际连接回滚，即使外层捕获异常也不�
 2. 经数据库迁移执行 `scripts/arte-platform-workspace-ddl-mysql.sql`，MySQL 8+／InnoDB；这是新建表脚本，按迁移版本执行一次，不用于覆盖既有库。
    已有秒／纳秒结构须先停止旧版写入并备份，执行 `scripts/arte-platform-workspace-time-micros-migration-mysql.sql`，随后启动
    v3 应用；新建表脚本不能用于覆盖旧库。
+   新装和升级均须在启动新版工作空间模块前执行 [成员邀请表 DDL](../scripts/arte-platform-membership-invitation-ddl-mysql.sql)。
 3. 所有 app 库连接的会话时区设为 UTC（例如 Druid connection-init-sqls 执行 SET time_zone = '+00:00'），JDBC serverTimezone
    同样设为 UTC。DDL 中的 SET 只影响执行脚本的连接，不能替代连接池设置。
 4. 已配置 Redis 后显式启用持久化；投递需另开 outbox-enabled。当前消费者尚未接入时可以保持投递关闭，事件仍可靠保存在数据库。

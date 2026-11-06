@@ -3,8 +3,10 @@ package com.arte.app.web.advice;
 import com.arte.core.exception.CommonException;
 import com.arte.core.pojo.ResultContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Locale;
 
@@ -28,6 +30,14 @@ public class GlobalExceptionHandler {
     public ResultContext<Void> handleCommonException(CommonException e, Locale locale) {
         log.warn("业务异常: {}", e.getMessage(), e);
         return ResultContext.exception(e, locale);
+    }
+
+    /**
+     * 未匹配到控制器且静态资源不存在时，保留 HTTP 404。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Void> handleNoResourceFound() {
+        return ResponseEntity.notFound().build();
     }
 
     /**

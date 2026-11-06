@@ -110,20 +110,10 @@ class PlatformPersistenceIntegrationTest {
                 List.of(
                         "arte-platform-identity-ddl-mysql.sql",
                         "arte-platform-workspace-ddl-mysql.sql",
+                        "arte-platform-membership-invitation-ddl-mysql.sql",
                         "arte-platform-personal-policy-template-ddl-mysql.sql")) {
-            String sql = Files.readString(script.equals("arte-platform-workspace-ddl-mysql.sql")
+            installDdl(script.equals("arte-platform-workspace-ddl-mysql.sql")
                     ? workspaceDdl() : Path.of("scripts", script));
-            if (mysql == null)
-                sql =
-                        sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
-                                .replaceAll("(?i)ENGINE=InnoDB", "")
-                                .replaceAll("(?im)^SET\\s+[^;]*;", "");
-            try (var connection = source.getConnection()) {
-                ScriptUtils.executeSqlScript(
-                        connection,
-                        new ByteArrayResource(
-                                sql.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            }
         }
         jdbc.update(
                 "INSERT INTO arte_rbac_user VALUES(1,'alice',1,?)",
@@ -157,6 +147,19 @@ class PlatformPersistenceIntegrationTest {
         audit = factory.audit();
         facts = factory.facts();
         services = services(provider, outbox, audit);
+    }
+
+    void installDdl(Path script) throws Exception {
+        String sql = Files.readString(script);
+        if (mysql == null) {
+            sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
+                    .replaceAll("(?i)ENGINE\\s*=\\s*InnoDB", "")
+                    .replaceAll("(?im)^SET\\s+[^;]*;", "");
+        }
+        try (var connection = source.getConnection()) {
+            ScriptUtils.executeSqlScript(connection,
+                    new ByteArrayResource(sql.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
     }
 
     Path workspaceDdl() {

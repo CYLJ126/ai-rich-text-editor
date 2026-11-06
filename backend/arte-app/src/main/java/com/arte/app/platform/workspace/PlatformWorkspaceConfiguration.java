@@ -16,7 +16,6 @@ import com.arte.core.pojo.workspace.OrganizationTenantPolicyTemplate;
 import com.arte.core.spi.access.WorkspaceWriteGuard;
 import com.arte.core.spi.platform.*;
 import com.arte.core.spi.workspace.*;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -95,6 +94,7 @@ public class PlatformWorkspaceConfiguration {
      * @param facts            空间授权事实的批量读取存储
      * @param provisioning     空间创建事务内的资源初始化参与者集合
      * @param properties       空间功能配置，提供目录浏览扫描预算
+     * @param invitations      租户和工作空间共用的邀请存储
      * @return 已组合全部依赖的核心空间服务集合
      */
     @Bean
@@ -112,7 +112,7 @@ public class PlatformWorkspaceConfiguration {
                                                        java.util.List<com.arte.core.spi.access.DomainAccessConditionProvider> conditions,
                                                        TenantGovernanceProperties tenantGovernance, PlatformJson json,
                                                        RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource dataSource,
-                                                       ObjectProvider<JdbcMembershipInvitationStore> invitations) {
+                                                       JdbcMembershipInvitationStore invitations) {
         RbacToolPermissionReader permissions = new RbacToolPermissionReader(dataSource);
         TenantUpdatePolicy update = (actor, tenantId, current) -> {
             String subject = actor.principal().subjectId();
@@ -124,14 +124,12 @@ public class PlatformWorkspaceConfiguration {
                 && identities.currentSubjectName(actor.principal().subjectId())
                 .map(name -> permissions.current(name).contains(CREATE_ORGANIZATION_PERMISSION)).orElse(false);
         OrganizationTenantPolicyTemplate template = organizationTemplate(tenantGovernance, json);
-        JdbcMembershipInvitationStore invitationStore = invitations.getIfAvailable();
         return new DefaultWorkspaceServices(identity, transactions, tenants, workspaces, tenantMembers,
                 workspaceMembers, policies, preferences, receipts, outbox, audit, ids, clock, defaults, facts, provisioning,
-                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions, update, create, () -> template, invitationStore, invitationStore);
+                properties.directory().budget(), System::nanoTime, grants, descriptors, conditions, update, create, () -> template, invitations, invitations);
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "arte.platform.membership", name = "enabled", havingValue = "true")
     JdbcMembershipInvitationStore membershipInvitationStore(@Qualifier("appDataSource") DataSource source,
                                                             @Qualifier("platformTransactionRunner") PublicTransactionRunner tx) {
         new JdbcTemplate(source).queryForList("SELECT id,tenant_id,workspace_id,target_subject_id,issued_by,role,state,expires_at,accepted_member_id,version"
@@ -140,7 +138,6 @@ public class PlatformWorkspaceConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "arte.platform.membership", name = "enabled", havingValue = "true")
     DefaultMembershipGovernanceService membershipGovernanceService(DefaultWorkspaceServices services) {
         return java.util.Objects.requireNonNull(services.membership());
     }

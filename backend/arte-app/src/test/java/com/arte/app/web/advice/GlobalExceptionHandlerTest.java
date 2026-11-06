@@ -10,17 +10,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class GlobalExceptionHandlerTest {
 
@@ -76,6 +82,13 @@ class GlobalExceptionHandlerTest {
         assertFalse(body.contains("TEST_SECRET"));
     }
 
+    @Test
+    void missingResourceReturnsHttp404() throws Exception {
+        mvc.perform(post("/missing"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(""));
+    }
+
     @RestController
     static class FailingController {
         @GetMapping("/locale/business")
@@ -86,6 +99,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/locale/system")
         public String system() {
             throw new RuntimeException("password=TEST_SECRET");
+        }
+
+        @PostMapping("/missing")
+        public void missing() throws NoResourceFoundException {
+            throw new NoResourceFoundException(HttpMethod.POST, "/missing", "missing");
         }
     }
 }

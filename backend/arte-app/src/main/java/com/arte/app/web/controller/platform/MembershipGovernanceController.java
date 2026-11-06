@@ -42,7 +42,7 @@ import java.util.function.Function;
 @RestController
 @RequestMapping("/workspace")
 @PreAuthorize("isAuthenticated()")
-@ConditionalOnProperty(prefix = "arte.platform", name = {"workspace.enabled", "membership.enabled"}, havingValue = "true")
+@ConditionalOnProperty(prefix = "arte.platform.workspace", name = "enabled", havingValue = "true")
 public class MembershipGovernanceController {
 
     private final DefaultMembershipGovernanceService service;
