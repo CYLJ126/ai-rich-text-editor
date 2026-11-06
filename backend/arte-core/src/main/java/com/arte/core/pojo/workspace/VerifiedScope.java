@@ -12,6 +12,12 @@ import java.util.Objects;
 /**
  * 公共服务验证的成员及范围快照；写入时还需实际事务内重新检查，不得作为 HTTP 可信输入。
  *
+ * @param principal 通过当前范围校验的主体
+ * @param scope 已校验的空间范围
+ * @param tenantRole 校验时主体在租户中的角色
+ * @param workspaceRole 校验时主体在空间中的角色
+ * @param versions 校验时读取的授权版本与代次
+ * @param checkedAt 资格校验完成的时间
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
@@ -22,6 +28,7 @@ public record VerifiedScope(
         WorkspaceRoleEnum workspaceRole,
         AuthorizationVersions versions,
         Instant checkedAt) {
+
     public VerifiedScope {
         Objects.requireNonNull(principal, "principal");
         Objects.requireNonNull(scope, "scope");

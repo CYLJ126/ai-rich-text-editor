@@ -5,10 +5,12 @@ import com.arte.core.utils.platform.PlatformChecks;
 import java.util.Objects;
 
 /**
- * 完整幂等身份
- * <p>
- * 摘要采用规范化结构编码，不拼接有歧义的字符串。
+ * 标识命令的幂等记录。请求摘要采用规范化结构编码。
  *
+ * @param actorSubjectId 发起命令的主体 ID
+ * @param scope          命令执行范围
+ * @param commandType    命令类型标识
+ * @param operationKey   调用方提供的幂等操作键
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */

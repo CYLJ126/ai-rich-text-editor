@@ -3,8 +3,8 @@ package com.arte.core.pojo.platform;
 import com.arte.core.utils.platform.PlatformChecks;
 
 /**
- * 作用域标识<租户，工作空间>
- * 客户端选择的范围，仅是定位信息，必须经公共 API 验证成员及状态。
+ * 以租户 ID 和工作空间 ID 定位客户端选择的空间范围。
+ * 公共 API 仍须验证成员资格及空间状态。
  *
  * @param tenantId    租户 ID，必填
  * @param workspaceId 工作空间 ID，必填

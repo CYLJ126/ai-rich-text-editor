@@ -8,6 +8,8 @@ import java.util.List;
  * 轻量内部扫描批次；创建键严格递增，exhausted 表示已观察到候选尾部。
  * 边界由调用方直接传递，不保存网络游标或授权许可。
  *
+ * @param records 按创建键递增排列的空间候选键列表
+ * @param exhausted 是否已扫描到候选尾部
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */

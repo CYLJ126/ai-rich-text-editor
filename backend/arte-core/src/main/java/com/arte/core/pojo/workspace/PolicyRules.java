@@ -13,6 +13,16 @@ import java.util.Set;
 /**
  * 固定结构政策上限，无策略脚本。空白名单不表示全部允许；空间政策只能收紧租户政策，AI 仍校验连接及凭据。
  *
+ * @param allowedCreationTypes       允许创建的资源类型集合
+ * @param extraCreationRoles         按资源类型额外允许执行创建的空间角色集合
+ * @param guestAiAllowed             是否允许空间访客使用 AI
+ * @param personalCredentialsAllowed 是否允许使用个人 AI 凭据
+ * @param allowedProtocols           允许的 AI 连接协议标识集合
+ * @param allowedProviders           允许的 AI 提供方标识集合
+ * @param allowedDestinations        允许的 AI 连接目标主机集合
+ * @param exportTypes                允许导出的资源类型集合
+ * @param egressTypes                允许外发的资源类型集合
+ * @param shareTargetKinds           允许的共享授权目标类别集合
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
@@ -27,6 +37,7 @@ public record PolicyRules(
         Set<ResourceType> exportTypes,
         Set<ResourceType> egressTypes,
         Set<GrantTargetKindEnum> shareTargetKinds) {
+
     public PolicyRules {
         allowedCreationTypes = Set.copyOf(allowedCreationTypes);
         extraCreationRoles = PlatformChecks.copySetMap(extraCreationRoles);

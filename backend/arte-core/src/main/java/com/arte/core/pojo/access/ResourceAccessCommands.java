@@ -24,7 +24,15 @@ public final class ResourceAccessCommands {
     }
 
     /**
-     * 授予动作仍需当前分享／ACL 管理资格及政策上限。
+     * 为指定资源创建授权。授予动作仍受当前分享或 ACL 管理资格及政策上限约束。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param resource 待授权的资源引用
+     * @param expectedAclVersion 执行前须匹配的资源访问控制列表（ACL）版本
+     * @param recipient 请求授权的主体、空间角色或空间
+     * @param actions 本次明确授予的动作集合
+     * @param expiresAt 授权到期时间，为 {@code null} 时无时间期限
      */
     public record GrantResource(
             CommandMeta meta,
@@ -49,6 +57,13 @@ public final class ResourceAccessCommands {
 
     /**
      * 按指定来源记录撤销，不删除其他独立允许来源。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param resource 授权所属的资源引用
+     * @param grantId 待撤销的单条授权记录 ID
+     * @param expectedAclVersion 执行前须匹配的资源访问控制列表（ACL）版本
+     * @param expectedGrantVersion 执行前须匹配的授权记录版本
      */
     public record RevokeGrant(
             CommandMeta meta,
@@ -70,7 +85,14 @@ public final class ResourceAccessCommands {
     }
 
     /**
-     * 切换共享必须同时提交明确允许动作；关闭共享不重置直接主体授权。
+     * 修改资源可见性。开启空间共享时须提交明确的授权动作，关闭共享时保留直接主体授权。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param resource 待修改可见性的资源引用
+     * @param expectedAclVersion 执行前须匹配的资源访问控制列表（ACL）版本
+     * @param visibility 目标可见性
+     * @param sharedGrants 空间共享时的显式授权列表，其他可见性须传空列表
      */
     public record ChangeVisibility(
             CommandMeta meta,

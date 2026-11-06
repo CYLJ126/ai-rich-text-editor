@@ -29,6 +29,11 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
     int MAX_NODES = 10_000;
     int MAX_DEPTH = 32;
 
+    /**
+     * 表示结构化值树中的 JSON 对象节点。
+     *
+     * @param fields 字段名到结构化值的不可变映射
+     */
     record ObjectValue(Map<String, StructuredValue> fields) implements StructuredValue {
         public ObjectValue {
             Objects.requireNonNull(fields, "fields");
@@ -39,6 +44,11 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
         }
     }
 
+    /**
+     * 表示结构化值树中的 JSON 数组节点。
+     *
+     * @param values 按原顺序保存的不可变元素列表
+     */
     record ArrayValue(List<StructuredValue> values) implements StructuredValue {
         public ArrayValue {
             values = ContractChecks.list(values, "values", 0, MAX_ITEMS);
@@ -46,6 +56,11 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
         }
     }
 
+    /**
+     * 表示结构化值树中的 JSON 字符串节点。
+     *
+     * @param value 字符串内容，允许空字符串
+     */
     record StringValue(String value) implements StructuredValue {
         public StringValue {
             Objects.requireNonNull(value, "value");
@@ -53,6 +68,11 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
         }
     }
 
+    /**
+     * 以 {@link BigDecimal} 表示结构化值树中的 JSON 数值。
+     *
+     * @param value 去除末尾零后的十进制数值
+     */
     record NumberValue(BigDecimal value) implements StructuredValue {
         public NumberValue {
             Objects.requireNonNull(value, "value");
@@ -62,6 +82,11 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
         }
     }
 
+    /**
+     * 表示结构化值树中的 JSON 布尔节点。
+     *
+     * @param value JSON 布尔值
+     */
     record BooleanValue(boolean value) implements StructuredValue {
     }
 
@@ -86,6 +111,12 @@ public sealed interface StructuredValue extends Serializable permits StructuredV
      * 每个构造出的容器均限制整棵树；不会在深嵌套输入上递归溢出。
      */
     private static long validateChildren(Iterable<StructuredValue> children, long keyCharacters) {
+        /**
+         * 记录遍历校验队列中的节点及其深度。
+         *
+         * @param value 待校验的结构化值
+         * @param depth 节点在当前值树中的深度，根节点深度为 1
+         */
         record Node(StructuredValue value, int depth) {
         }
         var pending = new ArrayDeque<Node>();

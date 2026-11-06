@@ -32,9 +32,9 @@ public record WorkspaceCandidateKey(Instant createdAt, Scope scope) implements C
     /**
      * 按创建时间降序比较；时间相同时，再按租户 ID、空间 ID 的字典序升序比较。
      * <ol>
-     *     <li>> 0：当前候选排在上一个之后，正常继续。</li>
-     *     <li>= 0：排序键重复，拒绝。</li>
-     *     <li>< 0：顺序倒退，拒绝。</li>
+     *     <li>{@code > 0} 表示当前候选排在上一个之后，可以继续。</li>
+     *     <li>{@code = 0} 表示排序键重复，拒绝。</li>
+     *     <li>{@code < 0} 表示顺序倒退，拒绝。</li>
      * </ol>
      *
      * @param other 待比较的候选键

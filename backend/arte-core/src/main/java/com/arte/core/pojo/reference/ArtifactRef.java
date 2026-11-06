@@ -9,11 +9,17 @@ import java.io.Serializable;
  * <p>
  * 供应商临时 URL 不能冒充此引用。
  *
+ * @param artifactId    系统内已转存产物的 ID
+ * @param version       产物固定版本
+ * @param mediaType     产物内容的 MIME 类型
+ * @param contentDigest 产物内容摘要
+ * @param byteSize      产物内容的字节数
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */
 public record ArtifactRef(String artifactId, String version, String mediaType,
                           String contentDigest, long byteSize) implements Serializable {
+
     public ArtifactRef {
         ContractChecks.id(artifactId, "artifactId");
         new DefinitionRef("artifact", artifactId, version);

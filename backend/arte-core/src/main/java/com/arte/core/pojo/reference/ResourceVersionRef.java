@@ -8,6 +8,12 @@ import java.io.Serializable;
  * 资源固定版本或草稿引用，范围由资源领域解释；同时有 version 和 draftId 时 version 为草稿基准版本。
  * 草稿必须有实际内容摘要；引用不携带全文或下载地址，不授予读取及外发权限。
  *
+ * @param resourceType 资源类型标识
+ * @param resourceId 资源 ID
+ * @param version 固定版本；引用草稿时可填写草稿基准版本
+ * @param draftId 草稿 ID；为 {@code null} 时引用固定版本
+ * @param rangeRef 可选的资源片段引用，由所属业务领域解释
+ * @param contentDigest 资源内容摘要，引用草稿时必填
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/4 22:01 ✾
  */

@@ -8,6 +8,11 @@ import java.util.Objects;
 /**
  * 空间政策；必须在租户上限内，更新与 workspaceEpoch 同事务提交。
  *
+ * @param scope 政策所属的空间范围
+ * @param rules 该空间配置的政策规则
+ * @param policySchemaVersion 政策数据结构版本
+ * @param rolePresetVersion 政策采用的角色预设版本
+ * @param version 空间政策记录版本
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
@@ -17,6 +22,7 @@ public record WorkspacePolicy(
         int policySchemaVersion,
         int rolePresetVersion,
         long version) {
+
     public WorkspacePolicy {
         Objects.requireNonNull(scope, "scope");
         Objects.requireNonNull(rules, "rules");

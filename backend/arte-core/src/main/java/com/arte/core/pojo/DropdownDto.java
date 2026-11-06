@@ -7,6 +7,9 @@ import java.util.Optional;
 /**
  * 下拉选项 DTO
  *
+ * @param value    选项提交值
+ * @param label    选项显示文本
+ * @param disabled 是否禁用此选项
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/7/13 22:50 ✾
  **/

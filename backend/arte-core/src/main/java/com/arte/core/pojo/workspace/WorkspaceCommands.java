@@ -24,6 +24,11 @@ public final class WorkspaceCommands {
 
     /**
      * 创建空间。当前主体成为初始负责人，创建资格仍须服务端检查。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param tenantId 目标租户 ID
+     * @param name 新空间的展示名称
+     * @param description 新空间的描述
      */
     public record CreateWorkspace(
             CommandMeta meta,
@@ -40,7 +45,13 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 改名不改变归属、负责人或模型默认。
+     * 更新空间的名称和描述。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedVersion 执行前须匹配的空间记录版本
+     * @param name 更新后的空间展示名称
+     * @param description 更新后的空间描述
      */
     public record RenameWorkspace(
             CommandMeta meta,
@@ -59,7 +70,14 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 为空时应用服务取 7 天期限，最长 30 天；不邀请治理角色。
+     * 向指定主体发出空间成员邀请。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
+     * @param targetSubjectId 受邀账号的主体 ID
+     * @param role 接受邀请后授予的空间角色，限 {@code MEMBER} 或 {@code GUEST}
+     * @param expiresAt 请求的邀请到期时间，为 {@code null} 时使用 7 天默认期限，最长 30 天
      */
     public record InviteMember(
             CommandMeta meta,
@@ -80,7 +98,11 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 目标主体从可信 actor 获取，已是成员不改变角色。
+     * 由当前可信主体接受空间邀请。已是成员时保留当前角色。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param invitationId 邀请记录 ID
+     * @param expectedInvitationVersion 执行前须匹配的邀请记录版本
      */
     public record AcceptInvitation(
             CommandMeta meta,
@@ -96,6 +118,12 @@ public final class WorkspaceCommands {
 
     /**
      * 撤销未消费邀请，仍须当前邀请治理资格。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param invitationId 邀请记录 ID
+     * @param expectedInvitationVersion 执行前须匹配的邀请记录版本
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
      */
     public record RevokeInvitation(
             CommandMeta meta,
@@ -114,7 +142,14 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 普通改角色不能授予 OWNER；原 OWNER 降级由服务拒绝。
+     * 变更空间成员的角色。负责人角色变更通过专用交接命令完成。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param memberId 目标成员关系记录的 ID
+     * @param expectedMemberVersion 执行前须匹配的成员关系记录版本
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
+     * @param role 目标成员的新空间角色
      */
     public record ChangeMemberRole(
             CommandMeta meta,
@@ -137,6 +172,12 @@ public final class WorkspaceCommands {
 
     /**
      * 移除成员，增加授权版本，保留原记录。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param memberId 目标成员关系记录的 ID
+     * @param expectedMemberVersion 执行前须匹配的成员关系记录版本
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
      */
     public record RemoveMember(
             CommandMeta meta,
@@ -155,7 +196,12 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 退出对象固定为可信 actor，负责人须先交接。
+     * 由当前主体退出空间。负责人须先交接。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedMemberVersion 执行前须匹配的当前主体成员关系记录版本
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
      */
     public record LeaveWorkspace(
             CommandMeta meta,
@@ -172,7 +218,14 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 同事务交接；不改变托管租户。
+     * 在同一事务中将空间负责人角色交接给指定成员。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param targetMemberId 接任负责人的成员关系记录 ID
+     * @param expectedOwnerMemberVersion 执行前须匹配的现任负责人关系记录版本
+     * @param expectedTargetMemberVersion 执行前须匹配的接任者关系记录版本
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
      */
     public record TransferOwner(
             CommandMeta meta,
@@ -193,7 +246,12 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * archive／unarchive 通过不同 API 方法表达意图，不接受任意目标状态。
+     * 提交空间归档或取消归档命令，具体动作由调用的 API 方法确定。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
+     * @param reason 归档或取消归档的原因
      */
     public record ChangeWorkspaceState(
             CommandMeta meta,
@@ -210,7 +268,12 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 关闭受理固定 CLOSING；不能自报关闭完成或清理结果。
+     * 请求关闭空间，受理后空间进入 {@code CLOSING}。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
+     * @param reason 请求关闭空间的原因
      */
     public record CloseWorkspace(
             CommandMeta meta,
@@ -228,6 +291,12 @@ public final class WorkspaceCommands {
 
     /**
      * 只修改本人启动、最近访问及收藏，不修改默认空间或当前标签上下文。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param expectedPreferenceVersion 执行前须匹配的个人偏好记录版本
+     * @param startupScope 新的启动空间，为 {@code null} 时清除该偏好
+     * @param lastScope 新的最近访问空间，为 {@code null} 时清除该偏好
+     * @param favorites 更新后的收藏空间集合
      */
     public record UpdatePreference(
             CommandMeta meta,
@@ -244,7 +313,14 @@ public final class WorkspaceCommands {
     }
 
     /**
-     * 政策字段受租户上限约束，Schema／角色预设版本由服务器保留。
+     * 更新空间政策，规则受当前租户政策上限约束，沿用服务端记录的结构与角色预设版本。
+     *
+     * @param meta 命令元数据，包含幂等操作键和链路跟踪 ID
+     * @param scope 目标空间范围，包含租户 ID 和空间 ID
+     * @param expectedWorkspaceVersion 执行前须匹配的空间记录版本
+     * @param expectedPolicyVersion 执行前须匹配的空间政策版本
+     * @param rules 更新后的空间政策规则
+     * @param expectedTenantPolicyVersion 可选的预期租户政策版本，提供时须匹配当前租户政策
      */
     public record UpdateWorkspacePolicy(
             CommandMeta meta,

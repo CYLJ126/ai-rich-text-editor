@@ -20,6 +20,10 @@ public sealed interface GrantTarget permits GrantTarget.Subject, GrantTarget.Spa
 
     /**
      * scope 必须至少含租户；workspace 为空时绑定租户成员代次。
+     *
+     * @param subjectId 获授权的主体 ID
+     * @param scope 授权绑定范围，空间 ID 为空时绑定租户成员关系
+     * @param membershipGeneration 授权绑定的成员代次，用于区分同一主体的不同入会周期
      */
     record Subject(String subjectId, CommandScope scope, long membershipGeneration) implements GrantTarget {
 
@@ -36,6 +40,12 @@ public sealed interface GrantTarget permits GrantTarget.Subject, GrantTarget.Spa
         }
     }
 
+    /**
+     * 将授权绑定到指定空间中当前持有指定角色的有效成员。
+     *
+     * @param scope 获授权角色所属的空间范围
+     * @param role  获授权的空间角色
+     */
     record SpaceRole(Scope scope, WorkspaceRoleEnum role) implements GrantTarget {
         public SpaceRole {
             Objects.requireNonNull(scope);
@@ -48,6 +58,11 @@ public sealed interface GrantTarget permits GrantTarget.Subject, GrantTarget.Spa
         }
     }
 
+    /**
+     * 将授权绑定到指定空间的当前有效成员。
+     *
+     * @param scope 获授权的空间范围
+     */
     record Space(Scope scope) implements GrantTarget {
         public Space {
             Objects.requireNonNull(scope);

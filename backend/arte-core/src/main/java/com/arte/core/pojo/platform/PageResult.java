@@ -8,6 +8,11 @@ import java.util.function.Function;
 /**
  * 公共分页结果；API 的 total 必须仅计可见数据，records 应为不可变 View。
  *
+ * @param <T>     分页结果中的记录类型
+ * @param current 当前页码，从 1 开始
+ * @param size    每页条数上限，范围为 1～100
+ * @param total   符合查询条件且对当前主体可见的记录总数
+ * @param records 当前页的记录列表
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
@@ -16,6 +21,7 @@ public record PageResult<T>(
         long size,
         long total,
         List<T> records) {
+
     public PageResult {
         PlatformChecks.version(total, "total");
         records = List.copyOf(records);
