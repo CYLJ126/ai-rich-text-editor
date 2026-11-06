@@ -72,5 +72,3 @@ arte:
     connections-per-pool: 8
     pending-acquires: 32
     acquire-timeout: 5s
-    max-frame-bytes: 65536
-    max-request-bytes: 1048576

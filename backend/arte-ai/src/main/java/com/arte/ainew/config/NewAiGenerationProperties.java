@@ -20,8 +20,8 @@ import java.util.Objects;
  * @param connectionsPerPool          每个连接池的连接数上限，默认 8
  * @param pendingAcquires             每个连接池中等待获取连接的请求数上限，默认 32
  * @param acquireTimeout              DNS 解析和等待获取连接各自的超时，默认 5 秒
- * @param maxFrameBytes               单个 SSE 响应帧的字节上限，也用于配置解码器的内存上限，默认 65,536 字节
- * @param maxRequestBytes             序列化后的单次 HTTP 请求体字节上限，默认 1,048,576 字节
+ * @param maxFrameBytes               单个 SSE 响应帧及解码缓冲区的字节上限，模型网关固定使用 64 KiB
+ * @param maxRequestBytes             序列化后的单次 HTTP 请求体字节上限，模型网关固定使用 1 MiB
  * @param completedStreamDrainTimeout 收到 {@code [DONE]} 后继续读取 HTTP 响应尾部的最长时间，默认 100 毫秒
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
@@ -31,6 +31,17 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
                                         int maxPools, int connectionsPerPool, int pendingAcquires,
                                         Duration acquireTimeout, int maxFrameBytes, int maxRequestBytes,
                                         Duration completedStreamDrainTimeout) {
+    private static final int DEFAULT_MAX_FRAME_BYTES = 64 * 1024;
+    private static final int DEFAULT_MAX_REQUEST_BYTES = 1024 * 1024;
+
+    @ConstructorBinding
+    public NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigins, List<SecretEnvironment> secrets,
+                                     int maxPools, int connectionsPerPool, int pendingAcquires,
+                                     Duration acquireTimeout, Duration completedStreamDrainTimeout) {
+        this(enabled, allowedOrigins, secrets, maxPools, connectionsPerPool, pendingAcquires, acquireTimeout,
+                DEFAULT_MAX_FRAME_BYTES, DEFAULT_MAX_REQUEST_BYTES, completedStreamDrainTimeout);
+    }
+
     public NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigins, List<SecretEnvironment> secrets,
                                      int maxPools, int connectionsPerPool, int pendingAcquires,
                                      Duration acquireTimeout, int maxFrameBytes, int maxRequestBytes) {
@@ -49,7 +60,6 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
         }
     }
 
-    @ConstructorBinding
     public NewAiGenerationProperties {
         allowedOrigins = allowedOrigins == null ? List.of(URI.create("https://api.deepseek.com"))
                 : ContractChecks.list(allowedOrigins, "allowedOrigins", 1, 64);
@@ -69,8 +79,8 @@ public record NewAiGenerationProperties(boolean enabled, List<URI> allowedOrigin
         acquireTimeout = acquireTimeout == null ? Duration.ofSeconds(5) : acquireTimeout;
         ContractChecks.require(acquireTimeout.compareTo(Duration.ofMillis(1)) >= 0
                 && acquireTimeout.compareTo(Duration.ofSeconds(30)) <= 0, "Invalid acquire timeout");
-        maxFrameBytes = maxFrameBytes == 0 ? 65_536 : (int) ContractChecks.range(maxFrameBytes, "maxFrameBytes", 1024, 1_048_576);
-        maxRequestBytes = maxRequestBytes == 0 ? 1_048_576 : (int) ContractChecks.range(maxRequestBytes, "maxRequestBytes", 1024, 4_194_304);
+        maxFrameBytes = maxFrameBytes == 0 ? DEFAULT_MAX_FRAME_BYTES : (int) ContractChecks.range(maxFrameBytes, "maxFrameBytes", 1024, 1_048_576);
+        maxRequestBytes = maxRequestBytes == 0 ? DEFAULT_MAX_REQUEST_BYTES : (int) ContractChecks.range(maxRequestBytes, "maxRequestBytes", 1024, 4_194_304);
         // DONE 后只为 HTTP 尾部预留短暂排空时间；首段文字不等待该阶段。
         completedStreamDrainTimeout = completedStreamDrainTimeout == null ? Duration.ofMillis(100) : completedStreamDrainTimeout;
         ContractChecks.require(completedStreamDrainTimeout.compareTo(Duration.ofMillis(1)) >= 0

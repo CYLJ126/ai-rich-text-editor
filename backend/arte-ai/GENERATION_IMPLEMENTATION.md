@@ -36,7 +36,8 @@ FIXED 模式参考[完整配置示例](examples/ainew-generation.yml)，按实�
   前和发送前校验。两种模式均按协议、主机和端口精确匹配，例如 `https://api.deepseek.com`，省略 `/v1`。HTTP 仅允许显式登记的回环
   origin。
 - `secrets` 保存 SecretRef 和环境变量**名称**，如 `ARTE_DEEPSEEK_API_KEY`；实际值通过部署环境注入，在发送时解析。缺失密钥会拒绝发送，不在启动时读取密钥值或连接供应商。环境变量轮换通常需要重启进程；在线轮换可替换凭据解析器。
-- 池、单池连接数、待领取数量、领取超时、SSE 帧和请求字节都有独立上限。连接的 `max-response-bytes` 限制整个响应（包括心跳和协议开销），调用的 `maxOutputBytes` 限制文本 UTF-8 输出；这些上限含义不同。
+- 部署可配置池数量、单池连接数、待领取数量和领取超时。模型网关在 Java 中固定单个 SSE 帧上限为 64 KiB，序列化后的 HTTP 请求体上限为
+  1 MiB。审核连接的 `max-response-bytes` 限制整次响应（包括心跳和协议开销），调用的 `maxOutputBytes` 限制文本 UTF-8 输出。
 - 生成网关装配阶段只构造组件。DATABASE 模式另有应用启动核验，检查控制面和出口策略是否可读。FIXED 模式启动时要求匹配的
   DeepSeek SSE 绑定。Worker 由独立开关控制。
 

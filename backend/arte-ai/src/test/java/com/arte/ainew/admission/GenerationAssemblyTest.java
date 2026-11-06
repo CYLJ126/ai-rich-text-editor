@@ -115,7 +115,10 @@ public class GenerationAssemblyTest {
             assertEquals("deepseek-chat", options.options().getFirst().displayName());
             assertEquals(List.of("example-budget"), options.options().getFirst().budgetRefs());
             assertEquals(0, credentialReads.get());
-            assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class).secrets().getFirst().environmentVariable());
+            var generation = context.getBean(NewAiGenerationProperties.class);
+            assertEquals("ARTE_DEEPSEEK_API_KEY", generation.secrets().getFirst().environmentVariable());
+            assertEquals(64 * 1024, generation.maxFrameBytes());
+            assertEquals(1024 * 1024, generation.maxRequestBytes());
         }
     }
 
@@ -146,9 +149,12 @@ public class GenerationAssemblyTest {
             context.refresh();
             assertTrue(context.getBean(ConnectionCredentialResolver.class) instanceof EnvironmentCredentialResolver);
         }
-        try (var context = context(true)) {
-            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("typo", Map.of("arte.ai-new-generation.max-retries", "3")));
-            assertThrows(org.springframework.beans.BeansException.class, context::refresh);
+        for (var property : List.of("max-retries", "max-frame-bytes", "max-request-bytes")) {
+            try (var context = context(true)) {
+                context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("unsupported",
+                        Map.of("arte.ai-new-generation." + property, "4096")));
+                assertThrows(org.springframework.beans.BeansException.class, context::refresh);
+            }
         }
     }
 }

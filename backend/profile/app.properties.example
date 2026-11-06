@@ -183,8 +183,6 @@ arte.ai-new-generation.max-pools=32
 arte.ai-new-generation.connections-per-pool=8
 arte.ai-new-generation.pending-acquires=32
 arte.ai-new-generation.acquire-timeout=5s
-arte.ai-new-generation.max-frame-bytes=65536
-arte.ai-new-generation.max-request-bytes=1048576
 
 # Manual dispatch by default; set worker-enabled=true for automatic database polling.
 # Execute the manual DDL and initialize the budget first. No startup DDL/account creation.
