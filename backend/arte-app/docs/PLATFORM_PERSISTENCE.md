@@ -136,7 +136,12 @@ runner 共享；失败标记实际连接回滚，即使外层捕获异常也不�
    同样设为 UTC。DDL 中的 SET 只影响执行脚本的连接，不能替代连接池设置。
 4. 已配置 Redis 后显式启用持久化；投递需另开 outbox-enabled。当前消费者尚未接入时可以保持投递关闭，事件仍可靠保存在数据库。
 
-以下为增量配置；保留第一批已经核对的身份参数，不以示例覆盖原 bindings 和 legacy-user-id-ceiling。
+日常部署只需显式设置公共持久化与 Outbox 投递开关。线程和队列容量、SQL 与事务超时、Outbox 批量与租约、Redis
+游标有效期和前缀的默认值见 [common.properties](../../profile/common.properties)。需要调优时，在
+`backend/profile/app.properties` 中填写要覆盖的同名参数，再重新构建配置资源并重启。若多个环境共用 Redis，分别覆盖
+`redis-prefix`，同一环境各实例使用相同前缀。
+
+以下为增量配置。保留第一批已经核对的身份参数。
 
 ```yaml
 arte:
@@ -146,17 +151,7 @@ arte:
       # 保留第一批已核对的 legacy-user-id-ceiling 与 bindings
     persistence:
       enabled: true
-      workers: 8
-      queue-capacity: 128
-      query-timeout-seconds: 5
-      transaction-timeout-seconds: 15
-      cursor-ttl: 10m
-      redis-prefix: 'arte:platform:' # 同一环境实例一致，不同环境分开
       outbox-enabled: false
-      outbox-batch-size: 50
-      lease: 30s
-      poll-interval: 1s
-      retry-delay: 5s
 ```
 
 `PlatformPersistenceConfiguration` 装配基础设施，`service.platform` 通过组件扫描提供真实 SPI Bean；第 3 批的

@@ -118,18 +118,9 @@ arte.platform.identity.bindings[0].user-id=1
 arte.platform.identity.bindings[0].subject-id=example-subject-id
 
 arte.platform.persistence.enabled=true
-arte.platform.persistence.workers=8
-arte.platform.persistence.queue-capacity=128
-arte.platform.persistence.query-timeout-seconds=5
-arte.platform.persistence.transaction-timeout-seconds=15
-arte.platform.persistence.outbox-batch-size=50
-arte.platform.persistence.lease=30s
-arte.platform.persistence.poll-interval=1s
-arte.platform.persistence.retry-delay=5s
-arte.platform.persistence.cursor-ttl=10m
-arte.platform.persistence.redis-prefix=arte:platform:
 # Space CRUD does not require event delivery. Enable when testing Redis Streams / Outbox consumers.
 arte.platform.persistence.outbox-enabled=false
+# Advanced persistence defaults are in common.properties. Override individual keys here as needed.
 
 arte.platform.workspace.enabled=true
 # NEW personal tenant defaults are versioned in the database; see arte-app/docs/PLATFORM_WORKSPACE_POLICY.md.
