@@ -142,7 +142,13 @@ arte.ai-new.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 StaticToolRegistry Bean。
 arte.ai-new-tool.enabled=true
 arte.ai-new-tool.discovery.refresh-on-startup=true
-# Tool chat and its Run worker require the S4 migrations and an execution worker.
+# 工具聊天。开启前确认数据库已包含 S4 的 Run、会话历史和预算表。
+# 旧库按需执行 ../arte-ai/scripts/arte-ai-tool-chat-{run,history,budget}-migration.sql 中尚未应用的增量。
+# 入口要求 arte.ai-new.enabled、arte.ai-new-tool.enabled、arte.ai-new-execution.enabled 和
+# arte.ai-new-tool-chat.enabled 同时为 true。模型步骤还需要已装配的生成网关和可用模型。
+# 自动推进 Run 要求 arte.ai-new-tool-chat.worker-enabled 和 arte.ai-new-execution.worker-enabled 同时为 true。
+# 当前示例的总执行 Worker 为 false，因此工具聊天 Worker 不会自动启动。
+# 自动执行工具子任务还需启用下方分类调度，并配置与健康工具发现快照一致的 tool-manifest。
 arte.ai-new-tool-chat.enabled=true
 arte.ai-new-tool-chat.worker-enabled=true
 arte.ai-new-tool-chat.poll-interval=1s
@@ -165,6 +171,7 @@ arte.ai-new-generation.secrets[0].environment-variable=ARTE_DEEPSEEK_API_KEY
 
 # Manual dispatch by default; set worker-enabled=true for automatic database polling.
 # Execute the manual DDL and initialize the budget first. No startup DDL/account creation.
+# 工具聊天部署也在这里开启总执行 Worker，和上方工具聊天 Worker 开关配合使用。
 arte.ai-new-execution.enabled=true
 arte.ai-new-execution.worker-enabled=false
 # Worker tuning, dispatch limits, and retry defaults are in common.properties.
@@ -183,14 +190,14 @@ arte.ai-new-search.backfill-enabled=${ARTE_AI_NEW_SEARCH_BACKFILL_ENABLED:true}
 arte.ai-new-search.reconcile-enabled=${ARTE_AI_NEW_SEARCH_RECONCILE_ENABLED:true}
 arte.ai-new-search.sync.generation=${ARTE_AI_NEW_SEARCH_GENERATION:conversation-search-v2-g01}
 
-# S2-06: deploy scheduling migration and drain legacy DISPATCH first; then enable on every worker.
-# When enabled set arte.ai-new-execution.concurrency to the slot total (6 with the slots in common.properties).
-# Set tool-manifest to the reviewed StaticToolDiscovery snapshot SHA-256 for TOOL readiness.
+# 执行工具子任务前，旧库先按需应用 ../arte-ai/scripts/arte-ai-dispatch-scheduling-migration.sql。
+# 升级时先排空旧 DISPATCH，再统一启用分类调度。所有 Worker 的工具清单应与所在调度池匹配。
+# arte.ai-new-execution.concurrency 必须等于四类槽位之和，采用 common.properties 默认槽位时为 6。
+# arte.ai-new-execution.scheduling.tool-manifest 填写本部署已审核的工具发现快照 SHA-256。
 arte.ai-new-execution.scheduling.enabled=false
 
-# 开启业务写工具
+# 业务写工具和人工审批是独立功能，按实际启用的工具和审批策略设置。
 arte.ai-new-tool-write.enabled=true
-# 启用人工确认与审批
 arte.ai-new-tool-approval.enabled=true
 
 # S5-01: enable only after reviewing the fixed endpoint, network origin and deployment manifest.
@@ -202,7 +209,8 @@ arte.ai-new-tool-http.allowed-origins=
 # S5-02: apply billing migration and upgrade consumers before enabling.
 arte.ai-new-tool-billing.enabled=false
 
-# S5-03: reviewed MCP Streamable HTTP health tool; enable only after consumer/manifest upgrade.
+# MCP 健康检查工具独立启用。保持 true 时，启动前必须填写 endpoint 和 allowed-origins。
+# 增减工具后按部署流程更新已审核清单和消费者。不使用 MCP 时可关闭该开关。
 arte.ai-new-tool-mcp.enabled=true
 arte.ai-new-tool-mcp.version=v1
 arte.ai-new-tool-mcp.endpoint=
