@@ -162,10 +162,6 @@ arte.ai-new-generation.secrets[0].reference.type=secret
 arte.ai-new-generation.secrets[0].reference.id=example-credential
 arte.ai-new-generation.secrets[0].reference.version=v1
 arte.ai-new-generation.secrets[0].environment-variable=ARTE_DEEPSEEK_API_KEY
-arte.ai-new-generation.max-pools=32
-arte.ai-new-generation.connections-per-pool=8
-arte.ai-new-generation.pending-acquires=32
-arte.ai-new-generation.acquire-timeout=5s
 
 # Manual dispatch by default; set worker-enabled=true for automatic database polling.
 # Execute the manual DDL and initialize the budget first. No startup DDL/account creation.
