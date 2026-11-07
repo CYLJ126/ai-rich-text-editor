@@ -4,6 +4,7 @@ import com.arte.ainew.api.control.AssistantManager;
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.assistant.DefaultAssistantManager;
+import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiProperties;
@@ -73,8 +74,9 @@ public class PlatformAssistantConfiguration {
     AssistantTrialService assistantTrialService(JdbcAssistantStore store, PlatformAssistantExecutionAccess access,
                                                 PlatformPersistenceExecutor executor, MybatisPayloadPersistence payloads, MybatisExecutionPersistence executions,
                                                 TextContextService contexts, BindingManager bindings, InvocationCoordinator coordinator,
+                                                AdmissionAuthorization admissionAuthorization,
                                                 NewAiProperties properties, NewAiExecutionProperties execution) {
         return new AssistantTrialService(store, access, executor, payloads, executions, contexts, bindings,
-                coordinator, properties, execution);
+                coordinator, admissionAuthorization, properties, execution);
     }
 }

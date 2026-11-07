@@ -8,6 +8,8 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiExecutionConfiguration;
+import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.assistant.Assistants.Content;
@@ -19,18 +21,24 @@ import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
+import com.arte.ainew.web.NewAiHttpContext;
+import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.app.platform.assistant.AssistantTrialService;
 import com.arte.app.platform.assistant.PlatformAssistantConfiguration;
 import com.arte.app.platform.assistant.PlatformAssistantExecutionAccess;
+import com.arte.app.web.controller.platform.AssistantTrialController;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.platform.CommandMeta;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.server.HttpServer;
 
@@ -39,7 +47,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -97,12 +107,21 @@ class AssistantExecutionIntegrationTest {
                         String assistantId = initial.assistantId();
                         var input = new AssistantTrialService.Request(assistantId, 1, "trial text", model.capability().definition(),
                                 model.definition(), 4096, GENERATION, TIMEOUT);
-                        var trial = trials.submit(input, fixture.f.execution(context, "trial-v1")).block(WAIT);
+                        var properties = context.getBean(NewAiProperties.class);
+                        var http = new NewAiHttpContext(context.getBean(ExecutionContextFactory.class), properties);
+                        var controller = new AssistantTrialController(trials, http, properties, assistantAccess, conversations);
+                        var trialContext = fixture.f.execution(context, "trial-v1");
+                        var trialRequest = new AssistantTrialController.Request(
+                                new ConversationRequests.Scope(scope.tenantId(), scope.workspaceId()), assistantId, 1L,
+                                input.text(), input.capability(), input.binding(), trialContext.budgetRef(),
+                                input.maxInputTokens(), input.options(), TIMEOUT.toSeconds());
+                        String subject = trialContext.authorization().principal().subjectName();
+                        var trial = asSubject(subject, () -> controller.trialAssistantDraft(trialRequest, "trial-v1", Locale.ROOT));
                         assertNotNull(trial);
                         var notReady = assertThrows(PlatformException.class, () -> manager.publish(actor, scope, assistantId,
                                 0, 1, trial.trialId(), meta("publish-v1")));
                         assertEquals(PlatformErrorCodeEnum.INVALID_ARGUMENT, notReady.getCode());
-                        assertEquals(trial, trials.submit(input, fixture.f.execution(context, "trial-v1")).block(WAIT));
+                        assertEquals(trial, asSubject(subject, () -> controller.trialAssistantDraft(trialRequest, "trial-v1", Locale.ROOT)));
                         assertSucceeded(dispatch(context));
                         var v1 = manager.publish(actor, scope, assistantId, 0, 1, trial.trialId(), meta("publish-v1")).value();
                         var conversation = conversations.create("Pinned", v1.chatProfile(), List.of(), fixture.f.execution(context, "create-chat")).block(WAIT);
@@ -143,7 +162,8 @@ class AssistantExecutionIntegrationTest {
                         assertEquals(java.util.Set.of(trial.trialId(), trialV2.trialId()), java.util.Set.of(
                                 firstPage.items().getFirst().trialId(), secondPage.items().getFirst().trialId()));
                         assertNull(secondPage.nextCursor());
-                        var historyBeforeDisable = assistantAccess.conversationAssistant(historyContext, conversation.chatProfile()).block(WAIT);
+                        var findRequest = new ConversationRequests.Find(trialRequest.scope(), conversation.conversationId());
+                        var historyBeforeDisable = asSubject(subject, () -> controller.getConversationAssistant(findRequest, Locale.ROOT));
                         assertTrue(historyBeforeDisable.available());
                         assertEquals(v1.chatProfile(), historyBeforeDisable.summary().chatProfile());
 
@@ -172,7 +192,7 @@ class AssistantExecutionIntegrationTest {
                         var summary = trials.executionAssistant(accepted.executionId(), fixture.f.execution(context, "assistant-history")).block(WAIT);
                         assertEquals(v1.chatProfile(), summary.chatProfile());
                         assertEquals("Outline", summary.displayName());
-                        var historical = assistantAccess.conversationAssistant(historyContext, conversation.chatProfile()).block(WAIT);
+                        var historical = asSubject(subject, () -> controller.getConversationAssistant(findRequest, Locale.ROOT));
                         assertFalse(historical.available());
                         assertTrue(historical.disabled());
                         assertEquals(historyBeforeDisable.summary(), historical.summary());
@@ -185,6 +205,18 @@ class AssistantExecutionIntegrationTest {
         } finally {
             if (server != null) server.disposeNow();
             fixture.cleanup();
+        }
+    }
+
+    private static <T> T asSubject(String subject, Supplier<Mono<ResultContext<T>>> operation) {
+        var previous = SecurityContextHolder.getContext();
+        var security = SecurityContextHolder.createEmptyContext();
+        security.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(subject, null, List.of()));
+        SecurityContextHolder.setContext(security);
+        try {
+            return operation.get().block(WAIT).getData();
+        } finally {
+            SecurityContextHolder.setContext(previous);
         }
     }
 

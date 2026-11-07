@@ -76,7 +76,7 @@ public class AssistantTrialController {
 
     @PostMapping("/getConversationAssistant")
     public Mono<ResultContext<ConversationAssistant>> getConversationAssistant(@Valid @RequestBody ConversationRequests.Find request, Locale locale) {
-        return http.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+        return http.read(request.scope(), Set.of(AdmissionAuthorization.CONVERSATION), queryTimeout, false,
                         context -> conversations.find(request.conversationId(), context)
                                 .flatMap(value -> assistantAccess.conversationAssistant(context, value.chatProfile())))
                 .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale))
