@@ -17,6 +17,7 @@ import com.arte.core.spi.workspace.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
@@ -32,6 +33,7 @@ import java.time.Clock;
  * @since 2026/10/31 20:55 ✾
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(NewAiGenerationProperties.class)
 @ConditionalOnProperty(prefix = "arte.ai-new-model-publication", name = "enabled", havingValue = "true")
 public class PlatformModelPublicationConfiguration {
 
@@ -90,14 +92,14 @@ public class PlatformModelPublicationConfiguration {
     }
 
     @Bean
-    ModelPublicationCredentialResolver modelPublicationCredentialResolver(NewAiGenerationProperties http, ObjectProvider<ExecutionReadStore> executions,
+    ModelPublicationCredentialResolver modelPublicationCredentialResolver(NewAiGenerationProperties generation, ObjectProvider<ExecutionReadStore> executions,
                                                                           ModelPublicationStore releases, ModelResourceStore models, ModelDraftStore drafts,
                                                                           ModelCredentialCipher cipher, DefaultModelPublicationService publications,
                                                                           ObjectProvider<DatabaseAiControlService> control, IdentityProvider identity,
                                                                           @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
                                                                           @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                                                           @Qualifier("platformWorkspaceClock") Clock clock) {
-        return new ModelPublicationCredentialResolver(new EnvironmentCredentialResolver(http), executions::getObject,
+        return new ModelPublicationCredentialResolver(new EnvironmentCredentialResolver(generation.secrets()), executions::getObject,
                 releases, models, drafts, cipher, publications, context -> control.getObject().configurationInCurrentTransaction(context), identity, tx, scheduler, clock);
     }
 }

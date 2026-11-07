@@ -108,7 +108,7 @@ class ModelResourceIntegrationTest {
         var cfg = new PlatformMybatisConfiguration();
         var session = cfg.platformMapperSession(f.source, new PlatformPersistenceProperties(true, 1, 1, 5, 15, 0, null, null, null, null, null, false));
         catalog = new PlatformAiControlMapperHandle(cfg.platformAiControlMapper(session));
-        publications = new TestModelPublicationSource(seed, catalog.mapper(), f.json, f.tx, identity, new RbacToolPermissionReader(f.source));
+        publications = new TestModelPublicationSource(seed, f.tx, identity, new RbacToolPermissionReader(f.source));
         models = graph(stores.audit(), publications);
     }
 
@@ -234,7 +234,7 @@ class ModelResourceIntegrationTest {
         models.associate(f.actor, association("fixed", model, V1, ModelPublication.Source.FIXED, null));
         dbRevision(1, seed);
         assertThrows(PlatformException.class, () -> models.associate(f.actor, association("other-source", current(model), V1, ModelPublication.Source.DATABASE, 1L)));
-        var changed = new TestModelPublicationSource(seed("mutated-same-version"), catalog.mapper(), f.json, f.tx, identity, new RbacToolPermissionReader(f.source));
+        var changed = new TestModelPublicationSource(seed("mutated-same-version"), f.tx, identity, new RbacToolPermissionReader(f.source));
         assertThrows(PlatformException.class, () -> graph(stores.audit(), changed).associate(f.actor, association("changed", current(model), V1, ModelPublication.Source.FIXED, null)));
         assertEquals("test-model", store.findBinding(scope.tenantId(), V1).orElseThrow().publication().binding().remoteOperation());
     }
@@ -388,7 +388,7 @@ class ModelResourceIntegrationTest {
         models.associate(f.actor, association("link", model, V1, ModelPublication.Source.FIXED, null));
         var changedRate = new ControlConfiguration.Rate(RATE, new Money(new BigDecimal("99"), Currency.getInstance("CNY")), seed.rates().getFirst().outputPerMillion());
         var changed = new ControlConfiguration(false, seed.releaseRef(), seed.limits(), List.of(), seed.capabilities(), seed.bindings(), seed.connections(), List.of(changedRate), List.of());
-        var source = new TestModelPublicationSource(changed, catalog.mapper(), f.json, f.tx, identity, new RbacToolPermissionReader(f.source));
+        var source = new TestModelPublicationSource(changed, f.tx, identity, new RbacToolPermissionReader(f.source));
         assertThrows(PlatformException.class, () -> graph(stores.audit(), source).associate(f.actor, association("bad-price", current(model), V2, ModelPublication.Source.FIXED, null)));
         assertEquals(4, count("arte_ai_model_definition_source"));
         assertTrue(store.findBinding(scope.tenantId(), V2).isEmpty());

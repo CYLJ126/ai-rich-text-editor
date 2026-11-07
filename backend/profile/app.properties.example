@@ -160,6 +160,8 @@ arte.ai-new.release-ref=example-release-v1
 
 # 下方是环境变量凭据引用。使用这些引用的部署将 ARTE_DEEPSEEK_API_KEY 注入实际 Java 进程。
 # DATABASE 模式下，实际模型的个人或租户凭据在「模型管理」中维护。
+# HTTP 资源参数由 common.properties 的 arte.ai-new-http.model / tool-http / tool-mcp 三组分别提供。
+# 配置迁移与职责说明见 ../arte-app/docs/HTTP_RUNTIME_CONFIGURATION.md。
 arte.ai-new-generation.enabled=true
 arte.ai-new-generation.secrets[0].reference.type=secret
 arte.ai-new-generation.secrets[0].reference.id=example-credential

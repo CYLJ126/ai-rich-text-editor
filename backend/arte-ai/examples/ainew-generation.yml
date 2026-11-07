@@ -15,13 +15,15 @@ arte:
       max-output-bytes: 1048576
       maximum-timeout: 2m
       snapshot-retention: 15m
+  ai-new-http:
+    model:
+      max-pools: 32
+      connections-per-pool: 8
+      pending-acquires: 32
+      acquire-timeout: 5s
+      max-in-memory-bytes: 65536
   ai-new-generation:
     enabled: true
-    allowed-origins: [https://api.deepseek.com]
     secrets:
       - reference: {type: secret, id: example-credential, version: v1}
         environment-variable: ARTE_DEEPSEEK_API_KEY
-    max-pools: 32
-    connections-per-pool: 8
-    pending-acquires: 32
-    acquire-timeout: 5s

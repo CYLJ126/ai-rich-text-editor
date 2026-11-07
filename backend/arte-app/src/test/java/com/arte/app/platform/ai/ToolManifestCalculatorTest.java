@@ -3,7 +3,6 @@ package com.arte.app.platform.ai;
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.config.NewAiSchedulingProperties;
 import com.arte.ainew.infrastructure.http.*;
 import com.arte.ainew.pojo.execution.StoreOutcome;
@@ -122,8 +121,7 @@ class ToolManifestCalculatorTest {
             var configuration = new PlatformMcpToolConfiguration();
             beans.registerSingleton("mcpHealth", configuration.mcpHealthTool(properties, runtime));
             beans.registerSingleton("bing", configuration.modelScopeBingToolAdapter(runtime));
-            new HttpEgressPolicy(new NewAiGenerationProperties(false, properties.allowedOrigins(), List.of(),
-                    0, 0, 0, null, 0, 0)).validateOrigin(ModelScopeBingToolAdapter.connectionDefinition().endpoint());
+            new HttpEgressPolicy(properties::allowedOrigins).validateOrigin(ModelScopeBingToolAdapter.connectionDefinition().endpoint());
         }
         return new PlatformToolExecutionConfiguration().staticToolRegistry(text, writes, writeProperties,
                 beans.getBeanProvider(HttpHealthToolAdapter.class), beans.getBeanProvider(McpHealthToolAdapter.class),
@@ -138,7 +136,7 @@ class ToolManifestCalculatorTest {
                 (reference, context) -> Mono.error(new AssertionError("Manifest calculation cannot acquire connections")),
                 null,
                 (reference, context) -> Mono.error(new AssertionError("Manifest calculation cannot resolve credentials")),
-                new NewAiGenerationProperties(false, origins, List.of(), 0, 0, 0, null, 0, 0), Clock.systemUTC());
+                com.arte.ainew.config.HttpRuntimeOptions.toolDefaults(), Clock.systemUTC(), new HttpEgressPolicy(() -> origins));
     }
 
     private ToolCatalogStore forbiddenStore() {

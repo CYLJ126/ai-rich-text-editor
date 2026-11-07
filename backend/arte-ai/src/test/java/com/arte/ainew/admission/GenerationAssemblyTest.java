@@ -136,8 +136,8 @@ public class GenerationAssemblyTest {
             assertEquals(0, credentialReads.get());
             var generation = context.getBean(NewAiGenerationProperties.class);
             assertEquals("ARTE_DEEPSEEK_API_KEY", generation.secrets().getFirst().environmentVariable());
-            assertEquals(64 * 1024, generation.maxFrameBytes());
-            assertEquals(1024 * 1024, generation.maxRequestBytes());
+            assertEquals(64 * 1024, generation.protocolOptions().maxFrameBytes());
+            assertEquals(1024 * 1024, generation.protocolOptions().maxRequestBytes());
         }
     }
 
@@ -151,8 +151,7 @@ public class GenerationAssemblyTest {
                             (reference, execution) -> Mono.error(new AssertionError("Assembly must not resolve tool connections")),
                             null,
                             (reference, execution) -> Mono.error(new AssertionError("Assembly must not resolve tool credentials")),
-                            new NewAiGenerationProperties(false, List.of(URI.create("https://tool.invalid")),
-                                    List.of(), 0, 0, 0, null, 0, 0), Clock.systemUTC()));
+                            com.arte.ainew.config.HttpRuntimeOptions.toolDefaults(), Clock.systemUTC(), new com.arte.ainew.infrastructure.http.HttpEgressPolicy(() -> List.of(URI.create("https://tool.invalid")))));
                 }
                 com.arte.ainew.testing.TestSources.install(context);
                 context.refresh();
@@ -170,7 +169,7 @@ public class GenerationAssemblyTest {
             context.refresh();
             assertTrue(context.getBean(ConnectionCredentialResolver.class) instanceof EnvironmentCredentialResolver);
         }
-        for (var property : List.of("max-retries", "max-frame-bytes", "max-request-bytes")) {
+        for (var property : List.of("max-retries", "max-frame-bytes", "max-request-bytes", "max-pools", "connections-per-pool", "pending-acquires", "acquire-timeout", "allowed-origins")) {
             try (var context = context(true)) {
                 context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("unsupported",
                         Map.of("arte.ai-new-generation." + property, "4096")));

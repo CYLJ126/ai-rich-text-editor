@@ -63,7 +63,7 @@ import java.util.List;
  */
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
-@EnableConfigurationProperties({NewAiProperties.class, NewAiExecutionProperties.class})
+@EnableConfigurationProperties({NewAiProperties.class, NewAiExecutionProperties.class, NewAiHttpProperties.class})
 public class NewAiAdmissionConfiguration {
 
     @Bean("newAiControlSourceSafety")

@@ -25,14 +25,10 @@ import static org.junit.Assert.*;
  */
 public class GenerationEgressTest {
 
-    private static NewAiGenerationProperties properties(List<URI> origins, List<NewAiGenerationProperties.SecretEnvironment> secrets) {
-        return new NewAiGenerationProperties(true, origins, secrets, 0, 0, 0, null, 0, 0);
-    }
-
     @Test
     public void originIsExactAndAllDnsAnswersMustBePublic() throws Exception {
         var endpoint = URI.create("https://api.deepseek.com/v1");
-        var policy = new HttpEgressPolicy(properties(null, List.of()));
+        var policy = new HttpEgressPolicy(() -> List.of(URI.create("https://api.deepseek.com")));
         policy.validateOrigin(endpoint);
         assertThrows(GenerationException.class, () -> policy.validateOrigin(URI.create("https://api.deepseek.com.evil.test/v1")));
         assertThrows(GenerationException.class, () -> policy.validateOrigin(URI.create("https://api.deepseek.com:444/v1")));
@@ -49,7 +45,7 @@ public class GenerationEgressTest {
     @Test
     public void explicitLoopbackTestOriginAndPinnedResolverCannotSwitchTargets() throws Exception {
         var endpoint = URI.create("http://127.0.0.1:8080/v1");
-        var policy = new HttpEgressPolicy(properties(List.of(URI.create("http://127.0.0.1:8080")), List.of()));
+        var policy = new HttpEgressPolicy(() -> List.of(URI.create("http://127.0.0.1:8080")));
         var addresses = policy.validateAddresses(endpoint, new InetAddress[]{InetAddress.getByName("127.0.0.1")});
         var group = HttpEgressPolicy.pinnedResolver(endpoint, addresses);
         var executor = new DefaultEventExecutor();
@@ -63,7 +59,7 @@ public class GenerationEgressTest {
             group.close();
             executor.shutdownGracefully(0, 1, java.util.concurrent.TimeUnit.SECONDS).sync();
         }
-        assertThrows(IllegalArgumentException.class, () -> properties(List.of(URI.create("http://example.test")), List.of()));
+        assertThrows(IllegalArgumentException.class, () -> HttpEgressPolicy.validateOrigins(List.of(URI.create("http://example.test"))));
     }
 
     @Test
@@ -71,8 +67,8 @@ public class GenerationEgressTest {
         var ref = new DefinitionRef("secret", "deepseek", "v1");
         var count = new AtomicInteger();
         var value = new AtomicReference<>("credential-one");
-        var resolver = new EnvironmentCredentialResolver(properties(null,
-                List.of(new NewAiGenerationProperties.SecretEnvironment(ref, "ARTE_TEST_KEY"))), name -> {
+        var resolver = new EnvironmentCredentialResolver(
+                List.of(new NewAiGenerationProperties.SecretEnvironment(ref, "ARTE_TEST_KEY")), name -> {
             assertEquals("ARTE_TEST_KEY", name);
             count.incrementAndGet();
             return value.get();

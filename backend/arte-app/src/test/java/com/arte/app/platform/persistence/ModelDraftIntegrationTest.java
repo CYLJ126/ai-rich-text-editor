@@ -2,19 +2,25 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.application.model.DefaultModelDraftService;
+import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
+import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ControlConfiguration;
+import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.model.ModelDrafts.*;
 import com.arte.ainew.pojo.model.ModelResource;
-import com.arte.ainew.spi.model.ModelConnectionTemplates;
-import com.arte.ainew.spi.model.ModelConnectionValidator;
-import com.arte.ainew.spi.model.ModelCredentialCipher;
-import com.arte.ainew.spi.model.ModelDraftStore;
+import com.arte.ainew.pojo.model.ModelResourceCommands;
+import com.arte.ainew.pojo.model.ReviewedModelPlan;
+import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.spi.model.*;
 import com.arte.app.platform.ai.ModelManagementProperties;
 import com.arte.app.platform.ai.ReviewedModelConnectionTemplates;
 import com.arte.app.platform.ai.Sm4ModelCredentialCipher;
 import com.arte.app.platform.identity.PlatformAuthenticatedExecutor;
 import com.arte.app.service.platform.ModelDraftStoreServiceImpl;
 import com.arte.app.web.controller.platform.ModelDraftController;
+import com.arte.core.application.platform.DefaultCommandExecutor;
 import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.workspace.MembershipStateEnum;
@@ -29,11 +35,15 @@ import com.arte.core.spi.platform.AuditSink;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.mockito.Mockito;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -45,6 +55,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.arte.core.constant.platform.PlatformActions.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -91,8 +102,8 @@ class ModelDraftIntegrationTest {
     void setup() throws Exception {
         f.setup();
         var original = f.seed.connections().getFirst();
-        var reviewed = new com.arte.ainew.pojo.control.ConnectionDefinition(original.definition(), original.providerId(),
-                com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter.DEFINITION, java.net.URI.create("https://example.invalid/v1/chat/completions"),
+        var reviewed = new ConnectionDefinition(original.definition(), original.providerId(),
+                ChatCompletionsSseProtocolAdapter.DEFINITION, java.net.URI.create("https://example.invalid/v1/chat/completions"),
                 original.credential(), original.state(), original.connectTimeout(), original.responseTimeout(), original.maxResponseBytes());
         f.seed = new ControlConfiguration(false, f.seed.releaseRef(), f.seed.limits(), f.seed.grants(),
                 f.seed.capabilities(), f.seed.bindings(), List.of(reviewed), f.seed.rates(), f.seed.budgets());
@@ -105,9 +116,10 @@ class ModelDraftIntegrationTest {
         var cfg = new PlatformMybatisConfiguration();
         var session = cfg.platformMapperSession(f.f.source, new PlatformPersistenceProperties(true, 1, 1, 5, 15, 0, null, null, null, null, null, false));
         store = new ModelDraftStoreServiceImpl(cfg.platformModelResourceMapper(session), cfg.platformModelDraftMapper(session), f.f.tx, f.f.json);
-        cipher = new Sm4ModelCredentialCipher(new ModelManagementProperties(true, "primary", "primary", Map.of("primary", Base64.getEncoder().encodeToString(new byte[16]))));
-        var http = new com.arte.ainew.config.NewAiGenerationProperties(false, List.of(java.net.URI.create("https://example.invalid")), List.of(), 0, 0, 0, null, 0, 0);
-        templates = new ReviewedModelConnectionTemplates(() -> f.seed, f.stores.policies(), new com.arte.ainew.infrastructure.http.HttpEgressPolicy(http));
+        cipher = new Sm4ModelCredentialCipher(new ModelManagementProperties(true, "primary",
+                "primary", Map.of("primary", Base64.getEncoder().encodeToString(new byte[16]))));
+        var http = List.of(URI.create("https://example.invalid"));
+        templates = new ReviewedModelConnectionTemplates(() -> f.seed, f.stores.policies(), new HttpEgressPolicy(() -> http));
         policy(true);
         service = graph(f.stores.audit());
         model = f.create("create-draft-model");
@@ -119,12 +131,12 @@ class ModelDraftIntegrationTest {
     }
 
     ModelDraftService graph(AuditSink audit) {
-        return new DefaultModelDraftService(f.store, store, () -> null, templates, cipher, () -> new com.arte.ainew.spi.model.ReviewedModelPlanSource.Snapshot(
-                List.of(new com.arte.ainew.pojo.model.ReviewedModelPlan(settings.planRef(), "Test model", ModelResourceIntegrationTest.CONN, "test-model",
-                        Set.of(com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.TEXT_INPUT, com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.STREAMING),
+        return new DefaultModelDraftService(f.store, store, () -> null, templates, cipher, () -> new ReviewedModelPlanSource.Snapshot(
+                List.of(new ReviewedModelPlan(settings.planRef(), "Test model", ModelResourceIntegrationTest.CONN, "test-model",
+                        Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
                         8192, f.seed.rates().getFirst().definition(), Instant.parse("2026-01-01T00:00:00Z"), f.f.actor.principal().subjectId(), 1)),
-                f.seed.connections(), f.seed.rates().stream().map(rate -> new com.arte.ainew.pojo.control.RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall())).toList(), 1, f.seed.releaseRef()),
-                () -> org.mockito.Mockito.mock(com.arte.ainew.spi.gateway.ModelGateway.class, invocation -> invocation.getMethod().getName().startsWith("supports") ? true : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation)), f.f.tx, f.identity, f.stores.tenants(), f.stores.workspaces(),
+                f.seed.connections(), f.seed.rates().stream().map(rate -> new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall())).toList(), 1, f.seed.releaseRef()),
+                () -> Mockito.mock(ModelGateway.class, invocation -> invocation.getMethod().getName().startsWith("supports") ? true : org.mockito.Mockito.RETURNS_DEFAULTS.answer(invocation)), f.f.tx, f.identity, f.stores.tenants(), f.stores.workspaces(),
                 f.stores.tenantMembers(), f.stores.workspaceMembers(), f.stores.preferences(), f.platform.authorization(), f.stores.receipts(), f.stores.outbox(), audit,
                 () -> UUID.randomUUID().toString(), clock);
     }
@@ -159,7 +171,7 @@ class ModelDraftIntegrationTest {
         return service.requestValidation(f.f.actor, f.meta(key), f.scope, model.resource(), 1, 1).value();
     }
 
-    void error(PlatformErrorCodeEnum code, org.junit.jupiter.api.function.Executable action) {
+    void error(PlatformErrorCodeEnum code, Executable action) {
         assertEquals(code, assertThrows(PlatformException.class, action).getCode());
     }
 
@@ -189,7 +201,7 @@ class ModelDraftIntegrationTest {
         for (String table : List.of("arte_ai_model_draft", "arte_ai_model_credential", "arte_platform_command")) {
             var rows = f.f.jdbc.queryForList("SELECT * FROM " + table).toString();
             assertFalse(rows.contains(TOKEN));
-            assertFalse(rows.contains(com.arte.core.application.platform.DefaultCommandExecutor.digest(List.of(TOKEN))));
+            assertFalse(rows.contains(DefaultCommandExecutor.digest(List.of(TOKEN))));
         }
         assertFalse(f.f.json.write(result).contains(TOKEN));
         assertEquals(1, service.replaceCredential(f.f.actor, f.meta("credential"), f.scope, model.resource(), 0, TOKEN).value().version());
@@ -284,8 +296,9 @@ class ModelDraftIntegrationTest {
         var v = request("validate");
         service.claimValidation(f.f.actor, f.scope, v.id());
         var old = f.seed.connections().getFirst();
-        var changed = new com.arte.ainew.pojo.control.ConnectionDefinition(old.definition(), old.providerId(), old.protocol(),
-                java.net.URI.create("https://example.invalid/v2/chat/completions"), old.credential(), old.state(), old.connectTimeout(), old.responseTimeout(), old.maxResponseBytes());
+        var changed = new ConnectionDefinition(old.definition(), old.providerId(), old.protocol(),
+                URI.create("https://example.invalid/v2/chat/completions"), old.credential(), old.state(), old.connectTimeout(),
+                old.responseTimeout(), old.maxResponseBytes());
         f.seed = new ControlConfiguration(false, f.seed.releaseRef(), f.seed.limits(), f.seed.grants(),
                 f.seed.capabilities(), f.seed.bindings(), List.of(changed), f.seed.rates(), f.seed.budgets());
         assertEquals(ValidationState.STALE, service.completeValidation(f.f.actor, f.scope, v.id(), new ProbeResult(true, "MODEL_FOUND")).state());
@@ -382,7 +395,7 @@ class ModelDraftIntegrationTest {
         var candidates = new ArrayList<ModelResource>();
         candidates.add(model);
         for (int i = 0; i < 100; i++) {
-            candidates.add(f.models.create(f.f.actor, new com.arte.ainew.pojo.model.ModelResourceCommands.Create(
+            candidates.add(f.models.create(f.f.actor, new ModelResourceCommands.Create(
                     f.meta("filter-" + i), f.scope, "Fixture model " + String.format(Locale.ROOT, "%03d", i))).value());
         }
         ModelResource last = candidates.stream()
@@ -450,10 +463,10 @@ class ModelDraftIntegrationTest {
     @Test
     void httpPreparationUsesNormalUserAndDoesNetworkOutsideTransactionWithSafeViews() {
         var scheduler = Schedulers.newBoundedElastic(3, 32, "draft-http-test");
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var calls = new AtomicInteger();
         var executor = new PlatformAuthenticatedExecutor(f.identity, new PlatformPersistenceExecutor(scheduler, f.f.tx));
         var validator = (ModelConnectionValidator) probe -> Mono.fromCallable(() -> {
-            assertFalse(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
             calls.incrementAndGet();
             return new ProbeResult(true, "MODEL_FOUND");
         });

@@ -2,7 +2,7 @@ package com.arte.ainew.infrastructure.http;
 
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.common.execution.ExecutionOwners;
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.config.ChatCompletionsSseOptions;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.adapter.ProtocolAdapter;
@@ -34,9 +34,9 @@ public final class ChatCompletionsSseProtocolAdapter<Q> implements ProtocolAdapt
     public static final DefinitionRef DEFINITION = new DefinitionRef("protocol", "chat-completions-sse", "v1");
     private static final ParameterizedTypeReference<ServerSentEvent<String>> SSE = new ParameterizedTypeReference<>() {};
     private final JsonMapper json;
-    private final NewAiGenerationProperties properties;
+    private final ChatCompletionsSseOptions properties;
 
-    public ChatCompletionsSseProtocolAdapter(JsonMapper json, NewAiGenerationProperties properties) {
+    public ChatCompletionsSseProtocolAdapter(JsonMapper json, ChatCompletionsSseOptions properties) {
         this.json = json;
         this.properties = properties;
     }

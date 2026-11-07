@@ -32,7 +32,7 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "arte.ai-new-generation", name = "enabled", havingValue = "true")
 @ConditionalOnBean(AdmissionAuthorization.class)
 @ConditionalOnMissingBean(ModelGateway.class)
-@EnableConfigurationProperties(NewAiGenerationProperties.class)
+@EnableConfigurationProperties({NewAiGenerationProperties.class, NewAiHttpProperties.class})
 public class NewAiGenerationConfiguration {
 
     /**
@@ -47,7 +47,7 @@ public class NewAiGenerationConfiguration {
     @Bean("newAiConnectionCredentialResolver")
     @ConditionalOnMissingBean(ConnectionCredentialResolver.class)
     ConnectionCredentialResolver credentials(NewAiGenerationProperties properties) {
-        return new EnvironmentCredentialResolver(properties);
+        return new EnvironmentCredentialResolver(properties.secrets());
     }
 
     /**
@@ -59,17 +59,17 @@ public class NewAiGenerationConfiguration {
      * @param connections 当前连接定义及使用权限的解析入口
      * @param authorization 当前主体的准入授权校验器
      * @param credentials 发送时使用的凭据解析器
-     * @param properties 出口白名单、连接池及传输上限配置
+     * @param properties 模型、HTTP 工具和 MCP 工具分别持有的 HTTP 资源参数
      * @param clock 新 AI 层时钟，用于运行期限校验
      * @return 由 Spring 管理生命周期的 HTTP 连接运行时
      */
     @Bean(name = "newAiHttpConnectionRuntime", initMethod = "warmupResources", destroyMethod = "close")
     HttpConnectionRuntime runtime(ConnectionManager connections, AdmissionAuthorization authorization,
-                                  ConnectionCredentialResolver credentials, NewAiGenerationProperties properties,
-                                  @Qualifier("newAiClock") Clock clock, NewAiProperties admission,
+                                  ConnectionCredentialResolver credentials, NewAiHttpProperties properties,
+                                  @Qualifier("newAiClock") Clock clock,
                                   @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
         HttpEgressPolicy policy = egress.getIfAvailable(() -> new HttpEgressPolicy(List::of));
-        return new HttpConnectionRuntime(connections, authorization, credentials, properties, clock, policy);
+        return new HttpConnectionRuntime(connections, authorization, credentials, properties.model(), clock, policy);
     }
 
     /**
@@ -83,7 +83,7 @@ public class NewAiGenerationConfiguration {
      */
     @Bean("newAiDeepSeekProviderAdapter")
     DeepSeekGenerationProviderAdapter provider(NewAiGenerationProperties generation) {
-        return new DeepSeekGenerationProviderAdapter(GenerationJson.mapper(generation.maxFrameBytes()));
+        return new DeepSeekGenerationProviderAdapter(GenerationJson.mapper(generation.protocolOptions().maxFrameBytes()));
     }
 
     /**
@@ -97,7 +97,7 @@ public class NewAiGenerationConfiguration {
      */
     @Bean("newAiChatCompletionsSseProtocolAdapter")
     ChatCompletionsSseProtocolAdapter<DeepSeekWire.Request> protocol(NewAiGenerationProperties properties) {
-        return new ChatCompletionsSseProtocolAdapter<>(GenerationJson.mapper(properties.maxFrameBytes()), properties);
+        return new ChatCompletionsSseProtocolAdapter<>(GenerationJson.mapper(properties.protocolOptions().maxFrameBytes()), properties.protocolOptions());
     }
 
     /**

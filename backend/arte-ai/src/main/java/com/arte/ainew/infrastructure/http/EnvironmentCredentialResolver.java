@@ -6,6 +6,7 @@ import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -23,12 +24,12 @@ public final class EnvironmentCredentialResolver implements ConnectionCredential
     private final Map<DefinitionRef, String> names;
     private final Function<String, String> environment;
 
-    public EnvironmentCredentialResolver(NewAiGenerationProperties properties) {
-        this(properties, System::getenv);
+    public EnvironmentCredentialResolver(List<NewAiGenerationProperties.SecretEnvironment> secrets) {
+        this(secrets, System::getenv);
     }
 
-    public EnvironmentCredentialResolver(NewAiGenerationProperties properties, Function<String, String> environment) {
-        this.names = properties.secrets().stream().collect(Collectors.toUnmodifiableMap(
+    public EnvironmentCredentialResolver(List<NewAiGenerationProperties.SecretEnvironment> secrets, Function<String, String> environment) {
+        this.names = secrets.stream().collect(Collectors.toUnmodifiableMap(
                 NewAiGenerationProperties.SecretEnvironment::reference, NewAiGenerationProperties.SecretEnvironment::environmentVariable));
         this.environment = environment;
     }

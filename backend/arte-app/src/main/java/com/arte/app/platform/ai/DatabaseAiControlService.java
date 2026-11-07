@@ -5,7 +5,6 @@ import com.arte.ainew.application.model.ReviewedModelPlanChecks;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
@@ -47,7 +46,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.security.access.AccessDeniedException;
@@ -75,7 +73,6 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  */
 @Service
 @ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
-@EnableConfigurationProperties(NewAiGenerationProperties.class)
 @Import(WorkspaceAiGovernanceConfiguration.class)
 public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
 

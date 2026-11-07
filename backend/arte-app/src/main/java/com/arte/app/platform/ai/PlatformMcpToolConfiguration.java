@@ -2,11 +2,8 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.config.NewAiGenerationProperties;
-import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
-import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
-import com.arte.ainew.infrastructure.http.McpStreamableHttpTransport;
-import com.arte.ainew.infrastructure.http.ModelScopeBingToolAdapter;
+import com.arte.ainew.config.NewAiHttpProperties;
+import com.arte.ainew.infrastructure.http.*;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.app.platform.ai.tool.McpHealthToolProperties;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -20,7 +17,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,7 +26,7 @@ import java.util.Map;
  * @since 2026/10/21 12:50 ✾
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(McpHealthToolProperties.class)
+@EnableConfigurationProperties({McpHealthToolProperties.class, NewAiHttpProperties.class})
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-tool.enabled", "ai-new-tool-mcp.enabled"}, havingValue = "true")
 public class PlatformMcpToolConfiguration {
 
@@ -40,7 +36,7 @@ public class PlatformMcpToolConfiguration {
     }
 
     @Bean(name = "newAiToolMcpRuntime", destroyMethod = "close")
-    HttpConnectionRuntime runtime(McpHealthToolProperties properties, PlatformToolManagementAccess platform,
+    HttpConnectionRuntime runtime(McpHealthToolProperties properties, NewAiHttpProperties http, PlatformToolManagementAccess platform,
                                   AdmissionAuthorization authorization, @Qualifier("newAiClock") Clock clock) {
         var health = connection(properties);
         var bing = ModelScopeBingToolAdapter.connectionDefinition();
@@ -54,10 +50,9 @@ public class PlatformMcpToolConfiguration {
                     }
                     return Mono.just(selected);
                 });
-        var transport = new NewAiGenerationProperties(false, properties.allowedOrigins(), List.of(), 8,
-                4, 8, Duration.ofSeconds(2), 65536, 1024);
         return new HttpConnectionRuntime(connections, authorization, (reference, context) ->
-                Mono.error(new IllegalStateException("MCP tool credentials unsupported")), transport, clock);
+                Mono.error(new IllegalStateException("MCP tool credentials unsupported")),
+                http.toolMcp(), clock, new HttpEgressPolicy(properties::allowedOrigins));
     }
 
     @Bean

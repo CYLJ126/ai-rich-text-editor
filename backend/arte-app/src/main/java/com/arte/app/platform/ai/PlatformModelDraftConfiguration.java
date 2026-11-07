@@ -2,7 +2,7 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.application.model.DefaultModelDraftService;
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.config.NewAiHttpProperties;
 import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.infrastructure.http.HttpModelConnectionValidator;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
@@ -27,7 +27,7 @@ import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new-model-management.enabled", "ai-new.enabled", "platform.identity.enabled", "platform.persistence.enabled", "platform.workspace.enabled"}, havingValue = "true")
-@EnableConfigurationProperties({ModelManagementProperties.class, NewAiGenerationProperties.class})
+@EnableConfigurationProperties({ModelManagementProperties.class, NewAiHttpProperties.class})
 public class PlatformModelDraftConfiguration {
 
     @Bean
@@ -50,9 +50,9 @@ public class PlatformModelDraftConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ModelConnectionValidator.class)
-    ModelConnectionValidator modelConnectionValidator(NewAiGenerationProperties properties,
+    ModelConnectionValidator modelConnectionValidator(NewAiHttpProperties properties,
                                                       @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
-        return new HttpModelConnectionValidator(properties, egress.getIfAvailable(() -> new HttpEgressPolicy(List::of)));
+        return new HttpModelConnectionValidator(Math.min(8, properties.model().connectionsPerPool()), egress.getIfAvailable(() -> new HttpEgressPolicy(List::of)));
     }
 
     @Bean

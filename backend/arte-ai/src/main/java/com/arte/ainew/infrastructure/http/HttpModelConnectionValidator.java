@@ -1,6 +1,6 @@
 package com.arte.ainew.infrastructure.http;
 
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.model.ModelDrafts.Probe;
 import com.arte.ainew.pojo.model.ModelDrafts.ProbeResult;
@@ -20,6 +20,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -41,13 +42,10 @@ public final class HttpModelConnectionValidator implements ModelConnectionValida
     private final Semaphore capacity;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public HttpModelConnectionValidator(NewAiGenerationProperties properties) {
-        this(properties, new HttpEgressPolicy(properties));
-    }
-
-    public HttpModelConnectionValidator(NewAiGenerationProperties properties, HttpEgressPolicy egress) {
-        this.egress = egress;
-        capacity = new Semaphore(Math.min(8, properties.connectionsPerPool()));
+    public HttpModelConnectionValidator(int maxConcurrentProbes, HttpEgressPolicy egress) {
+        ContractChecks.range(maxConcurrentProbes, "maxConcurrentProbes", 1, 8);
+        this.egress = Objects.requireNonNull(egress);
+        capacity = new Semaphore(maxConcurrentProbes);
     }
 
     @Override

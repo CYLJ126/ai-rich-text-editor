@@ -2,7 +2,6 @@ package com.arte.ainew.admission;
 
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.context.ExecutionRuntimeContext;
@@ -138,7 +137,7 @@ public class GenerationGatewayTest {
         final AtomicInteger requests = new AtomicInteger(), credentialReads = new AtomicInteger(), releases = new AtomicInteger();
         final List<Integer> remotePorts = new java.util.concurrent.CopyOnWriteArrayList<>();
         final TestAiConfiguration properties;
-        final NewAiGenerationProperties generation;
+        final com.arte.ainew.config.ChatCompletionsSseOptions generation;
         final TestControlCatalog catalog;
         final ExecutionContextFactory factory;
         final HttpConnectionRuntime runtime;
@@ -158,6 +157,10 @@ public class GenerationGatewayTest {
         }
 
         Rig(int responseLimit, int frameLimit, boolean toolSupport, boolean tightenAtSend) throws Exception {
+            this(responseLimit, frameLimit, toolSupport, tightenAtSend, frameLimit);
+        }
+
+        Rig(int responseLimit, int frameLimit, boolean toolSupport, boolean tightenAtSend, int bufferLimit) throws Exception {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(workers);
             server.createContext("/", exchange -> {
@@ -202,7 +205,7 @@ public class GenerationGatewayTest {
             properties = new TestAiConfiguration(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
                     base.grants(), List.of(capability), List.of(new ResolvedBinding(binding.definition(), capability, binding.connection(),
                     "deepseek-chat", binding.contextWindowTokens(), binding.rate())), List.of(connection), base.rates(), base.budgets());
-            generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 1, 1, Duration.ofSeconds(2), frameLimit, 65536);
+            generation = new com.arte.ainew.config.ChatCompletionsSseOptions(frameLimit, 65536, null);
             var clock = Clock.systemUTC();
             var resolver = new TestAuthorizationResolver(properties);
             var authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, clock);
@@ -237,7 +240,7 @@ public class GenerationGatewayTest {
                     return catalog.resolveCurrentConnection(ref, call);
                 }
             } : catalog::resolveConnection;
-            runtime = new HttpConnectionRuntime(connections, authorization, credentials, generation, clock);
+            runtime = new HttpConnectionRuntime(connections, authorization, credentials, new com.arte.ainew.config.HttpRuntimeOptions(2, 1, 1, Duration.ofSeconds(2), bufferLimit), clock, new com.arte.ainew.infrastructure.http.HttpEgressPolicy(() -> List.of(origin)));
             ConnectionRuntime<HttpConnectionRuntime.Handle> tracking = new ConnectionRuntime<>() {
                 public Mono<Lease<HttpConnectionRuntime.Handle>> acquire(ConnectionDefinition definition, ExecutionRuntimeContext context) {
                     return runtime.acquire(definition, context);
@@ -445,6 +448,15 @@ public class GenerationGatewayTest {
             assertEquals(1, rig.requests.get());
         }
         try (var rig = new Rig(65536, 1024)) {
+            rig.reply.set(Reply.sse(chunk("x".repeat(2048), "stop", "null") + DONE));
+            failed(rig.run(), "SSE_FRAME_LIMIT_EXCEEDED");
+            assertEquals(1, rig.requests.get());
+        }
+    }
+
+    @Test
+    public void largerHttpBufferCannotExpandTheProtocolFrameLimit() throws Exception {
+        try (var rig = new Rig(65536, 1024, false, false, 8192)) {
             rig.reply.set(Reply.sse(chunk("x".repeat(2048), "stop", "null") + DONE));
             failed(rig.run(), "SSE_FRAME_LIMIT_EXCEEDED");
             assertEquals(1, rig.requests.get());

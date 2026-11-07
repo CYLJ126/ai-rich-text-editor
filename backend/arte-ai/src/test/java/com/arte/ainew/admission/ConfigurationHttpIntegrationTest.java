@@ -3,7 +3,6 @@ package com.arte.ainew.admission;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
@@ -103,7 +102,7 @@ public class ConfigurationHttpIntegrationTest {
         var authorization = TestAuthorizations.create(resolver, configuration, clock);
         catalog = new TestControlCatalog(configuration, authorization, clock);
         factory = new ExecutionContextFactory(resolver, clock);
-        var generation = new NewAiGenerationProperties(true, null, null, 0, 0, 0, null, 0, 0);
+        var generation = com.arte.ainew.config.ChatCompletionsSseOptions.defaults(null);
         var provider = new DeepSeekGenerationProviderAdapter(configuration.capabilities(), GenerationJson.mapper(generation.maxFrameBytes()));
         var protocol = new ChatCompletionsSseProtocolAdapter<DeepSeekWire.Request>(GenerationJson.mapper(generation.maxFrameBytes()), generation);
         // supportsTextChat 只查看适配器元数据；不需要连接运行时。

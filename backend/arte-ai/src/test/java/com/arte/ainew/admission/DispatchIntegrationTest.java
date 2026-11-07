@@ -11,7 +11,6 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.config.NewAiExecutionProperties;
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
 import com.arte.ainew.infrastructure.http.GenerationJson;
@@ -173,9 +172,9 @@ public class DispatchIntegrationTest {
                     }, dispatchNotifier::committed);
             var clock = Clock.systemUTC();
             authorization = TestAuthorizations.create(new TestAuthorizationResolver(properties), properties, clock);
-            var generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 4, 4, Duration.ofSeconds(2), 65536, 65536);
+            var generation = new com.arte.ainew.config.ChatCompletionsSseOptions(65536, 65536, null);
             ConnectionCredentialResolver credentials = (secret, context) -> Mono.just(new ConnectionCredentialResolver.BearerCredential("local-test-token"));
-            transport = new HttpConnectionRuntime(fixture.catalog::resolveConnection, authorization, credentials, generation, clock);
+            transport = new HttpConnectionRuntime(fixture.catalog::resolveConnection, authorization, credentials, new com.arte.ainew.config.HttpRuntimeOptions(2, 4, 4, Duration.ofSeconds(2), 65536), clock, new com.arte.ainew.infrastructure.http.HttpEgressPolicy(() -> List.of(origin)));
             gateway = new DefaultModelGateway<>(fixture.catalog, fixture.catalog, fixture.catalog::resolveConnection, transport,
                     new DeepSeekGenerationProviderAdapter(properties.capabilities(), GenerationJson.mapper(65536)),
                     new ChatCompletionsSseProtocolAdapter<>(GenerationJson.mapper(65536), generation), clock);

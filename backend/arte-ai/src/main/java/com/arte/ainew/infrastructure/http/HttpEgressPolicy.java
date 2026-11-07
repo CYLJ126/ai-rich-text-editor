@@ -1,6 +1,6 @@
 package com.arte.ainew.infrastructure.http;
 
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.common.validation.ContractChecks;
 import io.netty.resolver.AbstractAddressResolver;
 import io.netty.resolver.AddressResolver;
 import io.netty.resolver.AddressResolverGroup;
@@ -14,10 +14,13 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * 精确 origin 白名单及 DNS 地址校验；解析结果固定到本次连接，避免校验后重新解析目标。
+ * 精确 origin 白名单及 DNS 地址校验
+ * <p>
+ * 解析结果固定到本次连接，避免校验后重新解析目标。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/6 14:01 ✾
@@ -26,12 +29,18 @@ public final class HttpEgressPolicy {
 
     private final Supplier<List<URI>> origins;
 
-    public HttpEgressPolicy(NewAiGenerationProperties properties) {
-        this(properties::allowedOrigins);
+    public HttpEgressPolicy(Supplier<List<URI>> origins) {
+        this.origins = Objects.requireNonNull(origins);
     }
 
-    public HttpEgressPolicy(Supplier<List<URI>> origins) {
-        this.origins = origins;
+    /**
+     * 校验静态工具出口配置，不创建模型配置对象或读取网络。
+     */
+    public static List<URI> validateOrigins(List<URI> origins) {
+        List<URI> values = origins == null ? List.of() : ContractChecks.list(origins, "allowedOrigins", 0, 64);
+        ContractChecks.unique(values, "allowedOrigins");
+        values.forEach(HttpEgressPolicy::normalizeOrigin);
+        return values;
     }
 
     public void validateOrigin(URI endpoint) {
@@ -57,7 +66,7 @@ public final class HttpEgressPolicy {
                 || !(origin.getRawPath().isEmpty() || origin.getRawPath().equals("/"))
                 || !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)
                 && ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)))) {
-            throw new IllegalArgumentException("Invalid model egress origin");
+            throw new IllegalArgumentException("Invalid HTTP egress origin");
         }
         scheme = scheme.toLowerCase(Locale.ROOT);
         String authority = host.toLowerCase(Locale.ROOT);

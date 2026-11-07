@@ -1,7 +1,7 @@
 package com.arte.ainew.control;
 
-import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.infrastructure.http.HttpModelConnectionValidator;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.model.ModelDrafts.Probe;
@@ -33,8 +33,7 @@ public class HttpModelConnectionValidatorTest {
                 .bindNow();
         try {
             URI origin = URI.create("http://127.0.0.1:" + server.port());
-            var props = new NewAiGenerationProperties(false, List.of(origin), List.of(), 0, 0, 0, null, 0, 0);
-            var validator = new HttpModelConnectionValidator(props);
+            var validator = new HttpModelConnectionValidator(8, new HttpEgressPolicy(() -> List.of(origin)));
             assertTrue(validator.validate(probe(origin, "/v1", "test-model")).block(Duration.ofSeconds(10)).valid());
             assertEquals("MODEL_NOT_FOUND", validator.validate(probe(origin, "/v1", "absent")).block(Duration.ofSeconds(10)).code());
             assertEquals("AUTHENTICATION_FAILED", validator.validate(probe(origin, "/auth", "x")).block(Duration.ofSeconds(10)).code());
@@ -42,7 +41,7 @@ public class HttpModelConnectionValidatorTest {
             assertEquals("INVALID_RESPONSE", validator.validate(probe(origin, "/invalid", "x")).block(Duration.ofSeconds(10)).code());
             assertFalse(validator.validate(probe(origin, "/large", "x")).block(Duration.ofSeconds(10)).valid());
             assertEquals(2, calls.get());
-            var blocked = new HttpModelConnectionValidator(new NewAiGenerationProperties(false, List.of(URI.create("https://example.invalid")), List.of(), 0, 0, 0, null, 0, 0));
+            var blocked = new HttpModelConnectionValidator(8, new HttpEgressPolicy(() -> List.of(URI.create("https://example.invalid"))));
             assertFalse(blocked.validate(probe(origin, "/v1", "x")).block(Duration.ofSeconds(10)).valid());
             assertEquals(2, calls.get());
         } finally {

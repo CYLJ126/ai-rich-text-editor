@@ -4,8 +4,9 @@ import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.gateway.DefaultToolGateway;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.config.HttpRuntimeOptions;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.infrastructure.http.HttpJsonGetTransport;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -76,11 +77,10 @@ public class HttpToolIntegrationTest {
                 return !(revokeBeforeSend.get() && checks == 2) && allowed.get() && reference.equals(connection.definition()) ? Mono.just(connection)
                         : Mono.error(new AccessDeniedException("revoked"));
             });
-            var properties = new NewAiGenerationProperties(false, List.of(originDenied ? URI.create("https://example.invalid") : origin), List.of(),
-                    2, 2, 2, Duration.ofSeconds(1), 65536, 1024);
+            var properties = new HttpRuntimeOptions(2, 2, 2, Duration.ofSeconds(1), 65536);
             runtime = new HttpConnectionRuntime(connections, null, (ref, context) -> {
                 throw new AssertionError("Anonymous GET cannot read a secret");
-            }, properties, Clock.systemUTC());
+            }, properties, Clock.systemUTC(), new HttpEgressPolicy(() -> List.of(originDenied ? URI.create("https://example.invalid") : origin)));
             adapter = new HttpHealthToolAdapter(connection, new HttpJsonGetTransport(runtime));
         }
 

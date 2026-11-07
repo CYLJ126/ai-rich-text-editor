@@ -2,7 +2,7 @@ package com.arte.ainew.tool.execution;
 
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.config.HttpRuntimeOptions;
 import com.arte.ainew.infrastructure.http.GenerationJson;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
 import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
@@ -166,7 +166,7 @@ public class McpToolIntegrationTest {
                 return allowed.get() ? Mono.just(connection) : Mono.error(new AccessDeniedException("revoked"));
             });
             runtime = new HttpConnectionRuntime(manager, null, (ref, context) -> Mono.error(new AssertionError("No secret for anonymous MCP")),
-                    new NewAiGenerationProperties(false, List.of(deniedOrigin ? URI.create("https://denied.example") : origin), List.of(), 2, 2, 2, Duration.ofSeconds(1), 65536, 8192), Clock.systemUTC());
+                    new HttpRuntimeOptions(2, 2, 2, Duration.ofSeconds(1), 65536), Clock.systemUTC(), new com.arte.ainew.infrastructure.http.HttpEgressPolicy(() -> List.of(deniedOrigin ? URI.create("https://denied.example") : origin)));
             adapter = new McpHealthToolAdapter(connection, new McpStreamableHttpTransport(runtime));
         }
 

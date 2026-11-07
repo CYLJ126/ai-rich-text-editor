@@ -40,7 +40,7 @@ class PlatformMcpToolIntegrationTest {
     }
 
     @Test
-    void mcpProfileDefaultsExampleAndFilteredRuntimeAreClosed() throws Exception {
+    void mcpProfilesBindRuntimeAndExplicitConnectionSettings() throws Exception {
         var defaults = new java.util.Properties();
         var example = new java.util.Properties();
         try (var reader = java.nio.file.Files.newBufferedReader(java.nio.file.Path.of("../profile/common.properties"))) {
@@ -56,16 +56,25 @@ class PlatformMcpToolIntegrationTest {
         runtime.load(new java.io.StringReader(resource));
         for (String field : List.of("enabled", "version", "endpoint", "allowed-origins")) {
             String key = "arte.ai-new-tool-mcp." + field;
-            assertEquals(defaults.getProperty(key), example.getProperty(key));
-            assertEquals(defaults.getProperty(key), runtime.getProperty(key));
+            assertNotNull(defaults.getProperty(key));
+            assertNotNull(runtime.getProperty(key));
         }
         var environment = new org.springframework.core.env.StandardEnvironment();
         environment.getPropertySources().addFirst(new org.springframework.core.env.PropertiesPropertySource("runtime", runtime));
         var bound = org.springframework.boot.context.properties.bind.Binder.get(environment)
                 .bind("arte.ai-new-tool-mcp", org.springframework.boot.context.properties.bind.Bindable.of(McpHealthToolProperties.class)).get();
-        assertFalse(bound.enabled());
-        assertNull(bound.endpoint());
-        assertTrue(bound.allowedOrigins().isEmpty());
+        assertNotNull(bound.version());
+        // 示例可以继承 common 参数；运维提供端点及白名单后才具备启用条件。
+        defaults.putAll(example);
+        defaults.setProperty("arte.ai-new-tool-mcp.enabled", "true");
+        defaults.setProperty("arte.ai-new-tool-mcp.endpoint", "https://tools.example/mcp");
+        defaults.setProperty("arte.ai-new-tool-mcp.allowed-origins", "https://tools.example");
+        environment.getPropertySources().addFirst(new org.springframework.core.env.PropertiesPropertySource("explicit-example", defaults));
+        var configured = org.springframework.boot.context.properties.bind.Binder.get(environment)
+                .bind("arte.ai-new-tool-mcp", org.springframework.boot.context.properties.bind.Bindable.of(McpHealthToolProperties.class)).get();
+        assertTrue(configured.enabled());
+        assertEquals(URI.create("https://tools.example/mcp"), configured.endpoint());
+        assertEquals(List.of(URI.create("https://tools.example")), configured.allowedOrigins());
     }
 
     @Test
@@ -108,21 +117,32 @@ class PlatformMcpToolIntegrationTest {
                     "arte-mcp-health", com.arte.ainew.pojo.tool.ToolDefinitionRevision.MCP_PROTOCOL, URI.create(origin + "/health"), null,
                     com.arte.ainew.pojo.control.ConnectionDefinition.State.ENABLED, Duration.ofSeconds(3), Duration.ofSeconds(5), 65536);
             String manifest;
-            var limits = new com.arte.ainew.config.NewAiGenerationProperties(false, List.of(URI.create(origin)), List.of(), 0, 0, 0, null, 0, 0);
-            try (var metadataRuntime = new com.arte.ainew.infrastructure.http.HttpConnectionRuntime(null, null, null, limits, java.time.Clock.systemUTC())) {
+            var limits = com.arte.ainew.config.HttpRuntimeOptions.toolDefaults();
+            try (var metadataRuntime = new com.arte.ainew.infrastructure.http.HttpConnectionRuntime(null, null, null, limits, java.time.Clock.systemUTC(), new com.arte.ainew.infrastructure.http.HttpEgressPolicy(() -> List.of(URI.create(origin))))) {
                 var metadata = new McpHealthToolAdapter(connection, new com.arte.ainew.infrastructure.http.McpStreamableHttpTransport(metadataRuntime));
                 metadataHolder.set(metadata);
                 var local = rig.tools.registry().registrations().getFirst();
                 var remote = metadata.registration();
                 var localDefinitions = local.source().discover().block();
                 var remoteDefinitions = remote.source().discover().block();
+                // 部署清单须包含当前装配的全部静态工具；Bing 只登记元数据，本测试不向它发送请求。
+                var bing = new com.arte.ainew.infrastructure.http.ModelScopeBingToolAdapter(metadataRuntime).registration();
+                var bingDefinitions = bing.source().discover().block();
                 manifest = com.arte.ainew.application.tool.discovery.StaticToolDiscovery.manifest(new com.arte.ainew.spi.persistence.ToolCatalogStore.Batch(
-                        List.of(local.provider(), remote.provider()), java.util.stream.Stream.concat(localDefinitions.schemas().stream(), remoteDefinitions.schemas().stream()).toList(),
-                        java.util.stream.Stream.concat(localDefinitions.tools().stream(), remoteDefinitions.tools().stream()).toList()));
+                        List.of(local.provider(), remote.provider(), bing.provider()),
+                        java.util.stream.Stream.of(localDefinitions, remoteDefinitions, bingDefinitions).flatMap(value -> value.schemas().stream()).toList(),
+                        java.util.stream.Stream.of(localDefinitions, remoteDefinitions, bingDefinitions).flatMap(value -> value.tools().stream()).toList()));
             }
             rig.context().withUserConfiguration(PlatformMcpToolConfiguration.class).withPropertyValues(
                     "arte.ai-new-tool-mcp.enabled=true", "arte.ai-new-tool-mcp.endpoint=" + origin + "/health",
-                    "arte.ai-new-tool-mcp.allowed-origins[0]=" + origin, "arte.ai-new-execution.scheduling.tool-manifest=" + manifest).run(c -> {
+                    "arte.ai-new-tool-mcp.allowed-origins[0]=" + origin, "arte.ai-new-http.tool-mcp.connections-per-pool=3", "arte.ai-new-execution.scheduling.tool-manifest=" + manifest).run(c -> {
+                assertNull(c.getStartupFailure());
+                assertTrue(c.getBeansOfType(com.arte.ainew.config.NewAiGenerationProperties.class).isEmpty());
+                var options = c.getBean(com.arte.ainew.config.NewAiHttpProperties.class);
+                assertEquals(3, options.toolMcp().connectionsPerPool());
+                assertEquals(8, options.model().connectionsPerPool());
+                assertEquals(options.toolMcp(), org.springframework.test.util.ReflectionTestUtils.getField(c.getBean("newAiToolMcpRuntime"), "options"));
+
                 assertNull(c.getStartupFailure());
                 assertEquals(0, requests.get());
                 var mvc = rig.mvc(c);

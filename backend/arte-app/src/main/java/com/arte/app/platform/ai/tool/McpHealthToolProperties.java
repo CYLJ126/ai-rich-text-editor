@@ -1,12 +1,18 @@
 package com.arte.app.platform.ai.tool;
 
-import com.arte.ainew.config.NewAiGenerationProperties;
+import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.tool.ToolDefinitionRevision;
+import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 
 /**
+ * MCP Health 工具属性
+ * <p>
  * 首个 MCP 工具默认关闭；固定完整地址和独立出口白名单仅由运维设置。
  *
  * @author CYLJ126 ≧◔◡◔≦
@@ -17,17 +23,17 @@ public record McpHealthToolProperties(boolean enabled, String version, URI endpo
 
     public McpHealthToolProperties {
         version = version == null ? "v1" : version;
-        new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-mcp-health", version);
-        allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
+        new DefinitionRef("connection", "arte-mcp-health", version);
+        allowedOrigins = HttpEgressPolicy.validateOrigins(allowedOrigins);
         if (enabled && (endpoint == null || allowedOrigins.isEmpty()))
             throw new IllegalArgumentException("MCP tool requires endpoint and explicit allowed origins");
         if (!allowedOrigins.isEmpty()) {
-            var transport = new NewAiGenerationProperties(false, allowedOrigins, List.of(), 0, 0, 0, null, 0, 0);
+            List<URI> origins = allowedOrigins;
             if (enabled) {
-                new com.arte.ainew.pojo.control.ConnectionDefinition(new com.arte.core.pojo.reference.DefinitionRef("connection", "arte-mcp-health", version),
-                        "arte-mcp-health", com.arte.ainew.pojo.tool.ToolDefinitionRevision.MCP_PROTOCOL, endpoint, null,
-                        com.arte.ainew.pojo.control.ConnectionDefinition.State.ENABLED, java.time.Duration.ofSeconds(3), java.time.Duration.ofSeconds(5), 65536);
-                new com.arte.ainew.infrastructure.http.HttpEgressPolicy(transport).validateOrigin(endpoint);
+                new ConnectionDefinition(new DefinitionRef("connection", "arte-mcp-health", version),
+                        "arte-mcp-health", ToolDefinitionRevision.MCP_PROTOCOL, endpoint, null,
+                        ConnectionDefinition.State.ENABLED, Duration.ofSeconds(3), Duration.ofSeconds(5), 65536);
+                new HttpEgressPolicy(() -> origins).validateOrigin(endpoint);
             }
         }
     }
