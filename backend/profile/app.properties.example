@@ -139,6 +139,8 @@ arte.platform.workspace.enabled=true
 #    出口安装与授权详情见 ../arte-app/docs/PLATFORM_AI_CONTROL.md 的「平台模型出口策略」。
 arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
+# 试用、发布和助手会话需要开启
+arte.ai-new-assistant.enabled=true
 # TOOL 显式登记与手动发现；开启前须部署目录表并提供 StaticToolRegistry Bean。
 arte.ai-new-tool.enabled=true
 arte.ai-new-tool.discovery.refresh-on-startup=true
