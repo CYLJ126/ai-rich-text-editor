@@ -34,7 +34,7 @@ public class PlatformModelSharingConfiguration {
     ModelSharingStore modelSharingStore(PlatformModelResourceMapper resources, PlatformModelSharingMapper mapper,
                                         @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, PlatformJson json,
                                         NewAiProperties properties, Environment environment) {
-        if (!"DATABASE".equals(properties.configurationMode()) || !environment.getProperty("arte.ai-new-model-publication.enabled", Boolean.class, false)) {
+        if (!environment.getProperty("arte.ai-new-model-publication.enabled", Boolean.class, false)) {
             throw new IllegalStateException("Tenant models require DATABASE and enabled model publication");
         }
         return new ModelSharingStoreServiceImpl(resources, mapper, tx, json);

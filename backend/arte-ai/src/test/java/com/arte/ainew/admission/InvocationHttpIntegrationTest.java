@@ -1,20 +1,19 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.config.NewAiEventProperties;
 import com.arte.ainew.config.NewAiExecutionProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationEvent;
@@ -22,6 +21,8 @@ import com.arte.ainew.pojo.generation.GenerationSignal;
 import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.spi.persistence.ExecutionEventStore;
 import com.arte.ainew.spi.persistence.ExecutionOutboxStore;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.NewAiHttpContext;
@@ -140,9 +141,7 @@ public class InvocationHttpIntegrationTest {
                 return fixture.executions.discardThrough(owner, id, sequence);
             }
         };
-        var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.executions, previewStore,
-                fixture.executions, fixture.payloads, fixture.payloads, fixture.executions,
-                call -> Flux.defer(() -> {
+        var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.catalog, fixture.catalog.readAdapter(), fixture.catalog.policyProvider(), fixture.catalog.admissionGuard(), fixture.executions, previewStore, fixture.executions, fixture.payloads, fixture.payloads, fixture.executions, call -> Flux.defer(() -> {
                     modelCalls.incrementAndGet();
                     if (mode.equals("controlled")) {
                         gatewaySubscribed.countDown();
@@ -158,7 +157,7 @@ public class InvocationHttpIntegrationTest {
                             false, ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "safe-correlation"), usage, result)
                             : new GenerationSignal.Result(result);
                     return Flux.just(new GenerationSignal.Delta(new GenerationEvent.TextDelta(OUTPUT)), terminal);
-                }), fixture.properties, settings, Clock.systemUTC(), liveText);
+        }), fixture.properties.deployment(), settings, Clock.systemUTC(), liveText);
         var coordinator = new DefaultInvocationCoordinator(fixture.coordinator, dispatcher, fixture.executions, null);
         publisher = new ExecutionEventPublisher(fixture.executions, notifier, settings, timer);
         worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer);
@@ -168,21 +167,20 @@ public class InvocationHttpIntegrationTest {
         login("alice");
     }
 
-    private AdmissionAuthorization authorization(NewAiProperties properties, Clock clock) {
-        return new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock);
+    private AdmissionAuthorization authorization(TestAiConfiguration properties, Clock clock) {
+        return com.arte.ainew.testing.TestAuthorizations.create(new TestAuthorizationResolver(properties), properties, clock);
     }
 
-    private void configureMvc(NewAiProperties properties, Clock clock) {
-        var factory = new ExecutionContextFactory(new FixedExecutionAuthorizationResolver(properties), clock);
-        var http = new NewAiHttpContext(factory, properties);
+    private void configureMvc(TestAiConfiguration properties, Clock clock) {
+        var factory = new ExecutionContextFactory(new TestAuthorizationResolver(properties), clock);
+        var http = new NewAiHttpContext(factory, properties.deployment());
         var authorization = authorization(properties, clock);
         eventService = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads, notifier, clock,
                 new InvocationBudgetStatusResolver(fixture.executions, fixture.executions), liveText);
         mvc = standaloneSetup(
-                new NewAiConversationController(fixture.conversations, new ConversationHttpContext(http, properties)),
-                new NewAiChatController(fixture.chat, fixture.catalog, http, properties),
-                new NewAiInvocationController(new DefaultExecutionControl(authorization, fixture.executions, fixture.coordinator),
-                        eventService, http, properties, new InvocationBudgetStatusResolver(fixture.executions, fixture.executions)))
+                new NewAiConversationController(fixture.conversations, new ConversationHttpContext(http, properties.deployment())),
+                new NewAiChatController(fixture.chat, fixture.catalog, http, properties.deployment()),
+                new NewAiInvocationController(new DefaultExecutionControl(authorization, fixture.executions, fixture.coordinator), eventService, http, properties.deployment(), new InvocationBudgetStatusResolver(fixture.executions, fixture.executions)))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -286,13 +284,12 @@ public class InvocationHttpIntegrationTest {
         var revoked = new AtomicBoolean();
         var reads = new AtomicInteger();
         var authorizations = new AtomicInteger();
-        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
-        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> Mono.defer(() ->
+        var resolver = new TestAuthorizationResolver(fixture.properties);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, scopes) -> Mono.defer(() ->
         {
             authorizations.incrementAndGet();
             return revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes);
-        }),
-                fixture.properties, Clock.systemUTC());
+        }), fixture.properties, Clock.systemUTC());
         ExecutionEventStore tracked = new ExecutionEventStore() {
             @Override
             public Mono<StoreOutcome<List<ExecutionEvent<?>>>> appendBatch(ExecutionCommands.Append command) {
@@ -409,8 +406,8 @@ public class InvocationHttpIntegrationTest {
     public void preparedWatchReusesImmediateQualificationAndRejectsASecondSubscription() throws Exception {
         var id = submit();
         var checks = new AtomicInteger();
-        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
-        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> {
+        var resolver = new TestAuthorizationResolver(fixture.properties);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, scopes) -> {
             checks.incrementAndGet();
             return resolver.resolve(name, tenant, workspace, scopes);
         }, fixture.properties, Clock.systemUTC());
@@ -451,8 +448,8 @@ public class InvocationHttpIntegrationTest {
                 return instant.get();
             }
         };
-        var resolver = new FixedExecutionAuthorizationResolver(fixture.properties);
-        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> {
+        var resolver = new TestAuthorizationResolver(fixture.properties);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, scopes) -> {
             checks.incrementAndGet();
             return revoked.get() ? Mono.error(new AccessDeniedException("revoked")) : resolver.resolve(name, tenant, workspace, scopes);
         }, fixture.properties, clock);
@@ -1185,10 +1182,10 @@ public class InvocationHttpIntegrationTest {
         var grants = original.grants().stream().map(grant -> {
             var scopes = new HashSet<>(grant.scopes());
             scopes.remove(AdmissionAuthorization.READ);
-            return new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
+            return new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
                     grant.workspaceId(), grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(), grant.budgetRefs());
         }).toList();
-        var restricted = new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
+        var restricted = new TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
                 original.limits(), grants, original.capabilities(), original.bindings(), original.connections(), original.rates(), original.budgets());
         configureMvc(restricted, Clock.systemUTC());
         for (var path : List.of(STATUS, RESULT, EVENTS)) {
@@ -1202,10 +1199,10 @@ public class InvocationHttpIntegrationTest {
         var id = submit();
         dispatch();
         var original = fixture.properties;
-        var grants = original.grants().stream().map(grant -> new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(),
+        var grants = original.grants().stream().map(grant -> new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(),
                 grant.principalKind(), grant.tenantId(), grant.workspaceId(), grant.grantRef(), grant.enabled(),
                 java.util.Set.of(AdmissionAuthorization.READ), grant.bindingIds(), grant.budgetRefs())).toList();
-        var readOnly = new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
+        var readOnly = new TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
                 original.limits(), grants, original.capabilities(), original.bindings(), original.connections(), original.rates(), original.budgets());
         configureMvc(readOnly, Clock.systemUTC());
         send(STATUS, query(id), 200);

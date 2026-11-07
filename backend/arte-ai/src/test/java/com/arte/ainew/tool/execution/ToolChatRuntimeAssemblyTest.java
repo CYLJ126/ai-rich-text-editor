@@ -5,7 +5,6 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.context.TextContextService;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
 import com.arte.ainew.application.tool.chat.*;
 import com.arte.ainew.config.NewAiToolChatExecutionConfiguration;
@@ -15,6 +14,7 @@ import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.ainew.testing.TestControlCatalog;
 import org.junit.Test;
 import org.springframework.beans.BeansException;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -59,7 +59,7 @@ public class ToolChatRuntimeAssemblyTest {
     public void enabledManualAssemblyDoesNotStartLoopsOrCreateRuns() throws Exception {
         try (var r = new ToolChatLoopTest.Rig(); var c = new AnnotationConfigApplicationContext()) {
             c.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", flags()));
-            c.getBeanFactory().registerSingleton("newAiProperties", r.properties);
+            c.getBeanFactory().registerSingleton("newAiProperties", r.properties.deployment());
             c.getBeanFactory().registerSingleton("newAiExecutionProperties", r.f.executionProperties);
             c.registerBean(ToolChatRunStore.class, () -> r.runs);
             c.registerBean(ConversationService.class, () -> r.conversations);
@@ -68,7 +68,7 @@ public class ToolChatRuntimeAssemblyTest {
             c.registerBean(com.arte.ainew.spi.control.AiResourceEntitlementService.class, r.catalog::entitlementAdapter);
             c.registerBean(com.arte.ainew.spi.control.AiExecutionPolicyProvider.class, r.catalog::policyProvider);
             c.registerBean(com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard.class, r.catalog::admissionGuard);
-            c.registerBean(ContextService.class, () -> new TextContextService(r.authorization, r.catalog, r.f.payloads, r.properties, r.f.clock, r.history));
+            c.registerBean(ContextService.class, () -> new TextContextService(r.authorization, r.catalog, r.f.payloads, r.properties.limits(), r.f.clock, r.history, r.catalog.policyProvider()));
             c.registerBean(ToolSetService.class, () -> new ToolSetService(r.f.bindingService, r.f.catalog, r.f.metadata, java.time.Duration.ofSeconds(5)));
             c.registerBean(ToolChatBudgetSelector.class, () -> r.budgets);
             c.registerBean(AdmissionAuthorization.class, () -> r.authorization);
@@ -81,7 +81,7 @@ public class ToolChatRuntimeAssemblyTest {
             c.registerBean("newAiWorkerScheduler", Scheduler.class, () -> r.f.timer);
             c.register(NewAiToolChatExecutionConfiguration.class);
             c.refresh();
-            assertTrue(c.getBeansOfType(FixedControlCatalog.class).isEmpty());
+            assertTrue(c.getBeansOfType(TestControlCatalog.class).isEmpty());
             assertNotNull(c.getBean(ToolChatService.class));
             assertFalse(c.getBean(ToolChatWorker.class).isRunning());
             assertFalse(c.getBean(ToolChatEventPublisher.class).isRunning());

@@ -11,7 +11,6 @@ import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.app.platform.identity.PlatformIdentityConfiguration;
 import com.arte.app.platform.identity.RbacAccountMapperConfiguration;
 import com.arte.app.platform.identity.RbacAccountReader;
-import com.arte.app.platform.identity.RbacFixedExecutionAuthorizationResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -56,6 +55,8 @@ class NewAiManualConfigurationTest {
             context.register(NewAiManualIT.PhysicalDataSourceConfiguration.class,
                     PlatformIdentityConfiguration.class, RbacAccountReader.class, RbacAccountMapperConfiguration.class,
                     NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class, NewAiExecutionConfiguration.class);
+            context.registerBean(com.arte.ainew.spi.auth.AiControlConfigurationSource.class, () -> org.mockito.Mockito.mock(com.arte.ainew.spi.auth.AiControlConfigurationSource.class));
+            context.registerBean(ExecutionAuthorizationResolver.class, () -> org.mockito.Mockito.mock(ExecutionAuthorizationResolver.class));
             context.refresh();
 
             assertTrue(context.getBeansOfType(DataSourceProperties.class).isEmpty());
@@ -68,13 +69,11 @@ class NewAiManualConfigurationTest {
             assertFalse(pool.isInited(), "Assembly must not initialize database connections");
             assertEquals(0, pool.getCreateCount());
             assertNotNull(context.getBean(ChatService.class));
-            if (identityEnabled)
-                assertInstanceOf(RbacFixedExecutionAuthorizationResolver.class, context.getBean(ExecutionAuthorizationResolver.class));
+            assertNotNull(context.getBean(ExecutionAuthorizationResolver.class));
             assertInstanceOf(DefaultInvocationCoordinator.class, context.getBean(InvocationCoordinator.class));
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class)
                     .secrets().getFirst().environmentVariable());
             var properties = context.getBean(NewAiProperties.class);
-            assertEquals(properties.capabilities().getFirst(), properties.bindings().getFirst().capability());
             assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
         }
     }
@@ -92,8 +91,8 @@ class NewAiManualConfigurationTest {
             assertNotNull(local);
             assertEquals("jdbc:mysql://127.0.0.1:1/local_test", local.getProperty("spring.datasource.druid.app.url"));
             assertNull(local.getProperty("arte.ai-new.bindings[0].remote-operation"));
-            assertEquals("deepseek-chat", context.getEnvironment().getProperty("arte.ai-new.bindings[0].remote-operation"));
-            assertEquals("capability", context.getEnvironment().getProperty("arte.ai-new.bindings[0].capability.definition.type"));
+            assertNull(context.getEnvironment().getProperty("arte.ai-new.bindings[0].remote-operation"));
+            assertNull(context.getEnvironment().getProperty("arte.ai-new.bindings[0].capability.definition.type"));
             assertEquals("false", context.getEnvironment().getProperty("arte.ai-new-execution.worker-enabled"));
         }
     }

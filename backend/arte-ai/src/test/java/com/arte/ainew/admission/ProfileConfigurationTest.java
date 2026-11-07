@@ -56,13 +56,11 @@ public class ProfileConfigurationTest {
             context.registerBean("testCredentialResolver", ConnectionCredentialResolver.class, () -> (secret, execution) ->
                     Mono.error(new AssertionError("Configuration must not read credential values")));
             context.register(NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class, NewAiExecutionConfiguration.class);
+            com.arte.ainew.testing.TestSources.install(context);
             context.refresh();
             assertNotNull(context.getBean(ChatService.class));
             assertTrue(context.getBean(InvocationCoordinator.class) instanceof DefaultInvocationCoordinator);
-            var admission = context.getBean(NewAiProperties.class);
-            assertEquals(admission.capabilities().getFirst(), admission.bindings().getFirst().capability());
-            assertEquals(admission.connections().getFirst().definition(), admission.bindings().getFirst().connection());
-            assertEquals(admission.rates().getFirst().definition(), admission.budgets().getFirst().rate());
+            assertNotNull(context.getBean(NewAiProperties.class).limits());
             assertEquals("ARTE_DEEPSEEK_API_KEY", context.getBean(NewAiGenerationProperties.class)
                     .secrets().getFirst().environmentVariable());
             assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
@@ -84,6 +82,9 @@ public class ProfileConfigurationTest {
     @Test
     public void checkedInExampleProvidesAllTemplateParametersAndBinds() throws Exception {
         var parameters = new Properties();
+        try (var reader = Files.newBufferedReader(Path.of("../profile/common.properties"), StandardCharsets.UTF_8)) {
+            parameters.load(reader);
+        }
         try (var reader = Files.newBufferedReader(Path.of("../profile/app.properties.example"), StandardCharsets.UTF_8)) {
             parameters.load(reader);
         }
@@ -106,7 +107,7 @@ public class ProfileConfigurationTest {
     public void aiProfileImportsRuntimeConfigurationAndKeepsCredentialAsEnvironmentReference() throws Exception {
         var profile = new ClassPathResource("application-ai.yml");
         var sources = new YamlPropertySourceLoader().load("ai-profile", profile);
-        assertEquals("classpath:" + RESOURCE, sources.getFirst().getProperty("spring.config.import"));
+        assertEquals("classpath:" + RESOURCE, sources.getFirst().getProperty("spring.config.import[0]"));
         var text = profile.getContentAsString(StandardCharsets.UTF_8);
         assertTrue("Legacy key must stay a runtime environment reference", text.contains("${ARTE_DEEPSEEK_API_KEY}"));
         assertFalse("Credential values must not enter application resource", Pattern.compile("sk-[a-zA-Z0-9]{20,}").matcher(text).find());

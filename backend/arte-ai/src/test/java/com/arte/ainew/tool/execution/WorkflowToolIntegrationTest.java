@@ -1,6 +1,5 @@
 package com.arte.ainew.tool.execution;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.execution.DefaultExecutionEventService;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.admission.ToolAdmissionService;
@@ -13,7 +12,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiToolApprovalProperties;
 import com.arte.ainew.persistence.mybatis.MybatisToolApprovalStore;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -23,6 +21,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.auth.ToolAdmissionAccess;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
@@ -66,11 +65,10 @@ public class WorkflowToolIntegrationTest {
 
         Rig(ToolExecutionFixture fixture) {
             f = fixture;
-            var properties = new NewAiProperties(false, "appDataSource", "release", null, null,
+            var properties = new TestAiConfiguration(false, "appDataSource", "release", null, null,
                     List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-            var auth = new AdmissionAuthorization((name, tenant, workspace, scopes) -> Mono.just(new ExecutionAuthorization(
-                    new ExecutionPrincipal("subject", name, ExecutionPrincipal.Kind.USER), tenant, workspace, scopes, "read-grant")),
-                    properties, f.clock, null, f.io, (invocation, context, operation) -> Mono.defer(() -> {
+            var auth = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, scopes) -> Mono.just(new ExecutionAuthorization(
+                    new ExecutionPrincipal("subject", name, ExecutionPrincipal.Kind.USER), tenant, workspace, scopes, "read-grant")), properties, f.clock, null, f.io, (invocation, context, operation) -> Mono.defer(() -> {
                 if (!readable.get()) return Mono.error(new AccessDeniedException("Test read revoked"));
                 return Mono.just(new ToolInvocationAccess.Permit() {
                     public ExecutionAuthorization authorization() {

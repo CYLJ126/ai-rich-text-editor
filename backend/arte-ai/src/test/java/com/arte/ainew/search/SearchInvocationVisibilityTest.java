@@ -1,13 +1,15 @@
 package com.arte.ainew.search;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.execution.DefaultExecutionEventService;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
+import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.execution.Attempt;
 import com.arte.ainew.pojo.execution.Usage;
 import com.arte.ainew.spi.conversation.ConversationContentVisibility;
+import com.arte.ainew.testing.TestAuthorizations;
 import com.arte.core.enums.ResultCodeEnum;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +42,7 @@ public class SearchInvocationVisibilityTest {
         var store = new MybatisExecutionPersistence(q.f.ds, q.f.codec, q.scheduler);
         var payloads = new MybatisPayloadPersistence(q.f.ds, q.f.codec, q.scheduler);
         ConversationContentVisibility visibility = (owner, invocations) -> Mono.fromCallable(() -> q.reads.readableInvocations(owner, invocations)).subscribeOn(q.scheduler);
-        events = new DefaultExecutionEventService(new AdmissionAuthorization(q.resolver, null, q.clock), store, store, payloads, null, q.clock, null, null, visibility);
+        events = new DefaultExecutionEventService(TestAuthorizations.create(q.resolver, null, q.clock), store, store, payloads, null, q.clock, null, null, visibility);
     }
 
     @After
@@ -64,7 +66,7 @@ public class SearchInvocationVisibilityTest {
     @Test
     public void resultRemovedFromCurrentTurnCannotBeOpenedThroughOldSearchIdentity() {
         var t = q.f.codec.decode(q.f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_turn WHERE id_key=?", String.class, key("turn")), com.arte.ainew.pojo.conversation.Turn.class);
-        var updated = new com.arte.ainew.pojo.conversation.Turn(t.turnId(), t.conversationId(), t.sequence(), null, null, t.userMessage(), List.of("new"), null, 1, AT, AT);
+        var updated = new Turn(t.turnId(), t.conversationId(), t.sequence(), null, null, t.userMessage(), List.of("new"), null, 1, AT, AT);
         q.f.jdbc.update("UPDATE arte_ai_turn SET workspace_snapshot=? WHERE id_key=?", q.f.codec.encode(updated), key("turn"));
         var values = events.snapshots(List.of("old", "new"), q.context()).block();
         assertNull(values.getFirst().invocation());
@@ -74,8 +76,7 @@ public class SearchInvocationVisibilityTest {
     @Test
     public void ordinaryDetailUsedByLowerSearchActionRejectsArchivedParentWithoutDependingOnQueryFlag() {
         var store = new MybatisExecutionPersistence(q.f.ds, q.f.codec, q.scheduler);
-        var service = new com.arte.ainew.application.conversation.DefaultConversationService(store,
-                new AdmissionAuthorization(q.resolver, null, q.clock), q.clock,
+        var service = new DefaultConversationService(store, TestAuthorizations.create(q.resolver, null, q.clock), q.clock,
                 (owner, ids) -> Mono.just(ids.stream().filter(q.f.archived::contains).collect(java.util.stream.Collectors.toSet())));
         assertEquals("conv", service.find("conv", q.context()).block().conversationId());
         q.f.archived.add("conv");
@@ -86,8 +87,7 @@ public class SearchInvocationVisibilityTest {
     @Test
     public void archiveReadFailureInOrdinaryDetailCannotFallBackToVisible() {
         var store = new MybatisExecutionPersistence(q.f.ds, q.f.codec, q.scheduler);
-        var service = new com.arte.ainew.application.conversation.DefaultConversationService(store,
-                new AdmissionAuthorization(q.resolver, null, q.clock), q.clock,
+        var service = new DefaultConversationService(store, TestAuthorizations.create(q.resolver, null, q.clock), q.clock,
                 (owner, ids) -> Mono.error(new IllegalStateException("test qualification unavailable")));
         assertThrows(IllegalStateException.class, () -> service.find("conv", q.context()).block());
     }

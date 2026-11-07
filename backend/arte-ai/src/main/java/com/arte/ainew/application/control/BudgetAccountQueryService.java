@@ -22,14 +22,6 @@ public final class BudgetAccountQueryService {
     private final AdmissionAuthorization authorization;
     private final BudgetService budgets;
 
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public BudgetAccountQueryService(FixedControlCatalog configuration, AdmissionAuthorization authorization, BudgetService budgets) {
-        this(configuration.readAdapter(), authorization, budgets);
-    }
-
     public BudgetAccountQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, BudgetService budgets) {
         this.definitions = definitions;
         this.authorization = authorization;

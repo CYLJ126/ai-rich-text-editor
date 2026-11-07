@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * @since 2026/11/01 13:50 ✾
  */
 @Component
-@ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
+@ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
 public final class DatabaseAiControlStartupSafety implements SmartInitializingSingleton {
 
     private final DatabaseAiControlService source;

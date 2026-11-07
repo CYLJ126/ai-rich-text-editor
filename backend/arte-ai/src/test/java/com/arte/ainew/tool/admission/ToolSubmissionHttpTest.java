@@ -2,11 +2,11 @@ package com.arte.ainew.tool.admission;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.tool.ToolExecutionPolicy;
 import com.arte.ainew.pojo.tool.ToolRiskProfile;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
 import com.arte.ainew.web.controller.NewAiToolSubmissionController;
@@ -51,13 +51,12 @@ public class ToolSubmissionHttpTest {
 
         Rig() throws Exception {
             beans.registerSingleton("service", f.service);
-            var properties = new NewAiProperties(false, "appDataSource", "release", null, null,
+            var properties = new TestAiConfiguration(false, "appDataSource", "release", null, null,
                     List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
             var factory = new ExecutionContextFactory((name, tenant, workspace, scopes) -> Mono.just(new ExecutionAuthorization(
                     new ExecutionPrincipal("subject", name, ExecutionPrincipal.Kind.USER), tenant, workspace, scopes, "test-grant")).delayElement(authorizationDelay), f.clock);
             validator.afterPropertiesSet();
-            mvc = standaloneSetup(new NewAiToolSubmissionController(beans.getBeanProvider(com.arte.ainew.application.tool.admission.ToolAdmissionService.class),
-                    new NewAiHttpContext(factory, properties), properties)).setControllerAdvice(new ToolManagementExceptionHandler())
+            mvc = standaloneSetup(new NewAiToolSubmissionController(beans.getBeanProvider(com.arte.ainew.application.tool.admission.ToolAdmissionService.class), new NewAiHttpContext(factory, properties.deployment()), properties.deployment())).setControllerAdvice(new ToolManagementExceptionHandler())
                     .setValidator(validator).setAsyncRequestTimeout(15000).build();
             SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
         }

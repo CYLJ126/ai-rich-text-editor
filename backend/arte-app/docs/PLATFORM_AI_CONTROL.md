@@ -1,5 +1,7 @@
 # 工作空间 AI 数据库配置
 
+当前版本仅支持数据库控制面，升级及部署参数清理见 [数据库单一来源](AI_DATABASE_ONLY.md)。下方早期导入记录仅用于说明历史流程。
+
 2026-10-30 第 2 批已增加 `AiResourceEntitlementService`，DATABASE
 模型发现和实际解析共用当前空间精确版本白名单及资格规则，入口支持独立替换；成员撤权或来源失败不会回退固定授权。见 [模型使用资格端口](../../arte-ai/MODEL_ENTITLEMENTS.md)。
 
@@ -9,7 +11,7 @@
 ## 平台模型出口策略
 
 DATABASE 模式以应用数据库中的全局白名单为模型出口权威。同一应用库下所有租户、工作空间的个人及租户模型共用这份名单。租户和工作空间政策、模型授权、凭据及预算仍分别校验。旧版
-AI、FIXED 模式及 HTTP／MCP 工具使用各自的配置。
+AI 及 HTTP／MCP 工具使用各自的配置。
 
 1. 新装或升级时，在 `appDataSource` 对应的 MySQL 库执行[建表脚本](../scripts/arte-ai-model-egress-policy-ddl-mysql.sql)
    及[权限注册脚本](../scripts/arte-ai-model-egress-rbac-dml-mysql.sql)，然后启动新版后端。启动时会核验策略表和单例记录可读。
@@ -29,12 +31,12 @@ AI、FIXED 模式及 HTTP／MCP 工具使用各自的配置。
 
 ## 早期启用与首次导入记录
 
-本次代码提供数据库配置模式；部署默认仍为 `FIXED`，没有自动执行 SQL、导入业务数据或调用模型。
+本节记录早期首次导入流程。当前版本已移除固定文件配置及其自动回退；新安装使用数据库管理入口创建定义。
 
 1. 确保公共身份、租户／工作空间和新 AI 执行表已完成原有建表迁移。在 `appDataSource` 所在业务库执行
    [`arte-platform-ai-control-ddl-mysql.sql`](../scripts/arte-platform-ai-control-ddl-mysql.sql) 一次，新增四张控制面表。
    此脚本不应重复执行，不清理历史会话、执行记录或预算账本。
-2. 在实际部署配置设置 `arte.ai-new.configuration-mode=DATABASE`，保留 `arte.ai-new.enabled=true`、
+2. 当前部署删除旧模式选择键，保留 `arte.ai-new.enabled=true`、
    `arte.platform.identity.enabled=true`、`arte.platform.persistence.enabled=true`、
    `arte.platform.workspace.enabled=true`， AI 与公共事务共同使用 `appDataSource`
    。重新构建配置资源并重启后端；首次导入前保留已有模型、连接、费率、授权和预算配置。

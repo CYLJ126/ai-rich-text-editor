@@ -29,15 +29,6 @@ public final class BudgetAccountInitializer {
     private final BudgetService budgets;
     private final AdmissionCatalogStore store;
 
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public BudgetAccountInitializer(FixedControlCatalog configuration, AdmissionAuthorization authorization,
-                                    BudgetService budgets, AdmissionCatalogStore store) {
-        this(configuration.readAdapter(), authorization, budgets, store);
-    }
-
     public BudgetAccountInitializer(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization,
                                     BudgetService budgets, AdmissionCatalogStore store) {
         this.definitions = definitions;

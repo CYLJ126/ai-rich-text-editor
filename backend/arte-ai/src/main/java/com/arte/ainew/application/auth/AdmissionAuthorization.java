@@ -4,11 +4,11 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
-import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.config.NewAiProperties.Grant;
 import com.arte.ainew.context.ControlPreparation;
 import com.arte.ainew.context.ReadOperationSnapshot;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ControlConfiguration;
+import com.arte.ainew.pojo.control.ControlConfiguration.Grant;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
@@ -70,30 +70,18 @@ public final class AdmissionAuthorization {
 
     private final ExecutionAuthorizationResolver resolver;
 
-    private final NewAiProperties properties;
-
     private final Clock clock;
-    private AiControlConfigurationSource source;
-    private Scheduler scheduler;
-    private ToolInvocationAccess toolInvocations;
+    private final AiControlConfigurationSource source;
+    private final Scheduler scheduler;
+    private final ToolInvocationAccess toolInvocations;
 
-    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock) {
-        this.resolver = Objects.requireNonNull(resolver);
-        this.properties = properties;
-        this.clock = clock;
-    }
-
-    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock,
-                                  AiControlConfigurationSource source, Scheduler scheduler) {
-        this(resolver, properties, clock);
-        this.source = source;
-        this.scheduler = scheduler;
-    }
-
-    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, Clock clock,
+    public AdmissionAuthorization(ExecutionAuthorizationResolver resolver, Clock clock,
                                   AiControlConfigurationSource source, Scheduler scheduler,
                                   ToolInvocationAccess toolInvocations) {
-        this(resolver, properties, clock, source, scheduler);
+        this.resolver = Objects.requireNonNull(resolver);
+        this.clock = Objects.requireNonNull(clock);
+        this.source = Objects.requireNonNull(source);
+        this.scheduler = Objects.requireNonNull(scheduler);
         this.toolInvocations = toolInvocations;
     }
 
@@ -293,9 +281,6 @@ public final class AdmissionAuthorization {
             if (!fresh && ControlPreparation.find(values, context).isPresent()) {
                 return Mono.defer(() -> work.apply(context));
             }
-            if (source == null) {
-                return requireWrite(context, required.iterator().next()).flatMap(work);
-            }
             return Mono.fromCallable(() -> source.prepareConfiguration(context)).subscribeOn(scheduler).timeout(remaining)
                     .flatMap(prepared -> withConfiguration(context, prepared, work));
         });
@@ -314,7 +299,7 @@ public final class AdmissionAuthorization {
     public <T> Mono<T> revalidate(ExecutionContext context, Function<ExecutionContext, Mono<T>> work) {
         return Mono.deferContextual(values -> {
             var prepared = ControlPreparation.findPrepared(values, context);
-            if (source == null || prepared.isEmpty()) {
+            if (prepared.isEmpty()) {
                 return prepare(context, java.util.Set.of(INVOKE), true, work);
             }
             if (ReadOperationSnapshot.find(values, context).isPresent()) {
@@ -399,23 +384,20 @@ public final class AdmissionAuthorization {
                                 context.parentExecutionId(), context.budgetRef(), context.releaseRef(), context.idempotencyKey());
                     });
         });
-        return source == null ? result : result.publishOn(scheduler);
+        return result.publishOn(scheduler);
     }
 
     /**
-     * 固定授权配置查询，直接返回 NewAiProperties.Grant
+     * 从数据库来源读取当前授权事实
      * <p>
      * 根据上下文中的主体 ID、名称、类型、租户和工作空间，查找处于启用状态的配置；找不到就抛出 AccessDeniedException。
-     * 调用方据此判断该主体能否使用某个绑定或预算。固定文件模式不重新查询授权，数据库来源会重查当前公共资格；此方法不检查执行期限。
+     * 调用方据此判断该主体能否使用某个绑定或预算。数据库来源会重查当前公共资格；此方法不检查执行期限。
      *
      * @param context 执行上下文
      * @return 授权配置（包含 bindingIds、budgetRefs 等信息）
      */
     public Grant grant(ExecutionContext context) {
-        if (source != null) {
-            return source.grant(context);
-        }
-        return grant(properties, context);
+        return source.grant(context);
     }
 
     /**
@@ -442,14 +424,14 @@ public final class AdmissionAuthorization {
                 return Mono.just(grant(snapshot.get().configuration(), context));
             }
             Mono<Grant> result = Mono.fromCallable(() -> grant(context));
-            return source == null ? result : result.subscribeOn(scheduler);
+            return result.subscribeOn(scheduler);
         });
     }
 
     /**
      * 本次操作已授权的配置快照；不再次查询来源。
      */
-    public Grant grant(NewAiProperties configuration, ExecutionContext context) {
+    public Grant grant(ControlConfiguration configuration, ExecutionContext context) {
         var owner = ExecutionOwners.from(context);
         return configuration.grants().stream().filter(g -> g.enabled() && g.subjectId().equals(owner.subjectId())
                         && g.tenantId().equals(owner.tenantId()) && g.workspaceId().equals(owner.workspaceId())
@@ -465,7 +447,7 @@ public final class AdmissionAuthorization {
      * 仅供来源适配器验证同次可信配置的权限上限与期限。
      * 配置必须已由当前身份解析器或数据库来源核验；此检查不替代 requireWrite／外发复核。
      */
-    public void requireConfigurationScope(NewAiProperties configuration, ExecutionContext context, String scope) {
+    public void requireConfigurationScope(ControlConfiguration configuration, ExecutionContext context, String scope) {
         if (!context.authorization().scopes().contains(scope))
             throw new AccessDeniedException("Execution scope denied");
         if (!clock.instant().isBefore(context.deadline()))

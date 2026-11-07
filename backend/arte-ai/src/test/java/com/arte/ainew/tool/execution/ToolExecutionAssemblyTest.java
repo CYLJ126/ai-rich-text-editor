@@ -89,9 +89,8 @@ public class ToolExecutionAssemblyTest {
             assertTrue(context.getBean(InvocationCoordinator.class) instanceof DefaultInvocationCoordinator);
             assertTrue(context.getBeansOfType(ModelGateway.class).isEmpty());
             assertTrue(context.getBeansOfType(GenerationDispatcher.class).isEmpty());
-            assertTrue(context.getBean(NewAiProperties.class).capabilities().isEmpty());
-            assertTrue(context.getBean(NewAiProperties.class).connections().isEmpty());
-            assertTrue(context.getBean(NewAiProperties.class).budgets().isEmpty());
+
+
             assertNull(context.getBean(StaticToolDiscovery.class).state().snapshot());
             assertFalse(context.getBean(InvocationDispatchWorker.class).isRunning());
             metadata = context.getBean("newAiToolDiscoveryScheduler", Scheduler.class);
@@ -110,6 +109,7 @@ public class ToolExecutionAssemblyTest {
                 context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("flags", flags));
                 ports(context, true, true);
                 context.register(NewAiToolExecutionConfiguration.class);
+                com.arte.ainew.testing.TestSources.install(context);
                 context.refresh();
                 assertTrue(context.getBeansOfType(ToolDispatcher.class).isEmpty());
                 assertTrue(context.getBeansOfType(ToolAdmissionService.class).isEmpty());
@@ -180,7 +180,6 @@ public class ToolExecutionAssemblyTest {
     private static Map<String, Object> flags() {
         var flags = new HashMap<String, Object>();
         flags.put("arte.ai-new.enabled", true);
-        flags.put("arte.ai-new.configuration-mode", "DATABASE");
         flags.put("arte.ai-new.release-ref", "tool-only");
         flags.put("arte.ai-new-tool.enabled", true);
         flags.put("arte.ai-new-execution.enabled", true);
@@ -226,6 +225,7 @@ public class ToolExecutionAssemblyTest {
     private static void refresh(AnnotationConfigApplicationContext context) {
         context.register(NewAiAdmissionConfiguration.class, NewAiToolConfiguration.class, NewAiToolGatewayConfiguration.class,
                 NewAiToolExecutionConfiguration.class, NewAiExecutionConfiguration.class);
+        com.arte.ainew.testing.TestSources.install(context);
         context.refresh();
     }
 }

@@ -2,7 +2,6 @@ package com.arte.ainew.application.tool.chat;
 
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.binding.ToolBindingService;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -49,25 +48,6 @@ public final class ToolChatBudgetSelector {
     public ToolChatBudgetSelector paid(com.arte.ainew.application.tool.billing.ToolBillingService service) {
         this.billing = service;
         return this;
-    }
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
-                                  BudgetService budgets, ToolBindingService bindings, Clock clock) {
-        this(runs, authorization, catalog, catalog.readAdapter(), catalog.readAdapter(), budgets, bindings, clock);
-    }
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, FixedControlCatalog catalog,
-                                  PublishedAiCatalog published, BudgetDefinitionProvider definitions,
-                                  BudgetService budgets, ToolBindingService bindings, Clock clock) {
-        this(runs, authorization, catalog.entitlementAdapter(), published, definitions, budgets, bindings, clock);
     }
 
     public ToolChatBudgetSelector(ToolChatRunStore runs, AdmissionAuthorization authorization, AiResourceEntitlementService entitlements,

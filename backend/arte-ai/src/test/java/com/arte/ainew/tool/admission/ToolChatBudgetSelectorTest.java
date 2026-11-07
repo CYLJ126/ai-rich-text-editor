@@ -1,13 +1,9 @@
 package com.arte.ainew.tool.admission;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.tool.chat.ToolChatBudgetSelector;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.mybatis.MybatisToolChatRunStore;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
@@ -15,11 +11,15 @@ import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.ToolCall;
 import com.arte.ainew.pojo.tool.*;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
@@ -74,22 +74,21 @@ public class ToolChatBudgetSelectorTest {
             var auth = new ExecutionAuthorization(new ExecutionPrincipal("subject", "alice", ExecutionPrincipal.Kind.USER), "tenant", "workspace", scopes, "grant");
             var now = Instant.now();
             context = new ExecutionContext("run", "root-trace", auth, now.plusSeconds(90), null, null, "release", "submit");
-            var cap = new CapabilityDescriptor(ref("capability", "model"), CapabilityDescriptor.Kind.GENERATION, FixedControlCatalog.INPUT_SCHEMA, FixedControlCatalog.OUTPUT_SCHEMA,
+            var cap = new CapabilityDescriptor(ref("capability", "model"), CapabilityDescriptor.Kind.GENERATION, TestControlCatalog.INPUT_SCHEMA, TestControlCatalog.OUTPUT_SCHEMA,
                     Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS),
                     CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
             var model = new ResolvedBinding(ref("binding", "model"), cap, ref("connection", "model"), "model", 8192L, ref("rate", "model"));
-            var rate = new NewAiProperties.Rate(model.rate(), money("1"), money("2"));
-            var grant = new NewAiProperties.Grant("alice", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true,
+            var rate = new ControlConfiguration.Rate(model.rate(), money("1"), money("2"));
+            var grant = new ControlConfiguration.Grant("alice", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true,
                     scopes, Set.of("model"), Set.of("wallet"));
             var connection = new ConnectionDefinition(model.connection(), "provider", ref("protocol", "http"), URI.create("https://example.invalid/v1"), ref("secret", "model"),
                     ConnectionDefinition.State.ENABLED, Duration.ofSeconds(5), Duration.ofSeconds(90), 4096);
-            var cfg = new NewAiProperties(true, "test", "release", null, null, List.of(grant), List.of(cap), List.of(model), List.of(connection), List.of(rate),
-                    List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate())), "FIXED");
-            var base = new FixedExecutionAuthorizationResolver(cfg);
-            var authorization = new AdmissionAuthorization((name, tenant, workspace, required) -> allowed.get() ? base.resolve(name, tenant, workspace, required)
+            var cfg = new TestAiConfiguration(true, "test", "release", null, null, List.of(grant), List.of(cap), List.of(model), List.of(connection), List.of(rate), List.of(new ControlConfiguration.Budget("wallet", f.owner, money("100"), model.rate())));
+            var base = new TestAuthorizationResolver(cfg);
+            var authorization = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, required) -> allowed.get() ? base.resolve(name, tenant, workspace, required)
                     : Mono.error(new AccessDeniedException("revoked")), cfg, f.clock);
-            var catalog = new FixedControlCatalog(cfg, authorization, f.clock);
-            selector = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock);
+            var catalog = new TestControlCatalog(cfg, authorization, f.clock);
+            selector = new ToolChatBudgetSelector(runs, authorization, catalog.entitlementAdapter(), catalog.readAdapter(), catalog.readAdapter(), f.executions, f.bindingService, f.clock);
             f.executions.createAccount(new BudgetCommands.Account("wallet", f.owner, money("100"), money("0"), money("0"), model.rate(), 0)).block(WAIT);
             var binding = f.bindingService.resolve(f.owner, f.binding.bindingId()).block(WAIT).value();
             var schema = f.catalog.findSchema(binding.tool().tool().inputSchema()).block(WAIT);

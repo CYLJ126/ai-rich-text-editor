@@ -1,7 +1,6 @@
 package com.arte.ainew.infrastructure.control;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.pojo.control.AiEntitlement;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import reactor.core.scheduler.Scheduler;
 
@@ -16,12 +15,12 @@ import reactor.core.scheduler.Scheduler;
 public final class SourceAiResourceEntitlementService extends ConfigurationAiResourceEntitlementService {
 
     public SourceAiResourceEntitlementService(AiControlConfigurationSource source, Scheduler scheduler, AdmissionAuthorization authorization) {
-        super(new ControlConfigurationReader(source, scheduler), authorization, AiEntitlement.Source.DATABASE);
+        super(new ControlConfigurationReader(source, scheduler), authorization);
     }
 
     public SourceAiResourceEntitlementService(AiControlConfigurationSource source, Scheduler scheduler, AdmissionAuthorization authorization,
                                               com.arte.ainew.spi.model.ModelAclAccess access) {
-        super(new ControlConfigurationReader(source, scheduler), authorization, AiEntitlement.Source.DATABASE, access);
+        super(new ControlConfigurationReader(source, scheduler), authorization, access);
     }
 
 }

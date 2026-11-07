@@ -8,7 +8,6 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.*;
@@ -67,6 +66,15 @@ import java.util.List;
 @EnableConfigurationProperties({NewAiProperties.class, NewAiExecutionProperties.class})
 public class NewAiAdmissionConfiguration {
 
+    @Bean("newAiControlSourceSafety")
+    org.springframework.beans.factory.SmartInitializingSingleton controlSourceSafety(ObjectProvider<AiControlConfigurationSource> sources) {
+        return () -> {
+            if (sources.stream().count() != 1) {
+                throw new IllegalStateException("AI requires exactly one database control source");
+            }
+        };
+    }
+
     /**
      * 应用层统一使用的 UTC 时钟，用于执行期限、上下文有效期及对象时间戳。
      * 可用同名 Bean 替换，便于测试；分布式租约仲裁仍使用存储层的数据库时钟。
@@ -84,17 +92,6 @@ public class NewAiAdmissionConfiguration {
     @Bean(name = "newAiPersistenceScheduler", destroyMethod = "dispose")
     Scheduler scheduler(NewAiProperties properties) {
         return Schedulers.newBoundedElastic(properties.persistence().threads(), properties.persistence().queuedTasks(), "arte-ainew-db");
-    }
-
-    /**
-     * 默认授权解析器：按已认证名称、租户和工作空间，从固定 grants 解析稳定主体及权限范围。
-     * 已提供自定义 ExecutionAuthorizationResolver 时不注册此默认实现。
-     */
-    @Bean("newAiAuthorizationResolver")
-    @ConditionalOnMissingBean(ExecutionAuthorizationResolver.class)
-    @ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "FIXED", matchIfMissing = true)
-    ExecutionAuthorizationResolver resolver(NewAiProperties properties) {
-        return new FixedExecutionAuthorizationResolver(properties);
     }
 
     /**
@@ -197,11 +194,10 @@ public class NewAiAdmissionConfiguration {
      * 同时约束固定配置中的绑定／预算使用资格，防止任务权限范围扩大。
      */
     @Bean("newAiAdmissionAuthorization")
-    AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, NewAiProperties properties, @Qualifier("newAiClock") Clock clock,
-                                         ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+    AdmissionAuthorization authorization(ExecutionAuthorizationResolver resolver, @Qualifier("newAiClock") Clock clock,
+                                         AiControlConfigurationSource source, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                          ObjectProvider<ToolInvocationAccess> toolInvocations) {
-        var source = selectedSource(properties, sources);
-        return new AdmissionAuthorization(resolver, properties, clock, source, scheduler, toolInvocations.getIfAvailable());
+        return new AdmissionAuthorization(resolver, clock, source, scheduler, toolInvocations.getIfAvailable());
     }
 
     /**
@@ -220,19 +216,16 @@ public class NewAiAdmissionConfiguration {
     ModelControlService controlCatalog(NewAiProperties properties, PublishedAiCatalog published,
                                        AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
                                        @Qualifier("newAiClock") Clock clock) {
-        if (properties.configurationMode().equals("FIXED")) ControlDefinitionChecks.validate(properties);
         return new ModelControlService(published, entitlements, budgets, policies, ExecutionPolicies.from(properties.limits()), clock);
     }
 
     @Bean("newAiResourceEntitlementService")
     @ConditionalOnMissingBean(AiResourceEntitlementService.class)
-    AiResourceEntitlementService modelEntitlements(NewAiProperties properties, AdmissionAuthorization authorization,
-                                                   ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+    AiResourceEntitlementService modelEntitlements(AdmissionAuthorization authorization,
+                                                   AiControlConfigurationSource source, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                                    ObjectProvider<ModelAclAccess> modelAccess) {
-        AiControlConfigurationSource source = selectedSource(properties, sources);
         ModelAclAccess access = modelAccess.getIfAvailable();
-        return source == null ? new FixedAiResourceEntitlementService(properties, authorization, access)
-                : new SourceAiResourceEntitlementService(source, scheduler, authorization, access);
+        return new SourceAiResourceEntitlementService(source, scheduler, authorization, access);
     }
 
     /**
@@ -273,10 +266,10 @@ public class NewAiAdmissionConfiguration {
 
     @Bean("newAiPublishedCatalog")
     @ConditionalOnMissingBean(PublishedAiCatalog.class)
-    PublishedAiCatalog publishedCatalog(NewAiProperties properties, AdmissionAuthorization authorization,
-                                        ObjectProvider<AiControlConfigurationSource> sources,
+    PublishedAiCatalog publishedCatalog(AdmissionAuthorization authorization,
+                                        AiControlConfigurationSource source,
                                         @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var adapter = controlReads(properties, authorization, selectedSource(properties, sources), scheduler);
+        var adapter = controlReads(authorization, source, scheduler);
         return new PublishedAiCatalog() {
             public <T> reactor.core.publisher.Mono<T> inSnapshot(ExecutionContext context,
                                                                  java.util.function.Function<PublishedAiDefinitions, reactor.core.publisher.Mono<T>> work) {
@@ -295,10 +288,10 @@ public class NewAiAdmissionConfiguration {
 
     @Bean("newAiBudgetDefinitionProvider")
     @ConditionalOnMissingBean(BudgetDefinitionProvider.class)
-    BudgetDefinitionProvider budgetDefinitions(NewAiProperties properties, AdmissionAuthorization authorization,
-                                               ObjectProvider<AiControlConfigurationSource> sources,
+    BudgetDefinitionProvider budgetDefinitions(AdmissionAuthorization authorization,
+                                               AiControlConfigurationSource source,
                                                @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        var adapter = controlReads(properties, authorization, selectedSource(properties, sources), scheduler);
+        var adapter = controlReads(authorization, source, scheduler);
         return new BudgetDefinitionProvider() {
             public Mono<List<BudgetDefinition>> available(ExecutionContext context, Operation operation) {
                 return adapter.available(context, operation);
@@ -312,45 +305,29 @@ public class NewAiAdmissionConfiguration {
 
     @Bean("newAiExecutionPolicyProvider")
     @ConditionalOnMissingBean(AiExecutionPolicyProvider.class)
-    AiExecutionPolicyProvider executionPolicies(NewAiProperties properties, ObjectProvider<AiControlConfigurationSource> sources,
+    AiExecutionPolicyProvider executionPolicies(NewAiProperties properties, AiControlConfigurationSource source,
                                                 @Qualifier("newAiPersistenceScheduler") Scheduler scheduler) {
-        return new ConfigurationExecutionPolicyProvider(controlReader(properties, selectedSource(properties, sources), scheduler), properties.limits());
+        return new ConfigurationExecutionPolicyProvider(controlReader(source, scheduler), properties.limits());
     }
 
     @Bean("newAiAdmissionAuthorizationGuard")
     @ConditionalOnMissingBean(AiAdmissionAuthorizationGuard.class)
     AiAdmissionAuthorizationGuard admissionGuard(NewAiProperties properties, AdmissionAuthorization authorization,
                                                  AiResourceEntitlementService entitlements, BudgetDefinitionProvider budgets, AiExecutionPolicyProvider policies,
-                                                 ObjectProvider<AiControlConfigurationSource> sources, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
+                                                 AiControlConfigurationSource source, @Qualifier("newAiPersistenceScheduler") Scheduler scheduler,
                                                  @Qualifier("newAiClock") Clock clock,
                                                  ObjectProvider<com.arte.ainew.spi.assistant.AssistantContextAccess> assistants) {
-        return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(properties, selectedSource(properties, sources), scheduler), authorization,
+        return new ConfigurationAiAdmissionAuthorizationGuard(controlReader(source, scheduler), authorization,
                 entitlements, budgets, policies, properties.limits(), clock).assistants(assistants.getIfAvailable());
     }
 
-    /**
-     * 来源与显式模式必须一致，禁止因发现一个来源 Bean 而静默切换 FIXED 权限。
-     */
-    private AiControlConfigurationSource selectedSource(NewAiProperties properties, ObjectProvider<AiControlConfigurationSource> sources) {
-        var candidates = sources.orderedStream().toList();
-        if (properties.configurationMode().equals("FIXED")) {
-            if (!candidates.isEmpty())
-                throw new IllegalStateException("FIXED AI mode must not install a DATABASE control source");
-            return null;
-        }
-        if (candidates.size() != 1)
-            throw new IllegalStateException("DATABASE AI mode requires exactly one control source");
-        return candidates.getFirst();
+    private ControlConfigurationReader controlReader(AiControlConfigurationSource source, Scheduler scheduler) {
+        return new ControlConfigurationReader(source, scheduler);
     }
 
-    private ControlConfigurationReader controlReader(NewAiProperties properties, AiControlConfigurationSource source, Scheduler scheduler) {
-        return source == null ? new ControlConfigurationReader(properties) : new ControlConfigurationReader(source, scheduler);
-    }
-
-    private ControlReadAdapter controlReads(NewAiProperties properties,
-                                            AdmissionAuthorization authorization, AiControlConfigurationSource source, Scheduler scheduler) {
-        return source == null ? new FixedControlReadAdapter(properties, authorization)
-                : new SourceControlReadAdapter(source, scheduler, authorization);
+    private ControlReadAdapter controlReads(AdmissionAuthorization authorization,
+                                            AiControlConfigurationSource source, Scheduler scheduler) {
+        return new SourceControlReadAdapter(source, scheduler, authorization);
     }
 
     /**
@@ -374,7 +351,7 @@ public class NewAiAdmissionConfiguration {
                                   ConversationService conversations, MybatisExecutionPersistence executions,
                                       ObjectProvider<ToolChatRunStore> runs, AiExecutionPolicyProvider policies,
                                       ObjectProvider<com.arte.ainew.spi.assistant.AssistantContextAccess> assistants) {
-        return new TextContextService(authorization, bindings, store, properties, clock,
+        return new TextContextService(authorization, bindings, store, properties.limits(), clock,
                 new ChatHistoryLoader(conversations, authorization, executions, store, store, runs.getIfAvailable()), policies)
                 .assistants(assistants.getIfAvailable());
     }

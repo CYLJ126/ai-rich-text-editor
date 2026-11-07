@@ -137,7 +137,6 @@ arte.platform.workspace.enabled=true
 # 3. 由平台配置人员在「供应商连接」发布审核连接，再到「模型方案与费率」发布审核方案。
 #    空目录可直接发布第一条连接。随后在「模型管理」按审核方案创建、验证和发布实际模型。
 #    出口安装与授权详情见 ../arte-app/docs/PLATFORM_AI_CONTROL.md 的「平台模型出口策略」。
-arte.ai-new.configuration-mode=DATABASE
 arte.ai-new.enabled=true
 # 试用、发布和助手会话需要开启
 arte.ai-new-assistant.enabled=true
@@ -157,7 +156,7 @@ arte.ai-new-tool-chat.worker-enabled=true
 arte.ai-new.data-source-bean=appDataSource
 arte.ai-new.release-ref=example-release-v1
 
-# 审核配置、实际模型、授权及预算均由数据库保存。FIXED 部署另见 fixed-models.properties.example。
+# 审核配置、实际模型、授权及预算均由数据库保存；仅保留部署参数和执行硬上限。
 
 # 下方是环境变量凭据引用。使用这些引用的部署将 ARTE_DEEPSEEK_API_KEY 注入实际 Java 进程。
 # DATABASE 模式下，实际模型的个人或租户凭据在「模型管理」中维护。

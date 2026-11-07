@@ -1,7 +1,7 @@
 package com.arte.ainew.context;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
@@ -38,7 +38,7 @@ public final class ControlPreparation {
      * @param <T>           操作结果类型
      * @return 延迟执行的操作，准备结果绑定在其 Reactor 上下文中
      */
-    public static <T> Mono<T> use(ExecutionContext context, NewAiProperties configuration,
+    public static <T> Mono<T> use(ExecutionContext context, ControlConfiguration configuration,
                                   Function<ExecutionContext, Mono<T>> work) {
         return use(context, new AiControlConfigurationSource.PreparedConfiguration(configuration, null), work);
     }
@@ -60,7 +60,7 @@ public final class ControlPreparation {
      * @return 准备配置；本次订阅没有准备结果时返回空
      * @throws AccessDeniedException 已安装快照属于其他执行上下文时抛出
      */
-    public static Optional<NewAiProperties> find(ContextView values, ExecutionContext context) {
+    public static Optional<ControlConfiguration> find(ContextView values, ExecutionContext context) {
         return findPrepared(values, context).map(AiControlConfigurationSource.PreparedConfiguration::configuration);
     }
 

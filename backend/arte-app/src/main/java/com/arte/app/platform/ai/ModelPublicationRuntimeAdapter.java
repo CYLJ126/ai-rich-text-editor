@@ -2,7 +2,7 @@ package com.arte.app.platform.ai;
 
 import com.arte.ainew.application.model.DefaultModelPublicationService;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.spi.model.*;
 import com.arte.core.api.access.AuthorizationService;
@@ -77,7 +77,7 @@ public final class ModelPublicationRuntimeAdapter implements ModelPublicationRun
     }
 
     @Override
-    public NewAiProperties contribute(TrustedActor actor, Scope scope, NewAiProperties base, boolean current) {
+    public ControlConfiguration contribute(TrustedActor actor, Scope scope, ControlConfiguration base, boolean current) {
         return DefaultModelPublicationService.mergeDefinitions(base, releases.list(scope, current).stream()
                 .filter(release -> isSelected(scope, release, current))
                 .map(release -> version(release, current).publication()).toList());

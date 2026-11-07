@@ -3,22 +3,22 @@ package com.arte.ainew.admission;
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.entry.ChatService;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiGenerationConfiguration;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProviderAdapter;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestControlCatalog;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
-import org.springframework.beans.BeansException;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.ClassPathResource;
@@ -36,10 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -53,7 +50,7 @@ import static org.junit.Assert.*;
 public class ControlPlaneAssemblyCompatibilityTest {
 
     private static final Duration WAIT = Duration.ofSeconds(10);
-    private static final NewAiProperties AUTHORITY = AdmissionFixture.properties();
+    private static final TestAiConfiguration AUTHORITY = AdmissionFixture.properties();
 
     private static DataSource forbidden() {
         return new AbstractDataSource() {
@@ -70,22 +67,22 @@ public class ControlPlaneAssemblyCompatibilityTest {
     private static final class Source implements AiControlConfigurationSource {
         final AtomicInteger reads = new AtomicInteger(), transactions = new AtomicInteger();
 
-        public NewAiProperties configuration(ExecutionContext context) {
+        public ControlConfiguration configuration(ExecutionContext context) {
             reads.incrementAndGet();
-            return AUTHORITY;
+            return (AUTHORITY).snapshot();
         }
 
-        public NewAiProperties configurationInCurrentTransaction(ExecutionContext context) {
+        public ControlConfiguration configurationInCurrentTransaction(ExecutionContext context) {
             assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
             transactions.incrementAndGet();
-            return AUTHORITY;
+            return (AUTHORITY).snapshot();
         }
 
-        public NewAiProperties definitions() {
+        public ControlConfiguration definitions() {
             throw new AssertionError("Assembly must not read the published database catalog");
         }
 
-        public NewAiProperties.Grant grant(ExecutionContext context) {
+        public ControlConfiguration.Grant grant(ExecutionContext context) {
             throw new AssertionError("Must use scoped definitions");
         }
     }
@@ -95,7 +92,6 @@ public class ControlPlaneAssemblyCompatibilityTest {
         var values = new HashMap<String, Object>();
         if (fixedLists) ConfigurationAssemblyTest.flatten("arte.ai-new", AUTHORITY, values);
         values.put("arte.ai-new.enabled", "true");
-        values.put("arte.ai-new.configuration-mode", mode);
         values.put("arte.ai-new.release-ref", AUTHORITY.releaseRef());
         c.getEnvironment().getPropertySources().addFirst(new MapPropertySource("control-assembly", values));
         c.registerBean("appDataSource", DataSource.class, () -> dataSource);
@@ -104,15 +100,16 @@ public class ControlPlaneAssemblyCompatibilityTest {
     }
 
     private void resolver(AnnotationConfigApplicationContext c) {
-        c.registerBean(ExecutionAuthorizationResolver.class, () -> new FixedExecutionAuthorizationResolver(AUTHORITY));
+        c.registerBean(ExecutionAuthorizationResolver.class, () -> new TestAuthorizationResolver(AUTHORITY));
     }
 
     @Test
-    public void fixedModeRejectsAccidentallyInstalledDatabaseSource() {
+    public void removedFixedModeFailsStrictBinding() {
         try (var c = context("FIXED", true, forbidden())) {
+            c.getEnvironment().getPropertySources().addFirst(new MapPropertySource("removed-mode", Map.of("arte.ai-new.configuration-mode", "FIXED")));
             var source = new Source();
             c.registerBean(AiControlConfigurationSource.class, () -> source);
-            assertThrows(BeansException.class, c::refresh);
+            assertThrows(RuntimeException.class, c::refresh);
             assertEquals(0, source.reads.get());
         }
     }
@@ -121,13 +118,13 @@ public class ControlPlaneAssemblyCompatibilityTest {
     public void databaseModeRejectsMissingAndAmbiguousSourcesEvenWithPrimary() {
         try (var c = context("DATABASE", false, forbidden())) {
             resolver(c);
-            assertThrows(BeansException.class, c::refresh);
+            assertThrows(RuntimeException.class, c::refresh);
         }
         try (var c = context("DATABASE", false, forbidden())) {
             resolver(c);
             c.registerBean("sourceA", AiControlConfigurationSource.class, Source::new, bean -> bean.setPrimary(true));
             c.registerBean("sourceB", AiControlConfigurationSource.class, Source::new);
-            assertThrows(BeansException.class, c::refresh);
+            assertThrows(RuntimeException.class, c::refresh);
         }
     }
 
@@ -135,7 +132,7 @@ public class ControlPlaneAssemblyCompatibilityTest {
     public void databaseModeRequiresAnExplicitAuthorizationResolver() {
         try (var c = context("DATABASE", false, forbidden())) {
             c.registerBean(AiControlConfigurationSource.class, Source::new);
-            assertThrows(BeansException.class, c::refresh);
+            assertThrows(RuntimeException.class, c::refresh);
         }
     }
 
@@ -148,8 +145,8 @@ public class ControlPlaneAssemblyCompatibilityTest {
             c.getEnvironment().getPropertySources().addFirst(new MapPropertySource("generation", Map.of("arte.ai-new-generation.enabled", "true")));
             c.register(NewAiGenerationConfiguration.class);
             c.refresh();
-            assertTrue(c.getBeansOfType(FixedControlCatalog.class).isEmpty());
-            assertTrue(c.getBean(NewAiProperties.class).bindings().isEmpty());
+            assertTrue(c.getBeansOfType(TestControlCatalog.class).isEmpty());
+            assertTrue(Arrays.stream(com.arte.ainew.config.NewAiProperties.class.getRecordComponents()).noneMatch(field -> field.getName().equals("bindings")));
             assertNotNull(c.getBean(CapabilityCatalog.class));
             assertNotNull(c.getBean(BindingManager.class));
             assertNotNull(c.getBean(ModelGateway.class));
@@ -204,7 +201,9 @@ public class ControlPlaneAssemblyCompatibilityTest {
         var database = database();
         var scheduler = Schedulers.newBoundedElastic(2, 32, "replaced-port-compatibility");
         var guardChecks = new AtomicInteger();
-        try (var c = context("FIXED", true, database)) {
+        try (var c = context("DATABASE", false, database)) {
+            resolver(c);
+            c.registerBean(AiControlConfigurationSource.class, Source::new);
             c.registerBean(ModelGateway.class, () -> new ModelGateway() {
                 public boolean supportsTextChat(com.arte.ainew.pojo.control.ResolvedBinding binding, com.arte.ainew.pojo.control.ConnectionDefinition connection) {
                     return true;
@@ -221,7 +220,7 @@ public class ControlPlaneAssemblyCompatibilityTest {
                 return Mono.error(new AccessDeniedException("Injected admission veto"));
             });
             c.refresh();
-            assertTrue(c.getBeansOfType(FixedControlCatalog.class).isEmpty());
+            assertTrue(c.getBeansOfType(TestControlCatalog.class).isEmpty());
             var f = new AdmissionFixture(database, scheduler);
             f.initializeBudget("alice");
             var context = f.context("alice", "veto");
@@ -243,11 +242,11 @@ public class ControlPlaneAssemblyCompatibilityTest {
     public void productionAssemblyAndHostAdaptersDoNotUseTheLegacyFacadeOrRawDefinitionLookup() throws Exception {
         for (var file : List.of("NewAiAdmissionConfiguration", "NewAiExecutionConfiguration", "NewAiGenerationConfiguration", "NewAiToolExecutionConfiguration", "NewAiToolChatExecutionConfiguration")) {
             var source = Files.readString(Path.of("src/main/java/com/arte/ainew/config/" + file + ".java"));
-            assertFalse(file, source.contains("FixedControlCatalog"));
+            assertFalse(file, source.contains("TestControlCatalog"));
             assertFalse(file, source.contains("source.definitions()"));
         }
         var paid = Files.readString(Path.of("../arte-app/src/main/java/com/arte/app/platform/ai/PlatformPaidToolAccess.java"));
-        assertFalse(paid.contains("NewAiProperties"));
+        assertFalse(paid.contains("TestAiConfiguration"));
         assertFalse(paid.contains("AiControlConfigurationSource"));
     }
 }

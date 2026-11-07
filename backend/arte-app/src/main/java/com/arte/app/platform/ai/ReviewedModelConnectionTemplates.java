@@ -1,9 +1,9 @@
 package com.arte.app.platform.ai;
 
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
 import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.spi.model.ModelConnectionTemplates;
 import com.arte.core.application.platform.DefaultCommandExecutor;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * 从当前 FIXED／DATABASE 受信配置来源筛选个人模型可选择的连接模板。
+ * 从当前数据库受信配置来源筛选个人模型可选择的连接模板。
  * <p>
  * 模板须已启用，采用受支持的 Chat Completions 协议及地址形式，并同时满足租户、空间的个人凭据、协议、供应商和目的地主机白名单。
  * 另外复核部署级 HTTP origin 白名单；空政策名单不放行，必要政策缺失按权威不可用处理。
@@ -33,11 +33,11 @@ import java.util.function.Supplier;
  */
 public final class ReviewedModelConnectionTemplates implements ModelConnectionTemplates {
 
-    private final Supplier<NewAiProperties> source;
+    private final Supplier<ControlConfiguration> source;
     private final PolicyStore policies;
     private final HttpEgressPolicy egress;
 
-    public ReviewedModelConnectionTemplates(Supplier<NewAiProperties> source, PolicyStore policies, HttpEgressPolicy egress) {
+    public ReviewedModelConnectionTemplates(Supplier<ControlConfiguration> source, PolicyStore policies, HttpEgressPolicy egress) {
         this.source = source;
         this.policies = policies;
         this.egress = egress;

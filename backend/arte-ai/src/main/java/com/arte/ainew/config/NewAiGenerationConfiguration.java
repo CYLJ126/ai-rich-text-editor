@@ -5,11 +5,9 @@ import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.control.ConnectionManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
-import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.infrastructure.http.*;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProviderAdapter;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
-import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import org.springframework.beans.factory.ObjectProvider;
@@ -58,7 +56,6 @@ public class NewAiGenerationConfiguration {
      * 使用独立、有界的连接池、DNS 调度器和事件循环，并校验出口目标。
      * Spring 容器销毁时调用 close，释放该运行时拥有的资源；装配阶段不连接供应商。
      *
-     * @param bindings 模型绑定解析入口
      * @param connections 当前连接定义及使用权限的解析入口
      * @param authorization 当前主体的准入授权校验器
      * @param credentials 发送时使用的凭据解析器
@@ -71,35 +68,22 @@ public class NewAiGenerationConfiguration {
                                   ConnectionCredentialResolver credentials, NewAiGenerationProperties properties,
                                   @Qualifier("newAiClock") Clock clock, NewAiProperties admission,
                                   @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
-        var policy = "DATABASE".equals(admission.configurationMode())
-                ? egress.getIfAvailable(() -> new HttpEgressPolicy(List::of))
-                : new HttpEgressPolicy(properties);
+        HttpEgressPolicy policy = egress.getIfAvailable(() -> new HttpEgressPolicy(List::of));
         return new HttpConnectionRuntime(connections, authorization, credentials, properties, clock, policy);
     }
 
     /**
      * DeepSeek 文本生成适配器，负责请求映射、响应校验及生成信号的有界聚合。
      * <p>
-     * 从固定绑定中提取使用 deepseek 供应商及 chat-completions-sse/v1 协议的能力，去重后登记。
-     * FIXED 缺少匹配绑定时装配失败；DATABASE 仅登记本地 Schema 支持，精确目录在实际使用时通过端口读取。
+     * 仅登记本地 Schema 支持，精确目录在实际使用时通过数据库端口读取。
      * 新发布能力可复用已登记 Schema 及适配器支持的特性，精确版本与当前资格仍由控制目录逐次验证。
      *
-     * @param admission 已登记的固定能力、绑定和连接配置
      * @param generation 单次生成配置，包含响应帧解析上限
      * @return DeepSeek 请求及响应语义适配器
      */
     @Bean("newAiDeepSeekProviderAdapter")
-    DeepSeekGenerationProviderAdapter provider(NewAiProperties admission, NewAiGenerationProperties generation) {
-        // 动态模式的发布目录只在真实使用时读取，构造适配器不访问数据库。
-        if (admission.configurationMode().equals("DATABASE"))
-            return new DeepSeekGenerationProviderAdapter(GenerationJson.mapper(generation.maxFrameBytes()));
-        var definitions = admission;
-        var supported = definitions.bindings().stream().filter(binding -> definitions.connections().stream().anyMatch(connection ->
-                        connection.definition().equals(binding.connection()) && connection.providerId().equals("deepseek")
-                                && connection.protocol().equals(ChatCompletionsSseProtocolAdapter.DEFINITION)))
-                .map(ResolvedBinding::capability).distinct().toList();
-        ContractChecks.require(!supported.isEmpty(), "Generation requires a configured DeepSeek chat-completions-sse binding");
-        return new DeepSeekGenerationProviderAdapter(supported, GenerationJson.mapper(generation.maxFrameBytes()));
+    DeepSeekGenerationProviderAdapter provider(NewAiGenerationProperties generation) {
+        return new DeepSeekGenerationProviderAdapter(GenerationJson.mapper(generation.maxFrameBytes()));
     }
 
     /**

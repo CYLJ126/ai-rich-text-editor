@@ -4,15 +4,16 @@ import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.gateway.ModelGateway;
 import com.arte.app.platform.ai.AiControlData;
@@ -97,24 +98,24 @@ class DatabaseAiControlIntegrationTest {
         return new Money(new BigDecimal(amount), Currency.getInstance("CNY"));
     }
 
-    NewAiProperties seed() {
+    ControlConfiguration seed() {
         var capability = new CapabilityDescriptor(ref("capability", "text"), CapabilityDescriptor.Kind.GENERATION,
-                FixedControlCatalog.INPUT_SCHEMA, FixedControlCatalog.OUTPUT_SCHEMA,
+                ControlDefinitionChecks.INPUT_SCHEMA, ControlDefinitionChecks.OUTPUT_SCHEMA,
                 Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
                 CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
-        var rate = new NewAiProperties.Rate(ref("rate", "text-price"), money("1"), money("2"));
+        var rate = new ControlConfiguration.Rate(ref("rate", "text-price"), money("1"), money("2"));
         var connection = new ConnectionDefinition(ref("connection", "deepseek"), "deepseek", ref("protocol", "chat-completions-sse"),
                 URI.create("https://api.deepseek.com/chat/completions"), null, ConnectionDefinition.State.ENABLED, Duration.ofSeconds(10), Duration.ofSeconds(120), 1000000);
         var binding = new ResolvedBinding(ref("binding", "text"), capability, connection.definition(), "deepseek-chat", 65536L, rate.definition());
-        var grant = new NewAiProperties.Grant("alice", f.actor.principal().subjectId(), ExecutionPrincipal.Kind.USER, "legacy-tenant", "legacy-space", "legacy-v1", true,
+        var grant = new ControlConfiguration.Grant("alice", f.actor.principal().subjectId(), ExecutionPrincipal.Kind.USER, "legacy-tenant", "legacy-space", "legacy-v1", true,
                 Set.of(AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.INVOKE, AdmissionAuthorization.READ), Set.of("text"), Set.of("legacy-budget"));
-        var budget = new NewAiProperties.Budget("legacy-budget", new ExecutionOwner("legacy-tenant", "legacy-space", f.actor.principal().subjectId()), money("100"), rate.definition());
-        return new NewAiProperties(true, "appDataSource", "release-v1", null, null, List.of(grant), List.of(capability), List.of(binding), List.of(connection), List.of(rate), List.of(budget), "DATABASE");
+        var budget = new ControlConfiguration.Budget("legacy-budget", new ExecutionOwner("legacy-tenant", "legacy-space", f.actor.principal().subjectId()), money("100"), rate.definition());
+        return new ControlConfiguration(true, "release-v1", null, List.of(grant), List.of(capability), List.of(binding), List.of(connection), List.of(rate), List.of(budget));
     }
 
     String[] seedProperties() {
         var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
-        var value = mapper.readValue(f.json.write(seed()), Map.class);
+        var value = mapper.readValue(f.json.write(new NewAiProperties(true, "appDataSource", seed().releaseRef(), null, seed().limits())), Map.class);
         var values = new ArrayList<String>();
         flatten("arte.ai-new", value, values);
         return values.toArray(String[]::new);
@@ -136,10 +137,11 @@ class DatabaseAiControlIntegrationTest {
         return new ApplicationContextRunner().withUserConfiguration(PlatformWorkspaceConfiguration.class, PlatformIdentityConfiguration.class,
                         PlatformPersistenceConfiguration.class, DatabaseAiControlService.class, Stores.class, NewAiAdmissionConfiguration.class)
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
-                        "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true", "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE")
+                        "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true", "arte.ai-new.enabled=true")
                 .withBean("appDataSource", DataSource.class, () -> source)
                 .withBean(RbacAccountReader.class, () -> new RbacAccountReader(source, new RbacAccountMapperConfiguration().identityUserMapper(source)))
                 .withPropertyValues(seedProperties())
+                .withBean(ControlConfiguration.class, this::seed)
                 .withBean(RedissonClient.class, () -> mock(RedissonClient.class))
                 .withBean(ModelGateway.class, () -> new ModelGateway() {
                     public boolean supportsTextChat(ResolvedBinding b, ConnectionDefinition c) {
@@ -182,7 +184,7 @@ class DatabaseAiControlIntegrationTest {
             var old = db.catalog().catalog();
             var v2 = new com.arte.core.pojo.reference.DefinitionRef("rate", rate.id(), "v2");
             var rates = new ArrayList<>(old.rates());
-            rates.add(new NewAiProperties.Rate(v2, money("3"), money("4")));
+            rates.add(new ControlConfiguration.Rate(v2, money("3"), money("4")));
             db.publish(f.actor, meta("ports-rate-v2"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(),
                     old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), old.defaults(), old.disabledConnections(), old.reviewedPlans()));
             f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
@@ -517,8 +519,13 @@ class DatabaseAiControlIntegrationTest {
             org.springframework.test.util.ReflectionTestUtils.setField(db, "mapper", mapper);
             var source = org.mockito.Mockito.spy(db);
             var scheduler = c.getBean("newAiPersistenceScheduler", reactor.core.scheduler.Scheduler.class);
-            var authorization = new AdmissionAuthorization(source, seed(), Clock.systemUTC(), source, scheduler);
-            var catalog = new FixedControlCatalog(seed(), authorization, Clock.systemUTC(), source, scheduler);
+            var authorization = new AdmissionAuthorization(source, Clock.systemUTC(), source, scheduler, null);
+            var reads = new com.arte.ainew.infrastructure.control.SourceControlReadAdapter(source, scheduler, authorization);
+            var entitlements = new com.arte.ainew.infrastructure.control.SourceAiResourceEntitlementService(source, scheduler, authorization);
+            var policies = new com.arte.ainew.infrastructure.control.ConfigurationExecutionPolicyProvider(
+                    new com.arte.ainew.infrastructure.control.ControlConfigurationReader(source, scheduler), seed().limits());
+            var catalog = new com.arte.ainew.application.control.ModelControlService(reads, entitlements, reads, policies,
+                    com.arte.ainew.infrastructure.control.ExecutionPolicies.from(seed().limits()), Clock.systemUTC());
             assertThrows(RuntimeException.class, () -> catalog.resolve(ref("binding", "text"), ref("capability", "text"), execution).block(WAIT));
             org.mockito.Mockito.verify(source).configuration(execution);
             org.mockito.Mockito.verify(source, org.mockito.Mockito.never()).grant(org.mockito.ArgumentMatchers.any());

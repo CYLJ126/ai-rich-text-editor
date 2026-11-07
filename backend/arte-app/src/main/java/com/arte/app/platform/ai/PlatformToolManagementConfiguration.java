@@ -40,6 +40,6 @@ public class PlatformToolManagementConfiguration {
         if (!"appDataSource".equals(properties.dataSourceBean()))
             throw new IllegalStateException("Tool management requires appDataSource");
         return new PlatformToolManagementAccess(identities, new RbacToolPermissionReader(source), transactions, guard, authorization,
-                configuration, json, properties, "DATABASE".equals(environment.getProperty("arte.ai-new.configuration-mode", "FIXED")), scheduler, clock);
+                configuration, json, scheduler, clock);
     }
 }

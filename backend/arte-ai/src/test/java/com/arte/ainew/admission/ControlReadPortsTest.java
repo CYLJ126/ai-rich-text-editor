@@ -1,14 +1,14 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ControlPreparation;
-import com.arte.ainew.infrastructure.control.FixedControlReadAdapter;
 import com.arte.ainew.infrastructure.control.SourceControlReadAdapter;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -26,9 +26,9 @@ import static org.junit.Assert.*;
 
 public class ControlReadPortsTest {
 
-    private final NewAiProperties properties = AdmissionFixture.properties();
-    private final FixedExecutionAuthorizationResolver resolver = new FixedExecutionAuthorizationResolver(properties);
-    private final AdmissionAuthorization authorization = new AdmissionAuthorization(resolver, properties, Clock.systemUTC());
+    private final TestAiConfiguration properties = AdmissionFixture.properties();
+    private final TestAuthorizationResolver resolver = new TestAuthorizationResolver(properties);
+    private final AdmissionAuthorization authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, Clock.systemUTC());
     private static final Duration WAIT = Duration.ofSeconds(5);
 
     private ExecutionContext context(Set<String> scopes) {
@@ -37,36 +37,36 @@ public class ControlReadPortsTest {
                 "alice-budget", null, properties.releaseRef(), null);
     }
 
-    private NewAiProperties changedBudget() {
-        return new NewAiProperties(properties.enabled(), properties.dataSourceBean(), properties.releaseRef(),
+    private TestAiConfiguration changedBudget() {
+        return new TestAiConfiguration(properties.enabled(), properties.dataSourceBean(), properties.releaseRef(),
                 properties.persistence(), properties.limits(), properties.grants(), properties.capabilities(), properties.bindings(),
-                properties.connections(), properties.rates(), List.of(new NewAiProperties.Budget("alice-budget",
+                properties.connections(), properties.rates(), List.of(new ControlConfiguration.Budget("alice-budget",
                 AdmissionFixture.owner("alice-id"), AdmissionFixture.money("200"), AdmissionFixture.RATE), properties.budgets().get(1)));
     }
 
     private final class Source implements AiControlConfigurationSource {
-        NewAiProperties current = properties;
+        TestAiConfiguration current = properties;
         boolean revoked;
         final AtomicInteger reads = new AtomicInteger();
 
-        public NewAiProperties configuration(ExecutionContext context) {
+        public ControlConfiguration configuration(ExecutionContext context) {
             reads.incrementAndGet();
             if (revoked) throw new AccessDeniedException("revoked");
-            return current;
+            return (current).snapshot();
         }
 
-        public NewAiProperties definitions() {
-            return properties;
+        public ControlConfiguration definitions() {
+            return (properties).snapshot();
         }
 
-        public NewAiProperties.Grant grant(ExecutionContext context) {
+        public ControlConfiguration.Grant grant(ExecutionContext context) {
             throw new AssertionError("Must reuse snapshot grant");
         }
     }
 
     @Test
     public void fixedDefinitionsAreExactImmutableAndBudgetOperationsStaySeparate() {
-        var adapter = new FixedControlReadAdapter(properties, authorization);
+        var adapter = new SourceControlReadAdapter(properties.source(), Schedulers.immediate(), authorization);
         var context = context(AdmissionFixture.REGULAR);
         var published = adapter.read(context).block(WAIT);
         assertEquals(AdmissionFixture.CONNECTION, published.connections().getFirst().definition());
@@ -112,7 +112,7 @@ public class ControlReadPortsTest {
     @Test
     public void readScopeCannotAuthorizeWritesOrBorrowAnotherExecution() {
         var source = new Source();
-        var auth = new AdmissionAuthorization(resolver, properties, Clock.systemUTC(), source, Schedulers.immediate());
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, Clock.systemUTC(), source, Schedulers.immediate());
         var adapter = new SourceControlReadAdapter(source, Schedulers.immediate(), auth);
         var context = context(AdmissionFixture.REGULAR);
         assertThrows(AccessDeniedException.class, () -> adapter.inSnapshot(context, ignored ->
@@ -130,7 +130,7 @@ public class ControlReadPortsTest {
         var source = new Source();
         var adapter = new SourceControlReadAdapter(source, Schedulers.immediate(), authorization);
         var context = context(AdmissionFixture.REGULAR);
-        var budget = adapter.inSnapshot(context, ignored -> ControlPreparation.use(context, changedBudget(),
+        var budget = adapter.inSnapshot(context, ignored -> ControlPreparation.use(context, changedBudget().snapshot(),
                 current -> adapter.resolve("alice-budget", current, Operation.READ))).block(WAIT);
         assertEquals(AdmissionFixture.money("200"), budget.limit());
         assertEquals(1, source.reads.get());
@@ -150,11 +150,11 @@ public class ControlReadPortsTest {
     @Test
     public void aGrantCannotExposeAForeignOwnedBudgetOrCreateAccountAuthority() {
         var grant = properties.grants().getFirst();
-        var borrowed = new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
+        var borrowed = new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
                 grant.workspaceId(), grant.grantRef(), true, grant.scopes(), grant.bindingIds(), Set.of("bob-budget"));
-        var wrongOwner = new NewAiProperties(false, properties.dataSourceBean(), properties.releaseRef(), properties.persistence(),
+        var wrongOwner = new TestAiConfiguration(false, properties.dataSourceBean(), properties.releaseRef(), properties.persistence(),
                 properties.limits(), List.of(borrowed), properties.capabilities(), properties.bindings(), properties.connections(), properties.rates(), properties.budgets());
-        var adapter = new FixedControlReadAdapter(wrongOwner, authorization);
+        var adapter = new SourceControlReadAdapter(wrongOwner.source(), Schedulers.immediate(), authorization);
         assertTrue(adapter.available(context(AdmissionFixture.REGULAR), Operation.READ).block(WAIT).isEmpty());
     }
 }

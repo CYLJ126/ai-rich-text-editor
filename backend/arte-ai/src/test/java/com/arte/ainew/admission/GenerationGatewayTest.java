@@ -1,12 +1,8 @@
 package com.arte.ainew.admission;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.config.NewAiGenerationProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.context.ExecutionRuntimeContext;
@@ -22,6 +18,9 @@ import com.arte.ainew.pojo.tool.ToolBindingResolution;
 import com.arte.ainew.pojo.tool.ToolSetSnapshot;
 import com.arte.ainew.spi.adapter.ConnectionRuntime;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -138,9 +137,9 @@ public class GenerationGatewayTest {
         final AtomicReference<String> token = new AtomicReference<>("test-token-one");
         final AtomicInteger requests = new AtomicInteger(), credentialReads = new AtomicInteger(), releases = new AtomicInteger();
         final List<Integer> remotePorts = new java.util.concurrent.CopyOnWriteArrayList<>();
-        final NewAiProperties properties;
+        final TestAiConfiguration properties;
         final NewAiGenerationProperties generation;
-        final FixedControlCatalog catalog;
+        final TestControlCatalog catalog;
         final ExecutionContextFactory factory;
         final HttpConnectionRuntime runtime;
         final ConnectionDefinition connection;
@@ -200,15 +199,15 @@ public class GenerationGatewayTest {
                 capability = new CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(), capability.outputSchema(),
                         features, capability.sideEffect(), capability.availability());
             }
-            properties = new NewAiProperties(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
+            properties = new TestAiConfiguration(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
                     base.grants(), List.of(capability), List.of(new ResolvedBinding(binding.definition(), capability, binding.connection(),
                     "deepseek-chat", binding.contextWindowTokens(), binding.rate())), List.of(connection), base.rates(), base.budgets());
             generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 1, 1, Duration.ofSeconds(2), frameLimit, 65536);
             var clock = Clock.systemUTC();
-            var resolver = new FixedExecutionAuthorizationResolver(properties);
-            var authorization = new AdmissionAuthorization(resolver, properties, clock);
+            var resolver = new TestAuthorizationResolver(properties);
+            var authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, clock);
             factory = new ExecutionContextFactory(resolver, clock);
-            var originalCatalog = new FixedControlCatalog(properties, authorization, clock);
+            var originalCatalog = new TestControlCatalog(properties, authorization, clock);
             var policy = new AtomicReference<>(com.arte.ainew.infrastructure.control.ExecutionPolicies.from(properties.limits()));
             var policyProvider = new com.arte.ainew.spi.control.AiExecutionPolicyProvider() {
                 public Mono<com.arte.ainew.pojo.control.AiExecutionPolicy> current(com.arte.ainew.common.execution.ExecutionContext context) {
@@ -216,9 +215,9 @@ public class GenerationGatewayTest {
                 }
             };
             var boundaryGuard = new com.arte.ainew.infrastructure.control.ConfigurationAiAdmissionAuthorizationGuard(
-                    new com.arte.ainew.infrastructure.control.ControlConfigurationReader(properties), authorization,
+                    new com.arte.ainew.infrastructure.control.ControlConfigurationReader(properties.source(), reactor.core.scheduler.Schedulers.immediate()), authorization,
                     originalCatalog.entitlementAdapter(), originalCatalog.readAdapter(), policyProvider, properties.limits(), clock);
-            catalog = tightenAtSend ? new FixedControlCatalog(properties, authorization, clock, null, null,
+            catalog = tightenAtSend ? new TestControlCatalog(properties, authorization, clock, null, null,
                     originalCatalog.entitlementAdapter(), policyProvider, boundaryGuard) : originalCatalog;
             ConnectionCredentialResolver credentials = (secret, context) -> Mono.fromSupplier(() -> {
                 credentialReads.incrementAndGet();

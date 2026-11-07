@@ -4,7 +4,6 @@ import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.InvocationTiming;
 import com.arte.ainew.application.support.TextInputs;
@@ -84,46 +83,6 @@ public final class GenerationDispatcher {
     public GenerationDispatcher toolChats(ToolChatRunStore runs) {
         this.toolChats = Objects.requireNonNull(runs);
         return this;
-    }
-
-    /**
-     * 旧手工装配兼容入口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
-                                ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
-                                ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
-                                NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock) {
-        this(admissionAuthorization, fixedControlCatalog, executionStore, executionEventStore, executionOutboxStore,
-                contextSnapshotStore, executionResultStore, budgetService, modelGateway, newAiProperties, newAiExecutionProperties, clock, null);
-    }
-
-    /**
-     * 旧手工装配兼容入口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog, ExecutionStore executionStore,
-                                ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
-                                ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
-                                NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
-        this(admissionAuthorization, fixedControlCatalog, fixedControlCatalog.readAdapter(), executionStore,
-                executionEventStore, executionOutboxStore, contextSnapshotStore, executionResultStore, budgetService,
-                modelGateway, newAiProperties, newAiExecutionProperties, clock, liveTextNotifier);
-    }
-
-    /**
-     * 旧手工装配兼容入口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public GenerationDispatcher(AdmissionAuthorization admissionAuthorization, FixedControlCatalog fixedControlCatalog,
-                                PublishedAiCatalog publishedCatalog, ExecutionStore executionStore,
-                                ExecutionEventStore executionEventStore, ExecutionOutboxStore executionOutboxStore, ContextSnapshotStore contextSnapshotStore,
-                                ExecutionResultStore executionResultStore, BudgetService budgetService, ModelGateway modelGateway,
-                                NewAiProperties newAiProperties, NewAiExecutionProperties newAiExecutionProperties, Clock clock, LiveTextNotifier liveTextNotifier) {
-        this(admissionAuthorization, fixedControlCatalog, fixedControlCatalog, publishedCatalog,
-                fixedControlCatalog.policyProvider(), fixedControlCatalog.admissionGuard(), executionStore, executionEventStore,
-                executionOutboxStore, contextSnapshotStore, executionResultStore, budgetService, modelGateway,
-                newAiProperties, newAiExecutionProperties, clock, liveTextNotifier);
     }
 
     /**

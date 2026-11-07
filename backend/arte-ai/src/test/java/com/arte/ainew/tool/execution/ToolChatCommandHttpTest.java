@@ -1,9 +1,9 @@
 package com.arte.ainew.tool.execution;
 
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.tool.chat.ToolChatQueryService;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
+import com.arte.ainew.testing.TestAuthorizationResolver;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiToolChatCommandController;
@@ -43,14 +43,14 @@ public class ToolChatCommandHttpTest {
     @Before
     public void setup() throws Exception {
         r = new ToolChatLoopTest.Rig();
-        var contexts = new NewAiHttpContext(new ExecutionContextFactory(new FixedExecutionAuthorizationResolver(r.properties), Clock.systemUTC()), r.properties);
+        var contexts = new NewAiHttpContext(new ExecutionContextFactory(new TestAuthorizationResolver(r.properties), Clock.systemUTC()), r.properties.deployment());
         ToolManagementAccess access = authentication -> {
             if (authentication == null || !authentication.isAuthenticated())
                 throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException("Login required");
             return r.session;
         };
-        var commands = new NewAiToolChatCommandController(r.service, access, contexts, r.properties);
-        var queries = new NewAiToolChatController(new ToolChatQueryService(r.runs, r.conversations, r.authorization, r.f.executions, r.f.payloads), contexts, r.properties);
+        var commands = new NewAiToolChatCommandController(r.service, access, contexts, r.properties.deployment());
+        var queries = new NewAiToolChatController(new ToolChatQueryService(r.runs, r.conversations, r.authorization, r.f.executions, r.f.payloads), contexts, r.properties.deployment());
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(commands, queries).setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).build();

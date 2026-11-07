@@ -9,16 +9,19 @@ import com.arte.ainew.application.control.BudgetAccountInitializer;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
+import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestSources;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiBudgetController;
 import com.arte.ainew.web.controller.NewAiConfigurationController;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.Test;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.io.ClassPathResource;
@@ -58,6 +61,7 @@ public class ConfigurationAssemblyTest {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.register(NewAiAdmissionConfiguration.class, com.arte.ainew.config.NewAiToolConfiguration.class,
                     NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
+            TestSources.install(context);
             context.refresh();
             assertTrue(context.getBeansOfType(ChatService.class).isEmpty());
             assertTrue(context.getBeansOfType(MybatisExecutionPersistence.class).isEmpty());
@@ -73,7 +77,7 @@ public class ConfigurationAssemblyTest {
     }
 
     @Test
-    public void enabledConfigurationBindsFixedRecordsAndStartsWithoutDdlAccountsOrModelClients() {
+    public void enabledConfigurationBindsDeploymentParametersAndStartsWithoutDdlAccountsOrModelClients() {
         try (var context = new AnnotationConfigApplicationContext()) {
             var values = new LinkedHashMap<String, Object>();
             flatten("arte.ai-new", AdmissionFixture.properties(), values);
@@ -83,8 +87,9 @@ public class ConfigurationAssemblyTest {
             context.registerBean("chatService", String.class, () -> "existing-bean");
             context.register(NewAiAdmissionConfiguration.class, com.arte.ainew.config.NewAiToolConfiguration.class,
                     NewAiHttpContext.class, NewAiBudgetController.class, NewAiConfigurationController.class);
+            TestSources.install(context);
             context.refresh();
-            assertEquals(AdmissionFixture.properties(), context.getBean(NewAiProperties.class));
+            assertEquals(AdmissionFixture.properties().deployment(), context.getBean(com.arte.ainew.config.NewAiProperties.class));
             assertEquals("existing-bean", context.getBean("chatService"));
             assertNotNull(context.getBean("newAiChatService", ChatService.class));
             assertNotNull(context.getBean(CapabilityCatalog.class));
@@ -158,6 +163,7 @@ public class ConfigurationAssemblyTest {
             context.registerBean("appDataSource", DataSource.class, () -> physical);
             context.registerBean("multipleDataSource", DataSource.class, () -> forbidden("routing datasource"), bd -> bd.setPrimary(true));
             context.register(NewAiAdmissionConfiguration.class);
+            TestSources.install(context);
             context.refresh();
             var execution = context.getBean(ExecutionContextFactory.class).create(
                     UsernamePasswordAuthenticationToken.authenticated("alice", "unused", List.of()),
@@ -173,22 +179,24 @@ public class ConfigurationAssemblyTest {
     @Test
     public void documentedYamlExampleBindsAndStartsWithoutOpeningConnections() throws Exception {
         try (var context = new AnnotationConfigApplicationContext()) {
-            var sources = new org.springframework.boot.env.YamlPropertySourceLoader().load("example",
+            var sources = new YamlPropertySourceLoader().load("example",
                     new FileSystemResource("examples/ainew-admission.yml"));
             sources.forEach(source -> context.getEnvironment().getPropertySources().addFirst(source));
             context.registerBean("appDataSource", DataSource.class, () -> forbidden("example datasource"));
             context.register(NewAiAdmissionConfiguration.class);
+            TestSources.install(context);
             context.refresh();
-            assertEquals("example-release-v1", context.getBean(NewAiProperties.class).releaseRef());
+            assertEquals("example-release-v1", context.getBean(com.arte.ainew.config.NewAiProperties.class).releaseRef());
             assertNotNull(context.getBean(ChatService.class));
         }
     }
 
     static void flatten(String prefix, Object value, Map<String, Object> result) {
+        if (value instanceof TestAiConfiguration data) value = data.deployment();
         if (value == null) {
             return;
         }
-        if (value instanceof com.arte.ainew.pojo.control.ResolvedBinding binding) {
+        if (value instanceof ResolvedBinding binding) {
             // 固定生成配置保持旧六字段格式，不能把新目标的 Java 结构当作已开放的配置格式。
             flatten(prefix + ".definition", binding.definition(), result);
             flatten(prefix + ".capability", binding.capability(), result);

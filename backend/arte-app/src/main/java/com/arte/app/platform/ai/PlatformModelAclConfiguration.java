@@ -1,17 +1,14 @@
 package com.arte.app.platform.ai;
 
 import com.arte.ainew.api.model.ModelAclMigrationService;
-import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.spi.control.AiResourceEntitlementService;
 import com.arte.ainew.spi.model.ModelAclAccess;
 import com.arte.ainew.spi.model.ModelAclScopeStore;
 import com.arte.ainew.spi.model.ModelResourceStore;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
-import com.arte.app.platform.persistence.PlatformJson;
-import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
 import com.arte.core.api.access.AuthorizationService;
-import com.arte.core.spi.platform.*;
+import com.arte.core.spi.platform.IdentityProvider;
+import com.arte.core.spi.platform.PublicTransactionRunner;
 import com.arte.core.spi.workspace.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,15 +43,13 @@ public class PlatformModelAclConfiguration {
     }
 
     @Bean
-    ModelAclMigrationService modelAclMigrationService(ModelAclScopeStore scopes, ModelResourceStore models, NewAiProperties properties,
-                                                      PlatformAiControlMapper catalog, PlatformJson json, RbacIdentityProvider identities, @Qualifier("appDataSource") DataSource source,
-                                                      @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, @Qualifier("platformAuthorizationService") AuthorizationService authorization,
-                                                      TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers, WorkspaceMembershipStore members, PreferenceStore preferences,
-                                                      CommandReceiptStore receipts, PublicOutboxStore outbox, AuditSink audit, PlatformIdGenerator ids, @Qualifier("platformWorkspaceClock") Clock clock,
-                                                      ModelAclAccess gate, ObjectProvider<AiResourceEntitlementService> entitlements) {
-        PlatformModelAclMigrationService service = new PlatformModelAclMigrationService(scopes, models, properties, catalog, json, identities, new RbacToolPermissionReader(source),
-                tx, authorization, tenants, workspaces, tenantMembers, members, preferences, receipts, outbox, audit, ids, clock);
-        service.runtimeReady(() -> ModelAclStartupSafety.requireReady(properties, gate, entitlements.getIfAvailable()));
-        return service;
+    ModelAclMigrationService modelAclMigrationService(ModelAclScopeStore scopes, RbacIdentityProvider identities,
+                                                      @Qualifier("appDataSource") DataSource source,
+                                                      @Qualifier("platformTransactionRunner") PublicTransactionRunner tx,
+                                                      @Qualifier("platformAuthorizationService") AuthorizationService authorization,
+                                                      TenantStore tenants, WorkspaceStore workspaces, TenantMembershipStore tenantMembers,
+                                                      WorkspaceMembershipStore members, PreferenceStore preferences) {
+        return new PlatformModelAclMigrationService(scopes, identities, new RbacToolPermissionReader(source),
+                tx, authorization, tenants, workspaces, tenantMembers, members, preferences);
     }
 }

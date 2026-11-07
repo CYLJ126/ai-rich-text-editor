@@ -6,7 +6,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.persistence.mybatis.MybatisToolObservationStore;
 import com.arte.ainew.pojo.budget.Reconciliation;
@@ -17,6 +16,7 @@ import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiToolObservationController;
@@ -60,7 +60,7 @@ public class ToolObservationIntegrationTest {
         final AtomicInteger reads = new AtomicInteger(), snapshotReads = new AtomicInteger(), writeResolves = new AtomicInteger();
         boolean revokeGlobalAfterRead;
         int revokeAfter = Integer.MAX_VALUE;
-        final NewAiProperties properties = new NewAiProperties(false, "appDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        final TestAiConfiguration properties = new TestAiConfiguration(false, "appDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         final ExecutionReadAuthorizationResolver resolver = new ExecutionReadAuthorizationResolver() {
             public Mono<ExecutionAuthorization> resolve(String name, String tenant, String workspace, Set<String> scopes) {
                 writeResolves.incrementAndGet();
@@ -89,7 +89,7 @@ public class ToolObservationIntegrationTest {
 
         Rig(ToolExecutionFixture fixture) {
             f = fixture;
-            authorization = new AdmissionAuthorization(resolver, properties, f.clock, null, f.io, (invocation, context, operation) -> Mono.defer(() -> {
+            authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, f.clock, null, f.io, (invocation, context, operation) -> Mono.defer(() -> {
                 if (!readable.get() || reads.incrementAndGet() > revokeAfter)
                     return Mono.error(new AccessDeniedException("Test tool read revoked"));
                 if (revokeGlobalAfterRead) global.set(false);
@@ -125,7 +125,7 @@ public class ToolObservationIntegrationTest {
         }
 
         MockMvc mvc() {
-            return standaloneSetup(new NewAiToolObservationController(service, new NewAiHttpContext(new ExecutionContextFactory(resolver, f.clock), properties), properties))
+            return standaloneSetup(new NewAiToolObservationController(service, new NewAiHttpContext(new ExecutionContextFactory(resolver, f.clock), properties.deployment()), properties.deployment()))
                     .setControllerAdvice(new ConversationExceptionHandler()).setAsyncRequestTimeout(20_000).build();
         }
 
@@ -372,7 +372,7 @@ public class ToolObservationIntegrationTest {
                     return Mono.just(invocations.stream().map(i -> new ReadPermit(i.request().context().executionId(), context.authorization())).toList());
                 }
             };
-            var authorization = new AdmissionAuthorization(r.resolver, r.properties, r.f.clock, null, r.f.io, batchAccess);
+            var authorization = com.arte.ainew.testing.TestAuthorizations.create(r.resolver, r.properties, r.f.clock, null, r.f.io, batchAccess);
             var service = new ToolObservationService(r.store, authorization, r.f.clock);
             assertEquals(10, service.list(r.query(), null, 10, r.context()).block(WAIT).records().size());
             assertEquals(100, service.statistics(r.query(), r.context()).block(WAIT).invocations());
@@ -405,7 +405,7 @@ public class ToolObservationIntegrationTest {
                         return Mono.just(permits);
                     }
                 };
-                var access = new AdmissionAuthorization(r.resolver, r.properties, r.f.clock, null, r.f.io, host);
+                var access = com.arte.ainew.testing.TestAuthorizations.create(r.resolver, r.properties, r.f.clock, null, r.f.io, host);
                 assertThrows(RuntimeException.class, () -> access.readInvocations(input, context).block(WAIT));
             }
         }
@@ -531,7 +531,7 @@ public class ToolObservationIntegrationTest {
             r.f.submit("one");
             r.revokeGlobalAfterRead = true;
             SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
-            var contexts = new NewAiHttpContext(new ExecutionContextFactory(r.resolver, r.f.clock), r.properties);
+            var contexts = new NewAiHttpContext(new ExecutionContextFactory(r.resolver, r.f.clock), r.properties.deployment());
             var scope = new com.arte.ainew.web.request.ConversationRequests.Scope("tenant", "workspace");
             assertThrows(AccessDeniedException.class, () -> contexts.read(scope, Set.of(AdmissionAuthorization.READ), Duration.ofSeconds(10), false,
                     context -> r.service.list(r.query(), null, 10, context)).block(WAIT));

@@ -3,14 +3,11 @@ package com.arte.ainew.application.context;
 import com.arte.ainew.api.context.ContextService;
 import com.arte.ainew.api.control.BindingManager;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.infrastructure.control.ConfigurationExecutionPolicyProvider;
-import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
 import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
@@ -45,44 +42,24 @@ public final class TextContextService implements ContextService {
     private final AdmissionAuthorization admissionAuthorization;
     private final BindingManager bindingManager;
     private final ContextSnapshotStore contextSnapshotStore;
-    private final NewAiProperties properties;
+    private final AiExecutionPolicy ceiling;
     private final Clock clock;
-    private AiExecutionPolicyProvider policies;
+    private final AiExecutionPolicyProvider policies;
     private final ChatHistoryLoader chatHistoryLoader;
     private AssistantContextAccess assistants;
-
-    /**
-     * 旧手工装配兼容入口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public TextContextService(AdmissionAuthorization admissionAuthorization, BindingManager bindingManager, ContextSnapshotStore contextSnapshotStore,
-                              NewAiProperties properties, Clock clock, ChatHistoryLoader chatHistoryLoader) {
-        this(admissionAuthorization, bindingManager, contextSnapshotStore, properties, clock, chatHistoryLoader,
-                bindingManager instanceof FixedControlCatalog catalog ? catalog.policyProvider()
-                        : new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits()));
-    }
 
     /**
      * 生产装配使用显式政策端口，来源选择由装配层负责。
      */
     public TextContextService(AdmissionAuthorization admissionAuthorization, BindingManager bindingManager, ContextSnapshotStore contextSnapshotStore,
-                              NewAiProperties properties, Clock clock, ChatHistoryLoader chatHistoryLoader, AiExecutionPolicyProvider policies) {
+                              NewAiProperties.Limits limits, Clock clock, ChatHistoryLoader chatHistoryLoader, AiExecutionPolicyProvider policies) {
         this.admissionAuthorization = admissionAuthorization;
         this.bindingManager = bindingManager;
         this.contextSnapshotStore = contextSnapshotStore;
-        this.properties = properties;
+        this.ceiling = ExecutionPolicies.from(java.util.Objects.requireNonNull(limits));
         this.clock = clock;
         this.policies = java.util.Objects.requireNonNull(policies);
         this.chatHistoryLoader = chatHistoryLoader;
-    }
-
-    /**
-     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public TextContextService policyProvider(AiExecutionPolicyProvider policies) {
-        this.policies = policies;
-        return this;
     }
 
     public TextContextService assistants(AssistantContextAccess assistants) {
@@ -115,7 +92,7 @@ public final class TextContextService implements ContextService {
     private Mono<ContextSnapshot> assemble(ContextRequest request, ResolvedBinding binding, ExecutionContext context,
                                            DefinitionRef profile, AssistantContextAccess.Prompt trial) {
         return policies.current(context).flatMap(policy -> assemble(request, binding, context,
-                policy.intersect(ExecutionPolicies.from(properties.limits())), profile, trial));
+                policy.intersect(ceiling), profile, trial));
     }
 
     private Mono<ContextSnapshot> assemble(ContextRequest contextRequest, ResolvedBinding resolvedBinding,

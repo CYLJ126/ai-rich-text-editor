@@ -5,8 +5,8 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.BudgetDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.PublishedAiDefinitions;
 import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.spi.control.BudgetDefinitionProvider;
@@ -20,7 +20,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * FIXED／数据库来源共用的转换与预算资格规则；不注册为第三种来源。
+ * 数据库控制快照的转换与预算资格规则。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/30 12:18 ✾
@@ -35,7 +35,7 @@ public abstract class ControlReadAdapter implements PublishedAiCatalog, BudgetDe
         this.authorization = Objects.requireNonNull(authorization);
     }
 
-    static RateDefinition rate(NewAiProperties.Rate rate) {
+    static RateDefinition rate(ControlConfiguration.Rate rate) {
         return new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall());
     }
 
@@ -63,22 +63,22 @@ public abstract class ControlReadAdapter implements PublishedAiCatalog, BudgetDe
                 .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE)));
     }
 
-    private List<BudgetDefinition> budgetDefinitions(NewAiProperties value, ExecutionContext context, Operation operation) {
+    private List<BudgetDefinition> budgetDefinitions(ControlConfiguration value, ExecutionContext context, Operation operation) {
         String required = switch (operation) {
             case READ -> AdmissionAuthorization.READ;
             case INITIALIZE -> AdmissionAuthorization.BUDGET_ADMIN;
             case EXECUTE -> AdmissionAuthorization.INVOKE;
         };
-        NewAiProperties.Grant grant = authorization.grant(value, context);
+        ControlConfiguration.Grant grant = authorization.grant(value, context);
         if (!context.authorization().scopes().contains(required) || !grant.scopes().containsAll(context.authorization().scopes())
                 || !grant.scopes().contains(required)) {
             throw new AccessDeniedException("Budget definition scope denied");
         }
         var owner = ExecutionOwners.from(context);
-        ContractChecks.unique(value.budgets().stream().map(NewAiProperties.Budget::budgetRef).toList(), "budgets");
+        ContractChecks.unique(value.budgets().stream().map(ControlConfiguration.Budget::budgetRef).toList(), "budgets");
         return value.budgets().stream().filter(b -> grant.budgetRefs().contains(b.budgetRef()) && b.owner().equals(owner))
                 .map(b -> {
-                    NewAiProperties.Rate rate = value.rates().stream().filter(r -> r.definition().equals(b.rate())).findFirst()
+                    ControlConfiguration.Rate rate = value.rates().stream().filter(r -> r.definition().equals(b.rate())).findFirst()
                             .orElseThrow(() -> new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH));
                     if (!rate.currency().equals(b.limit().currency())) {
                         throw new AdmissionException(ResultCodeEnum.AI_RATE_MISMATCH);

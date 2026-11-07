@@ -1,8 +1,6 @@
 package com.arte.ainew.tool.execution;
 
 import com.arte.ainew.api.execution.InvocationCoordinator;
-import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.application.execution.DefaultInvocationCoordinator;
 import com.arte.ainew.application.execution.GenerationDispatcher;
@@ -18,13 +16,13 @@ import com.arte.ainew.application.tool.release.ToolReleaseService;
 import com.arte.ainew.application.tool.schema.ToolSchemaValidator;
 import com.arte.ainew.common.execution.*;
 import com.arte.ainew.config.NewAiExecutionProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.HttpHealthToolAdapter;
 import com.arte.ainew.infrastructure.http.McpHealthToolAdapter;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.*;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.execution.Attempt;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -38,6 +36,8 @@ import com.arte.ainew.spi.gateway.ToolGateway;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.ainew.spi.persistence.ToolAdmissionStore;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.core.enums.platform.PrincipalKindEnum;
 import com.arte.core.enums.platform.PrincipalStatusEnum;
 import com.arte.core.pojo.platform.ExecutionOwner;
@@ -215,13 +215,13 @@ final class ToolExecutionFixture implements AutoCloseable {
         executions = new MybatisExecutionPersistence(source, codec, io, wakeups::incrementAndGet, wakeups::incrementAndGet);
         if (paidPrice != null) {
             var limit = new com.arte.ainew.pojo.budget.Money(new java.math.BigDecimal("10"), paidPrice.perCall().currency());
-            var properties = new NewAiProperties(false, "test", "release", null, null,
-                    List.of(new NewAiProperties.Grant("alice", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true,
+            var properties = new TestAiConfiguration(false, "test", "release", null, null,
+                    List.of(new ControlConfiguration.Grant("alice", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true,
                             Set.of("ai:invoke", "resource:read", "ai:read", "ai:budget:admin", "ai:conversation"), Set.of(), Set.of("tool-wallet"))), List.of(), List.of(), List.of(),
-                    List.of(new NewAiProperties.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
-                    List.of(new NewAiProperties.Budget("tool-wallet", owner, limit, paidPrice.rate())));
-            var authorization = new AdmissionAuthorization(new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(properties), properties, clock);
-            billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, new FixedControlCatalog(properties, authorization, clock), executions, executions, executions);
+                    List.of(new ControlConfiguration.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
+                    List.of(new ControlConfiguration.Budget("tool-wallet", owner, limit, paidPrice.rate())));
+            var authorization = com.arte.ainew.testing.TestAuthorizations.create(new com.arte.ainew.testing.TestAuthorizationResolver(properties), properties, clock);
+            billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, new TestControlCatalog(properties, authorization, clock).readAdapter(), new TestControlCatalog(properties, authorization, clock).readAdapter(), executions, executions, executions);
             executions.createAccount(new com.arte.ainew.pojo.budget.BudgetCommands.Account("tool-wallet", owner, limit,
                     new com.arte.ainew.pojo.budget.Money(java.math.BigDecimal.ZERO, limit.currency()), new com.arte.ainew.pojo.budget.Money(java.math.BigDecimal.ZERO, limit.currency()), paidPrice.rate(), 0)).block(Duration.ofSeconds(10));
         }
@@ -313,16 +313,15 @@ final class ToolExecutionFixture implements AutoCloseable {
     }
 
     InvocationCoordinator coordinator(ToolDispatcher tools) {
-        var properties = new NewAiProperties(false, "appDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        var authorization = new AdmissionAuthorization((name, tenant, workspace, scopes) -> {
+        var properties = new TestAiConfiguration(false, "appDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create((name, tenant, workspace, scopes) -> {
             throw new AssertionError("No generation authorization for TOOL");
         }, properties, clock);
-        var catalog = new FixedControlCatalog(properties, authorization, clock);
-        var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
-        GenerationDispatcher generation = tools == null ? new GenerationDispatcher(authorization, catalog, executions, executions, executions,
-                payloads, payloads, executions, call -> {
+        var catalog = new TestControlCatalog(properties, authorization, clock);
+        var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties.deployment(), clock, catalog.policyProvider(), catalog.admissionGuard(), catalog.readAdapter(), catalog.readAdapter());
+        GenerationDispatcher generation = tools == null ? new GenerationDispatcher(authorization, catalog, catalog, catalog.readAdapter(), catalog.policyProvider(), catalog.admissionGuard(), executions, executions, executions, payloads, payloads, executions, call -> {
             throw new AssertionError("TOOL cannot invoke a model");
-        }, properties, executionProperties, clock) : null;
+        }, properties.deployment(), executionProperties, clock, null) : null;
         return new DefaultInvocationCoordinator(admission, generation, executions, tools);
     }
 

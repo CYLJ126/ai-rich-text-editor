@@ -70,7 +70,7 @@ public final class ModelPublicationStartupSafety implements SmartInitializingSin
                     return;
                 }
             }
-            if (!"DATABASE".equals(properties.configurationMode()) || !(runtime.getIfAvailable() instanceof ModelPublicationRuntimeAdapter)
+            if (!(runtime.getIfAvailable() instanceof ModelPublicationRuntimeAdapter)
                     || !(credentials.getIfAvailable() instanceof ModelPublicationCredentialResolver)) {
                 throw new IllegalStateException("Stored resource models require enabled publication, DATABASE control and resource credential resolver");
             }

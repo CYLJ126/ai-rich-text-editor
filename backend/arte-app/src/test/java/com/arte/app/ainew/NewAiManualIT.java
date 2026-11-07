@@ -102,11 +102,12 @@ public class NewAiManualIT {
     private ExecutionContext executionContext(AnnotationConfigApplicationContext context, Set<String> scopes, String key) {
         var properties = context.getBean(NewAiProperties.class);
         var name = System.getProperty("arte.ai-new.manual.subject", "zhangsc");
-        var budget = properties.budgets().stream().filter(value -> value.budgetRef().equals(BUDGET)).findFirst().orElseThrow();
-        // 只有测试在本地构造已认证身份，仍由固定 grants 验证授权。
+        String tenantId = Objects.requireNonNull(System.getProperty("arte.ai-new.manual.tenant"), "Set arte.ai-new.manual.tenant");
+        String workspaceId = Objects.requireNonNull(System.getProperty("arte.ai-new.manual.workspace"), "Set arte.ai-new.manual.workspace");
+        // 只有测试在本地构造已认证身份，仍由数据库来源核验当前身份和空间资格。
         var authentication = UsernamePasswordAuthenticationToken.authenticated(name, "unused", List.of());
         return Objects.requireNonNull(context.getBean(ExecutionContextFactory.class).create(authentication,
-                        new ExecutionContextRequest(budget.owner().tenantId(), budget.owner().workspaceId(), scopes,
+                        new ExecutionContextRequest(tenantId, workspaceId, scopes,
                                 properties.limits().maximumTimeout(), null, BUDGET, properties.releaseRef(), key))
                 .block(Duration.ofSeconds(10)));
     }
@@ -180,7 +181,7 @@ public class NewAiManualIT {
             // ExecutionContext：准备执行上下文
             var execution = executionContext(context, Set.of("ai:invoke", "ai:conversation", "ai:read"),
                     "submit-" + UUID.randomUUID());
-            var binding = properties.bindings().stream()
+            var binding = context.getBean(com.arte.ainew.spi.auth.AiControlConfigurationSource.class).configuration(execution).bindings().stream()
                     .filter(value -> value.definition().id().equals("default-text")).findFirst().orElseThrow();
             int outputTokens = Math.min(128, properties.limits().maxOutputTokens());
             long inputTokens = Math.min(1024, binding.contextWindowTokens() - outputTokens);

@@ -40,8 +40,7 @@ public class PlatformModelPublicationConfiguration {
                                                 @Qualifier("platformTransactionRunner") PublicTransactionRunner tx, PlatformJson json,
                                                 NewAiProperties properties, ModelManagementProperties management,
                                                 ObjectProvider<ModelSharingStore> sharing, ModelResourceStore models) {
-        if (!properties.enabled() || !"DATABASE".equals(properties.configurationMode())
-                || !"appDataSource".equals(properties.dataSourceBean()) || !management.enabled()) {
+        if (!properties.enabled() || !"appDataSource".equals(properties.dataSourceBean()) || !management.enabled()) {
             throw new IllegalStateException("Personal model publication requires enabled model management and DATABASE AI on appDataSource");
         }
         ModelPublicationStoreServiceImpl store = new ModelPublicationStoreServiceImpl(resources, mapper, tx, json);

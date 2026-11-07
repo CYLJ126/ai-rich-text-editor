@@ -86,10 +86,11 @@ class AssistantExecutionIntegrationTest {
                     }))).bindNow();
             String origin = "http://127.0.0.1:" + server.port();
             fixture.f.f.allowOrigins(origin);
+            fixture.useLoopbackSeed(origin, false);
             fixture.realGenerationContext().withUserConfiguration(PlatformAssistantConfiguration.class)
                     .withConfiguration(AutoConfigurations.of(NewAiExecutionConfiguration.class))
                     .withPropertyValues("arte.ai-new-assistant.enabled=true", "arte.ai-new-execution.enabled=true",
-                            "arte.ai-new-execution.worker-enabled=false", "arte.ai-new.connections[0].endpoint=" + origin + "/v1")
+                            "arte.ai-new-execution.worker-enabled=false")
                     .run(context -> {
                         assertNull(context.getStartupFailure(), () -> String.valueOf(context.getStartupFailure()));
                         fixture.prepare(context, "127.0.0.1", true);

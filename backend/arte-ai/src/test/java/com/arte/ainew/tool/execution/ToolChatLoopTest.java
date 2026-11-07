@@ -1,10 +1,8 @@
 package com.arte.ainew.tool.execution;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.application.execution.DefaultInvocationCoordinator;
@@ -23,6 +21,7 @@ import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Usage;
@@ -32,6 +31,9 @@ import com.arte.ainew.spi.auth.ToolApprovalAccess;
 import com.arte.ainew.spi.auth.ToolChatAccess;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
@@ -74,9 +76,9 @@ public class ToolChatLoopTest {
 
     static final class Rig implements AutoCloseable {
         final ToolExecutionFixture f;
-        final NewAiProperties properties;
+        final TestAiConfiguration properties;
         final AdmissionAuthorization authorization;
-        final FixedControlCatalog catalog;
+        final TestControlCatalog catalog;
         final DefaultConversationService conversations;
         final ChatHistoryLoader history;
         final ToolChatBudgetSelector budgets;
@@ -149,23 +151,23 @@ public class ToolChatLoopTest {
                     new com.arte.ainew.application.tool.schema.ToolSchemaValidator(), f.limits, f.metadata, f.clock,
                     new com.arte.ainew.application.tool.approval.ToolApprovalPolicy(new NewAiToolApprovalProperties(confirmation, null, 0), approvalAccess, approvals));
             var scopes = Set.of("ai:invoke", "ai:read", "ai:conversation", "resource:read");
-            var capability = new CapabilityDescriptor(ref("capability", "model"), CapabilityDescriptor.Kind.GENERATION, FixedControlCatalog.INPUT_SCHEMA,
-                    FixedControlCatalog.OUTPUT_SCHEMA, supportsTools ? Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS)
+            var capability = new CapabilityDescriptor(ref("capability", "model"), CapabilityDescriptor.Kind.GENERATION, TestControlCatalog.INPUT_SCHEMA,
+                    TestControlCatalog.OUTPUT_SCHEMA, supportsTools ? Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING, CapabilityDescriptor.Feature.TOOL_CALLS)
                     : Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
                     CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
             model = new ResolvedBinding(ref("binding", "model"), capability, ref("connection", "model"), "model", 32768L, ref("rate", "model"));
             var connection = new ConnectionDefinition(model.connection(), "provider", ref("protocol", "http"), URI.create("https://example.invalid/v1"), ref("secret", "test"),
                     ConnectionDefinition.State.ENABLED, Duration.ofSeconds(5), Duration.ofSeconds(120), 65536);
-            properties = new NewAiProperties(true, "test", "release", null,
+            properties = new TestAiConfiguration(true, "test", "release", null,
                     new NewAiProperties.Limits(65536, 1024, 65536, Duration.ofSeconds(120), Duration.ofMinutes(10)),
-                    List.of(new NewAiProperties.Grant("user", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true, scopes, Set.of("model"), paidPrice == null ? Set.of("wallet") : Set.of("wallet", "tool-wallet"))),
-                    List.of(capability), List.of(model), List.of(connection), paidPrice == null ? List.of(new NewAiProperties.Rate(model.rate(), money("1"), money("2")))
-                    : List.of(new NewAiProperties.Rate(model.rate(), money("1"), money("2")), new NewAiProperties.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
-                    paidPrice == null ? List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate()))
-                            : List.of(new NewAiProperties.Budget("wallet", f.owner, money("100"), model.rate()), new NewAiProperties.Budget("tool-wallet", f.owner,
+                    List.of(new ControlConfiguration.Grant("user", "subject", ExecutionPrincipal.Kind.USER, "tenant", "workspace", "grant", true, scopes, Set.of("model"), paidPrice == null ? Set.of("wallet") : Set.of("wallet", "tool-wallet"))),
+                    List.of(capability), List.of(model), List.of(connection), paidPrice == null ? List.of(new ControlConfiguration.Rate(model.rate(), money("1"), money("2")))
+                    : List.of(new ControlConfiguration.Rate(model.rate(), money("1"), money("2")), new ControlConfiguration.Rate(paidPrice.rate(), null, null, paidPrice.perCall())),
+                    paidPrice == null ? List.of(new ControlConfiguration.Budget("wallet", f.owner, money("100"), model.rate()))
+                            : List.of(new ControlConfiguration.Budget("wallet", f.owner, money("100"), model.rate()), new ControlConfiguration.Budget("tool-wallet", f.owner,
                             new Money(new BigDecimal("10"), paidPrice.perCall().currency()), paidPrice.rate())));
-            var resolver = new FixedExecutionAuthorizationResolver(properties);
-            authorization = new AdmissionAuthorization(new com.arte.ainew.spi.auth.ExecutionAuthorizationResolver() {
+            var resolver = new TestAuthorizationResolver(properties);
+            authorization = com.arte.ainew.testing.TestAuthorizations.create(new com.arte.ainew.spi.auth.ExecutionAuthorizationResolver() {
                 public Mono<ExecutionAuthorization> resolve(String name, String tenant, String workspace, Set<String> required) {
                     return allowed.get() ? resolver.resolve(name, tenant, workspace, required) : Mono.error(new AccessDeniedException("revoked"));
                 }
@@ -175,9 +177,9 @@ public class ToolChatLoopTest {
                     resolver.requireInCurrentTransaction(context);
                 }
             }, properties, f.clock);
-            catalog = new FixedControlCatalog(properties, authorization, f.clock);
+            catalog = new TestControlCatalog(properties, authorization, f.clock);
             if (paidPrice != null) {
-                f.billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog, f.executions, f.executions, f.executions);
+                f.billing = new com.arte.ainew.application.tool.billing.ToolBillingService(authorization, catalog.readAdapter(), catalog.readAdapter(), f.executions, f.executions, f.executions);
                 f.service.paid(f.billing);
                 toolAdmission.paid(f.billing);
             }
@@ -188,7 +190,7 @@ public class ToolChatLoopTest {
             conversation = conversations.create("chat", null, List.of(), create).block(WAIT).conversationId();
             runs = new MybatisToolChatRunStore(f.source, f.codec, f.io);
             history = new ChatHistoryLoader(conversations, authorization, f.executions, f.payloads, f.payloads, runs);
-            budgets = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock).paid(f.billing);
+            budgets = new ToolChatBudgetSelector(runs, authorization, catalog.entitlementAdapter(), catalog.readAdapter(), catalog.readAdapter(), f.executions, f.bindingService, f.clock).paid(f.billing);
             f.executions.createAccount(new BudgetCommands.Account("wallet", f.owner, money("100"), money("0"), money("0"), model.rate(), 0)).block(WAIT);
             access = (current, cancelling) -> Mono.just(fixed -> {
                 assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
@@ -217,7 +219,7 @@ public class ToolChatLoopTest {
                     assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
                 }
             });
-            var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, f.executions, f.payloads, f.executions, properties, f.clock);
+            var admission = new AdmissionInvocationCoordinator(authorization, catalog, catalog, f.executions, f.payloads, f.executions, properties.deployment(), f.clock, catalog.policyProvider(), catalog.admissionGuard(), catalog.readAdapter(), catalog.readAdapter());
             gateway = new ModelGateway() {
                 public boolean supportsToolChat(ResolvedBinding binding, ConnectionDefinition connection) {
                     return supportsTools;
@@ -249,8 +251,7 @@ public class ToolChatLoopTest {
                     });
                 }
             };
-            generation = new GenerationDispatcher(authorization, catalog, f.executions, f.executions, f.executions, f.payloads, f.payloads,
-                    f.executions, gateway, properties, f.executionProperties, f.clock).toolChats(runs);
+            generation = new GenerationDispatcher(authorization, catalog, catalog, catalog.readAdapter(), catalog.policyProvider(), catalog.admissionGuard(), f.executions, f.executions, f.executions, f.payloads, f.payloads, f.executions, gateway, properties.deployment(), f.executionProperties, f.clock, null).toolChats(runs);
             var gatewayTools = new com.arte.ainew.application.gateway.DefaultToolGateway(f.bindingService, f.catalog, f.registry,
                     call -> Mono.just(call.call().runtime().execution().authorization()), new com.arte.ainew.application.tool.schema.ToolSchemaValidator(),
                     f.codec, f.toolIo, f.clock, approvals::requireApproved);
@@ -261,11 +262,9 @@ public class ToolChatLoopTest {
 
         void restart() {
             runs = new MybatisToolChatRunStore(f.source, f.codec, f.io);
-            var selector = new ToolChatBudgetSelector(runs, authorization, catalog, f.executions, f.bindingService, f.clock).paid(f.billing);
-            service = new ToolChatService(runs, conversations, f.executions, catalog,
-                    new TextContextService(authorization, catalog, f.payloads, properties, f.clock, history),
-                    new ToolSetService(f.bindingService, f.catalog, f.metadata, Duration.ofSeconds(5)), selector, authorization, access, properties, f.clock, () -> gateway);
-            coordinator = new ToolChatCoordinator(runs, f.executions, f.payloads, invocationCoordinator, toolAdmission, selector, authorization, access, f.store, properties, f.clock, Duration.ofMillis(100));
+            var selector = new ToolChatBudgetSelector(runs, authorization, catalog.entitlementAdapter(), catalog.readAdapter(), catalog.readAdapter(), f.executions, f.bindingService, f.clock).paid(f.billing);
+            service = new ToolChatService(runs, conversations, f.executions, catalog.entitlementAdapter(), new TextContextService(authorization, catalog, f.payloads, properties.limits(), f.clock, history, catalog.policyProvider()), new ToolSetService(f.bindingService, f.catalog, f.metadata, Duration.ofSeconds(5)), selector, authorization, access, properties.deployment(), f.clock, () -> gateway, catalog.policyProvider(), catalog.admissionGuard());
+            coordinator = new ToolChatCoordinator(runs, f.executions, f.payloads, invocationCoordinator, toolAdmission, selector, authorization, access, f.store, properties.deployment(), f.clock, Duration.ofMillis(100), new TestControlCatalog(properties, authorization, f.clock).policyProvider(), new TestControlCatalog(properties, authorization, f.clock).admissionGuard());
         }
 
         ToolChatSubmission input() {

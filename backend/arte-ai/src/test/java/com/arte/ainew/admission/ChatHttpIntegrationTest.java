@@ -1,11 +1,11 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -13,6 +13,9 @@ import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.NewAiHttpContext;
@@ -25,6 +28,7 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.io.ClassPathResource;
@@ -89,8 +93,8 @@ public class ChatHttpIntegrationTest {
     }
 
     private void configureMvc() {
-        var httpContext = new NewAiHttpContext(fixture.factory, fixture.properties);
-        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(fixture.properties), fixture.properties, Clock.systemUTC());
+        var httpContext = new NewAiHttpContext(fixture.factory, fixture.properties.deployment());
+        var authorization = TestAuthorizations.create(new TestAuthorizationResolver(fixture.properties), fixture.properties, Clock.systemUTC());
         // A supported test gateway; discovery / admission must never call the provider.
         ModelGateway gateway = new ModelGateway() {
             @Override
@@ -103,14 +107,13 @@ public class ChatHttpIntegrationTest {
                 throw new AssertionError("Discovery and admission must not dispatch the model");
             }
         };
-        var discovery = new ChatConfigurationQueryService(fixture.properties, authorization, fixture.catalog, () -> gateway);
-        var executionBeans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        var discovery = new ChatConfigurationQueryService(fixture.properties.deployment(), authorization, fixture.catalog.entitlementAdapter(), fixture.catalog.readAdapter(), fixture.catalog.readAdapter(), () -> gateway, fixture.catalog.policyProvider());
+        var executionBeans = new StaticListableBeanFactory();
         executionBeans.addBean("executionSettings", new com.arte.ainew.config.NewAiExecutionProperties(true, false, 4, null, null, null, null));
         mvc = MockMvcBuilders.standaloneSetup(
-                        new NewAiConfigurationController(discovery, httpContext, fixture.properties),
-                        new NewAiConversationController(fixture.conversations, new ConversationHttpContext(httpContext, fixture.properties)),
-                        new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties,
-                                executionBeans.getBeanProvider(com.arte.ainew.config.NewAiExecutionProperties.class), fixture.conversations))
+                        new NewAiConfigurationController(discovery, httpContext, fixture.properties.deployment()),
+                        new NewAiConversationController(fixture.conversations, new ConversationHttpContext(httpContext, fixture.properties.deployment())),
+                        new NewAiChatController(fixture.chat, fixture.catalog, httpContext, fixture.properties.deployment(), executionBeans.getBeanProvider(com.arte.ainew.config.NewAiExecutionProperties.class), fixture.conversations))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -187,8 +190,7 @@ public class ChatHttpIntegrationTest {
                 return reactor.core.publisher.Mono.never();
             }
         };
-        mvc = MockMvcBuilders.standaloneSetup(new NewAiChatController(slow, fixture.catalog,
-                        new NewAiHttpContext(fixture.factory, fixture.properties), fixture.properties))
+        mvc = MockMvcBuilders.standaloneSetup(new NewAiChatController(slow, fixture.catalog, new NewAiHttpContext(fixture.factory, fixture.properties.deployment()), fixture.properties.deployment()))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
         var request = request(id, 0, "deadline");
         request.put("timeoutSeconds", 1);
@@ -318,10 +320,10 @@ public class ChatHttpIntegrationTest {
             var grants = original.grants().stream().map(grant -> {
                 var scopes = new HashSet<>(grant.scopes());
                 scopes.remove(denied);
-                return new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
+                return new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
                         grant.workspaceId(), grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(), grant.budgetRefs());
             }).toList();
-            var restricted = new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(),
+            var restricted = new TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(),
                     original.persistence(), original.limits(), grants, original.capabilities(), original.bindings(),
                     original.connections(), original.rates(), original.budgets());
             fixture = new AdmissionFixture(dataSource, scheduler, fixture.codec, restricted);
@@ -366,7 +368,7 @@ public class ChatHttpIntegrationTest {
             var grants = original.grants().stream().map(grant -> {
                 var scopes = new HashSet<>(grant.scopes());
                 if (scenario == 0) scopes.remove(AdmissionAuthorization.INVOKE);
-                return new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
+                return new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(),
                         grant.workspaceId(), grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(),
                         scenario == 1 ? Set.of() : grant.budgetRefs());
             }).toList();
@@ -379,10 +381,10 @@ public class ChatHttpIntegrationTest {
                     originalBinding.remoteOperation(), originalBinding.contextWindowTokens(), originalBinding.rate());
             var rate = new com.arte.core.pojo.reference.DefinitionRef("rate", "changed", "v2");
             var rates = scenario == 3 ? List.of(original.rates().getFirst(),
-                    new NewAiProperties.Rate(rate, AdmissionFixture.money("1"), AdmissionFixture.money("2"))) : original.rates();
+                    new ControlConfiguration.Rate(rate, AdmissionFixture.money("1"), AdmissionFixture.money("2"))) : original.rates();
             var budgets = original.budgets().stream().map(budget -> scenario == 3
-                    ? new NewAiProperties.Budget(budget.budgetRef(), budget.owner(), budget.limit(), rate) : budget).toList();
-            var changed = new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
+                    ? new ControlConfiguration.Budget(budget.budgetRef(), budget.owner(), budget.limit(), rate) : budget).toList();
+            var changed = new TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(),
                     original.limits(), grants, List.of(capability), List.of(binding), original.connections(), rates, budgets);
             fixture = new AdmissionFixture(dataSource, scheduler, codec, changed);
             configureMvc();
@@ -433,7 +435,7 @@ public class ChatHttpIntegrationTest {
     public void oversizedInputAndOutputReturnSpecificCodesWithoutAcceptance() throws Exception {
         var previous = fixture.properties;
         var binding = previous.bindings().getFirst();
-        var properties = new NewAiProperties(previous.enabled(), previous.dataSourceBean(), previous.releaseRef(), previous.persistence(),
+        var properties = new TestAiConfiguration(previous.enabled(), previous.dataSourceBean(), previous.releaseRef(), previous.persistence(),
                 new NewAiProperties.Limits(65536, 4096, previous.limits().maxOutputBytes(),
                         previous.limits().maximumTimeout(), previous.limits().snapshotRetention()),
                 previous.grants(), previous.capabilities(), List.of(new com.arte.ainew.pojo.control.ResolvedBinding(binding.definition(),

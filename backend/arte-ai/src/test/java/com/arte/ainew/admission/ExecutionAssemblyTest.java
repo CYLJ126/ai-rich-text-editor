@@ -8,6 +8,7 @@ import com.arte.ainew.application.execution.InvocationDispatchWorker;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiExecutionConfiguration;
 import com.arte.ainew.config.NewAiGenerationConfiguration;
+import com.arte.ainew.testing.TestSources;
 import org.junit.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -50,6 +51,7 @@ public class ExecutionAssemblyTest {
 
     private void refresh(AnnotationConfigApplicationContext context) {
         context.register(NewAiAdmissionConfiguration.class, NewAiGenerationConfiguration.class, NewAiExecutionConfiguration.class);
+        TestSources.install(context);
         context.refresh();
     }
 

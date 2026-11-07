@@ -3,7 +3,6 @@ package com.arte.app.platform.ai;
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.application.model.DefaultModelDraftService;
 import com.arte.ainew.config.NewAiGenerationProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.infrastructure.http.HttpModelConnectionValidator;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
@@ -43,30 +42,17 @@ public class PlatformModelDraftConfiguration {
     }
 
     @Bean
-    ModelConnectionTemplates modelConnectionTemplates(NewAiProperties fixed, ObjectProvider<AiControlConfigurationSource> source,
-                                                      PolicyStore policies, NewAiGenerationProperties http,
+    ModelConnectionTemplates modelConnectionTemplates(AiControlConfigurationSource source, PolicyStore policies,
                                                       @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
-        return new ReviewedModelConnectionTemplates(() -> {
-            var selected = source.getIfAvailable();
-            if (selected != null) return selected.definitions();
-            if ("DATABASE".equals(fixed.configurationMode()))
-                throw new IllegalStateException("DATABASE model templates require a database configuration source");
-            return fixed;
-        }, policies, modelEgress(fixed, http, egress));
+        return new ReviewedModelConnectionTemplates(source::definitions, policies,
+                egress.getIfAvailable(() -> new HttpEgressPolicy(List::of)));
     }
 
     @Bean
     @ConditionalOnMissingBean(ModelConnectionValidator.class)
-    ModelConnectionValidator modelConnectionValidator(NewAiGenerationProperties properties, NewAiProperties admission,
+    ModelConnectionValidator modelConnectionValidator(NewAiGenerationProperties properties,
                                                       @Qualifier("newAiModelEgressPolicy") ObjectProvider<HttpEgressPolicy> egress) {
-        return new HttpModelConnectionValidator(properties, modelEgress(admission, properties, egress));
-    }
-
-    private static HttpEgressPolicy modelEgress(NewAiProperties admission, NewAiGenerationProperties properties,
-                                                ObjectProvider<HttpEgressPolicy> egress) {
-        return "DATABASE".equals(admission.configurationMode())
-                ? egress.getIfAvailable(() -> new HttpEgressPolicy(List::of))
-                : new HttpEgressPolicy(properties);
+        return new HttpModelConnectionValidator(properties, egress.getIfAvailable(() -> new HttpEgressPolicy(List::of)));
     }
 
     @Bean

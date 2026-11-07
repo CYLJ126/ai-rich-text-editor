@@ -42,8 +42,7 @@ public class PlatformToolInvocationConfiguration {
                 throw new IllegalStateException("Tool invocation access requires public " + module);
         if (!"appDataSource".equals(properties.dataSourceBean()))
             throw new IllegalStateException("Tool invocation access requires appDataSource");
-        return new PlatformToolInvocationAccess(identities, new RbacToolPermissionReader(source), transactions, guard, properties,
-                "DATABASE".equals(environment.getProperty("arte.ai-new.configuration-mode", "FIXED")), scheduler, clock);
+        return new PlatformToolInvocationAccess(identities, new RbacToolPermissionReader(source), transactions, guard, scheduler, clock);
     }
 
 }

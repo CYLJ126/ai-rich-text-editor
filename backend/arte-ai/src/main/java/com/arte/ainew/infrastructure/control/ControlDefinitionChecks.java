@@ -1,9 +1,9 @@
 package com.arte.ainew.infrastructure.control;
 
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -26,14 +26,14 @@ public final class ControlDefinitionChecks {
     private ControlDefinitionChecks() {
     }
 
-    public static void validate(NewAiProperties properties) {
+    public static void validate(ControlConfiguration properties) {
         ContractChecks.unique(properties.grants().stream().map(g -> List.of(g.subjectName(), g.tenantId(), g.workspaceId())).toList(), "grant identities");
         ContractChecks.unique(properties.grants().stream().map(g -> List.of(g.subjectId(), g.tenantId(), g.workspaceId())).toList(), "stable grant identities");
         var capabilities = index(properties.capabilities(), CapabilityDescriptor::definition);
         var bindings = index(properties.bindings(), ResolvedBinding::definition);
         var connections = index(properties.connections(), ConnectionDefinition::definition);
-        var rates = index(properties.rates(), NewAiProperties.Rate::definition);
-        var budgets = index(properties.budgets(), NewAiProperties.Budget::budgetRef);
+        var rates = index(properties.rates(), ControlConfiguration.Rate::definition);
+        var budgets = index(properties.budgets(), ControlConfiguration.Budget::budgetRef);
         for (var capability : capabilities.values()) {
             ContractChecks.require(capability.kind() == CapabilityDescriptor.Kind.GENERATION
                             && INPUT_SCHEMA.equals(capability.inputSchema()) && OUTPUT_SCHEMA.equals(capability.outputSchema()),

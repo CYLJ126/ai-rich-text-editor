@@ -7,7 +7,9 @@ import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import reactor.core.publisher.Mono;
 
 /**
- * FIXED／DATABASE 共用的限制来源桥；受信来源仅可收紧部署上限。
+ * 数据库执行限制来源桥
+ * <p>
+ * 受信来源仅可收紧部署上限。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/30 15:00 ✾

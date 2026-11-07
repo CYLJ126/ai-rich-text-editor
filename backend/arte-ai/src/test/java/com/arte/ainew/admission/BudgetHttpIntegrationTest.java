@@ -1,18 +1,20 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
-import com.arte.ainew.application.control.FixedControlCatalog;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
 import com.arte.ainew.pojo.budget.BudgetSettlement;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.execution.ExecutionCommands;
 import com.arte.ainew.pojo.execution.Usage;
 import com.arte.ainew.serialization.CanonicalJson;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiBudgetController;
@@ -83,13 +85,12 @@ public class BudgetHttpIntegrationTest {
         login("alice");
     }
 
-    private void configureMvc(NewAiProperties properties) {
+    private void configureMvc(TestAiConfiguration properties) {
         var clock = Clock.systemUTC();
-        var resolver = new FixedExecutionAuthorizationResolver(properties);
-        var authorization = new AdmissionAuthorization(resolver, properties, clock);
-        var service = new BudgetAccountQueryService(new FixedControlCatalog(properties, authorization, clock), authorization, fixture.executions);
-        mvc = standaloneSetup(new NewAiBudgetController(service,
-                new NewAiHttpContext(new ExecutionContextFactory(resolver, clock), properties), properties))
+        var resolver = new TestAuthorizationResolver(properties);
+        var authorization = TestAuthorizations.create(resolver, properties, clock);
+        var service = new BudgetAccountQueryService(new TestControlCatalog(properties, authorization, clock).readAdapter(), authorization, fixture.executions);
+        mvc = standaloneSetup(new NewAiBudgetController(service, new NewAiHttpContext(new ExecutionContextFactory(resolver, clock), properties.deployment()), properties.deployment()))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -251,9 +252,9 @@ public class BudgetHttpIntegrationTest {
         assertEquals("bob-budget", send(query("bob-budget"), 200).path("data").path("budgetRef").asString());
     }
 
-    private NewAiProperties changeGrants(UnaryOperator<NewAiProperties.Grant> change) {
+    private TestAiConfiguration changeGrants(UnaryOperator<ControlConfiguration.Grant> change) {
         var original = fixture.properties;
-        return new NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
+        return new TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
                 original.grants().stream().map(change).toList(), original.capabilities(), original.bindings(), original.connections(), original.rates(), original.budgets());
     }
 
@@ -267,7 +268,7 @@ public class BudgetHttpIntegrationTest {
         send(request, 403);
         request.put("scope", Map.of("tenantId", "tenant", "workspaceId", "other"));
         send(request, 403);
-        configureMvc(changeGrants(grant -> new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(),
+        configureMvc(changeGrants(grant -> new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(),
                 grant.tenantId(), grant.workspaceId(), grant.grantRef(), grant.enabled(), grant.scopes(), grant.bindingIds(), Set.of())));
         assertEquals(ResultCodeEnum.AI_BUDGET_NOT_AVAILABLE.getCode(), send(query("alice-budget"), 404).path("code").asString());
     }
@@ -275,7 +276,7 @@ public class BudgetHttpIntegrationTest {
     @Test
     public void onlyReadScopeIsRequiredAndBudgetAdminAloneDoesNotGrantRead() throws Exception {
         for (var scopes : List.of(Set.of(AdmissionAuthorization.READ), Set.of(AdmissionAuthorization.BUDGET_ADMIN))) {
-            configureMvc(changeGrants(grant -> new NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(),
+            configureMvc(changeGrants(grant -> new ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(),
                     grant.tenantId(), grant.workspaceId(), grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(), grant.budgetRefs())));
             send(query("alice-budget"), scopes.contains(AdmissionAuthorization.READ) ? 200 : 403);
         }

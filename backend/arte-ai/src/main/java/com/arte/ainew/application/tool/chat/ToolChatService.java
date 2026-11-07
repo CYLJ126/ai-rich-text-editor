@@ -4,7 +4,6 @@ import com.arte.ainew.api.context.ContextService;
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.context.ChatHistoryLoader;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
@@ -62,39 +61,8 @@ public final class ToolChatService {
     private final NewAiProperties properties;
     private final Clock clock;
     private final Supplier<ModelGateway> gateway;
-    private AiExecutionPolicyProvider policies;
-    private AiAdmissionAuthorizationGuard modelGuard;
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
-                           FixedControlCatalog catalog, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
-                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
-                           Supplier<ModelGateway> gateway) {
-        this(runs, conversations, catalogStore, catalog.entitlementAdapter(), contexts, sets, budgets,
-                authorization, access, properties, clock, gateway, catalog.policyProvider(), catalog.admissionGuard());
-    }
-
-    public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
-                           AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
-                           AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
-                           Supplier<ModelGateway> gateway) {
-        this(runs, conversations, catalogStore, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateway,
-                new FixedControlCatalog(properties, authorization, clock, null, null, entitlements));
-    }
-
-    /**
-     * 旧手工装配的来源桥，完整生产构造器不经过此路径。
-     */
-    private ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
-                            AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
-                            AdmissionAuthorization authorization, ToolChatAccess access, NewAiProperties properties, Clock clock,
-                            Supplier<ModelGateway> gateway, FixedControlCatalog compatibility) {
-        this(runs, conversations, catalogStore, entitlements, contexts, sets, budgets, authorization, access, properties, clock, gateway,
-                compatibility.policyProvider(), compatibility.admissionGuard());
-    }
+    private final AiExecutionPolicyProvider policies;
+    private final AiAdmissionAuthorizationGuard modelGuard;
 
     public ToolChatService(ToolChatRunStore runs, ConversationService conversations, AdmissionCatalogStore catalogStore,
                            AiResourceEntitlementService entitlements, ContextService contexts, ToolSetService sets, ToolChatBudgetSelector budgets,
@@ -114,16 +82,6 @@ public final class ToolChatService {
         this.gateway = gateway;
         this.policies = java.util.Objects.requireNonNull(policies);
         this.modelGuard = java.util.Objects.requireNonNull(guard);
-    }
-
-    /**
-     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ToolChatService boundaryPorts(AiExecutionPolicyProvider policies, AiAdmissionAuthorizationGuard guard) {
-        this.policies = policies;
-        this.modelGuard = guard;
-        return this;
     }
 
     public Mono<AcceptedExecution> submit(ToolChatSubmission input, ToolManagementAccess.Session session, ExecutionContext context) {

@@ -1,12 +1,10 @@
 package com.arte.ainew.tool.execution;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
 import com.arte.ainew.common.execution.*;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.ToolResult;
@@ -14,6 +12,8 @@ import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiInvocationController;
@@ -60,7 +60,7 @@ public class ToolInvocationIntegrationTest {
     private static final class Rig implements AutoCloseable {
         final ToolExecutionFixture f = new ToolExecutionFixture();
         final AtomicBoolean read = new AtomicBoolean(true), cancel = new AtomicBoolean(true), commit = new AtomicBoolean(true);
-        final NewAiProperties properties = new NewAiProperties(false, "appDataSource", "release", null, null,
+        final TestAiConfiguration properties = new TestAiConfiguration(false, "appDataSource", "release", null, null,
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         final ExecutionAuthorizationResolver resolver = (name, tenant, workspace, scopes) -> Mono.just(new ExecutionAuthorization(
                 new ExecutionPrincipal("subject", name, ExecutionPrincipal.Kind.USER), tenant, workspace, scopes, "grant"));
@@ -79,10 +79,9 @@ public class ToolInvocationIntegrationTest {
                 }
             });
         });
-        final AdmissionAuthorization auth = new AdmissionAuthorization(resolver, properties, f.clock, null, f.io, access);
-        final FixedControlCatalog catalog = new FixedControlCatalog(properties, auth, f.clock);
-        final AdmissionInvocationCoordinator admission = new AdmissionInvocationCoordinator(auth, catalog, catalog, f.executions,
-                f.payloads, f.executions, properties, f.clock);
+        final AdmissionAuthorization auth = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, f.clock, null, f.io, access);
+        final TestControlCatalog catalog = new TestControlCatalog(properties, auth, f.clock);
+        final AdmissionInvocationCoordinator admission = new AdmissionInvocationCoordinator(auth, catalog, catalog, f.executions, f.payloads, f.executions, properties.deployment(), f.clock, catalog.policyProvider(), catalog.admissionGuard(), catalog.readAdapter(), catalog.readAdapter());
         final DefaultInvocationCoordinator coordinator = new DefaultInvocationCoordinator(admission, null, f.executions, f.dispatcher);
         final DefaultExecutionControl control = new DefaultExecutionControl(auth, f.executions, coordinator);
         final InvocationBudgetStatusResolver budget = new InvocationBudgetStatusResolver(f.executions, f.executions);
@@ -105,9 +104,9 @@ public class ToolInvocationIntegrationTest {
         }
 
         MockMvc mvc() {
-            var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, f.clock), properties);
-            return standaloneSetup(new NewAiInvocationController(control, events, http, properties, budget),
-                    new NewAiToolInvocationController(control, http, properties)).setControllerAdvice(new ConversationExceptionHandler())
+            var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, f.clock), properties.deployment());
+            return standaloneSetup(new NewAiInvocationController(control, events, http, properties.deployment(), budget),
+                    new NewAiToolInvocationController(control, http, properties.deployment())).setControllerAdvice(new ConversationExceptionHandler())
                     .setAsyncRequestTimeout(15000).build();
         }
 
@@ -167,7 +166,7 @@ public class ToolInvocationIntegrationTest {
     public void missingToolAccessIsDeniedRatherThanInheritingGenericRead() throws Exception {
         try (var r = new Rig()) {
             r.f.submit("one");
-            var old = new AdmissionAuthorization(r.resolver, r.properties, r.f.clock);
+            var old = com.arte.ainew.testing.TestAuthorizations.create(r.resolver, r.properties, r.f.clock);
             assertThrows(AccessDeniedException.class, () -> new DefaultExecutionControl(old, r.f.executions, r.coordinator).status("one", r.context()).block(WAIT));
         }
     }
@@ -574,7 +573,7 @@ public class ToolInvocationIntegrationTest {
                         fail("Unsafe permission must be rejected before commit");
                     }
                 });
-                var auth = new AdmissionAuthorization(r.resolver, r.properties, r.f.clock, null, r.f.io, unsafe);
+                var auth = com.arte.ainew.testing.TestAuthorizations.create(r.resolver, r.properties, r.f.clock, null, r.f.io, unsafe);
                 assertThrows(AccessDeniedException.class, () -> auth.readInvocation(r.f.invocation("one"), r.context()).block(WAIT));
             }
         }

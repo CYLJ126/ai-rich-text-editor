@@ -1,10 +1,10 @@
 package com.arte.ainew.tool.chat;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.pojo.tool.ToolChatRun;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiToolChatController;
@@ -48,14 +48,14 @@ public class ToolChatHttpTest {
     public void setup() {
         c = new ToolChatHistoryStoreTest.Chat();
         c.accept();
-        var properties = new NewAiProperties(true, "test", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "DATABASE");
+        var properties = new TestAiConfiguration(true, "test", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         var factory = new ExecutionContextFactory((name, tenant, space, scopes) -> {
             if (denied.get() || !name.equals("user") || !tenant.equals("tenant") || !space.equals("workspace"))
                 return Mono.error(new AccessDeniedException("Denied"));
             var original = c.context.authorization();
             return Mono.just(new ExecutionAuthorization(original.principal(), tenant, space, scopes, original.grantRef()));
         }, Clock.systemUTC());
-        var controller = new NewAiToolChatController(c.queries, new NewAiHttpContext(factory, properties), properties);
+        var controller = new NewAiToolChatController(c.queries, new NewAiHttpContext(factory, properties.deployment()), properties.deployment());
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).build();

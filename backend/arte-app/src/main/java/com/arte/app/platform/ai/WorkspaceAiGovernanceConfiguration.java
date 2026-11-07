@@ -26,7 +26,7 @@ import java.time.Clock;
  * @since 2026/11/03 15:30 ✾
  */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
+@ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
 public class WorkspaceAiGovernanceConfiguration {
 
     @Bean("newAiModelEgressPolicy")

@@ -1,7 +1,6 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.budget.ManualReconciliationService;
 import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.support.AdmissionException;
@@ -15,6 +14,8 @@ import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import org.h2.jdbcx.JdbcDataSource;
@@ -126,11 +127,11 @@ public class RegenerationReconciliationIntegrationTest {
     }
 
     private ManualReconciliationService service(AdmissionFixture fixture) {
-        var auth = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(fixture.properties), fixture.properties, Clock.systemUTC());
-        return new ManualReconciliationService(auth, new BudgetAccountQueryService(fixture.catalog, auth, fixture.executions), fixture.executions);
+        var auth = TestAuthorizations.create(new TestAuthorizationResolver(fixture.properties), fixture.properties, Clock.systemUTC());
+        return new ManualReconciliationService(auth, new BudgetAccountQueryService(fixture.catalog.readAdapter(), auth, fixture.executions), fixture.executions);
     }
 
-    private com.arte.ainew.common.execution.AcceptedExecution regenerate(String id, long version, String key) {
+    private AcceptedExecution regenerate(String id, long version, String key) {
         var context = second.context("alice", key);
         return second.chat.regenerate(new EntryRequests.Regenerate(id, version,
                 second.chatRequest("unused", 0, "unused", context).options()), context).block();
@@ -362,17 +363,17 @@ public class RegenerationReconciliationIntegrationTest {
         assertEquals(13, first.executions.findTurn(owner, conversation.conversationId(), find(next).conversation().turnId()).block().sequence());
     }
 
-    private org.springframework.test.web.servlet.MockMvc mvc(com.arte.ainew.config.NewAiProperties properties) {
+    private org.springframework.test.web.servlet.MockMvc mvc(com.arte.ainew.testing.TestAiConfiguration properties) {
         var clock = Clock.systemUTC();
-        var resolver = new FixedExecutionAuthorizationResolver(properties);
-        var auth = new AdmissionAuthorization(resolver, properties, clock);
-        var accounts = new BudgetAccountQueryService(new com.arte.ainew.application.control.FixedControlCatalog(properties, auth, clock), auth, first.executions);
-        var http = new com.arte.ainew.web.NewAiHttpContext(new com.arte.ainew.context.ExecutionContextFactory(resolver, clock), properties);
+        var resolver = new TestAuthorizationResolver(properties);
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, clock);
+        var accounts = new BudgetAccountQueryService(new com.arte.ainew.testing.TestControlCatalog(properties, auth, clock).readAdapter(), auth, first.executions);
+        var http = new com.arte.ainew.web.NewAiHttpContext(new com.arte.ainew.context.ExecutionContextFactory(resolver, clock), properties.deployment());
         var validator = new org.springframework.validation.beanvalidation.LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         return org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
-                        new com.arte.ainew.web.controller.NewAiReconciliationController(new ManualReconciliationService(auth, accounts, first.executions), http, properties),
-                        new com.arte.ainew.web.controller.NewAiChatController(first.chat, first.catalog, http, properties))
+                        new com.arte.ainew.web.controller.NewAiReconciliationController(new ManualReconciliationService(auth, accounts, first.executions), http, properties.deployment()),
+                        new com.arte.ainew.web.controller.NewAiChatController(first.chat, first.catalog, http, properties.deployment()))
                 .setControllerAdvice(new com.arte.ainew.web.ConversationExceptionHandler()).setValidator(validator).build();
     }
 
@@ -467,10 +468,10 @@ public class RegenerationReconciliationIntegrationTest {
             var grants = original.grants().stream().map(grant -> {
                 var scopes = new HashSet<>(grant.scopes());
                 scopes.remove(AdmissionAuthorization.BUDGET_ADMIN);
-                return new com.arte.ainew.config.NewAiProperties.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(),
+                return new com.arte.ainew.pojo.control.ControlConfiguration.Grant(grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(),
                         grant.grantRef(), grant.enabled(), scopes, grant.bindingIds(), grant.budgetRefs());
             }).toList();
-            var restricted = new com.arte.ainew.config.NewAiProperties(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
+            var restricted = new com.arte.ainew.testing.TestAiConfiguration(original.enabled(), original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
                     grants, original.capabilities(), original.bindings(), original.connections(), original.rates(), original.budgets());
             var mvc = mvc(restricted);
             var request = billRequest(id, reservation);

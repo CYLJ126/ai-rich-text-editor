@@ -2,31 +2,39 @@ package com.arte.ainew.admission;
 
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.AcceptedExecution;
+import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.execution.ExecutionEvent;
 import com.arte.ainew.config.NewAiExecutionProperties;
 import com.arte.ainew.config.NewAiGenerationProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionRuntimeContext;
 import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
 import com.arte.ainew.infrastructure.http.GenerationJson;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProviderAdapter;
+import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
+import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.BudgetReservation;
+import com.arte.ainew.pojo.context.ContextBudget;
+import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.conversation.Conversation;
+import com.arte.ainew.pojo.entry.EntryRequests;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import com.sun.net.httpserver.HttpServer;
@@ -151,20 +159,20 @@ public class DispatchIntegrationTest {
             var connection = new ConnectionDefinition(old.definition(), "deepseek", ChatCompletionsSseProtocolAdapter.DEFINITION,
                     URI.create(origin + "/v1"), old.credential(), old.state(), old.connectTimeout(), old.responseTimeout(), 65536);
             var binding = base.bindings().getFirst();
-            var properties = new NewAiProperties(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
+            var properties = new TestAiConfiguration(true, base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(),
                     base.grants(), base.capabilities(), List.of(new ResolvedBinding(binding.definition(), binding.capability(),
                     binding.connection(), "deepseek-chat", binding.contextWindowTokens(), binding.rate())), List.of(connection),
                     base.rates(), insufficientBudget ? base.budgets().stream().map(budget ->
-                    new NewAiProperties.Budget(budget.budgetRef(), budget.owner(), AdmissionFixture.money("0.000001"), budget.rate())).toList()
+                    new ControlConfiguration.Budget(budget.budgetRef(), budget.owner(), AdmissionFixture.money("0.000001"), budget.rate())).toList()
                     : base.budgets());
             dataSource.setURL("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000");
             new ResourceDatabasePopulator(new ClassPathResource("arte-ai-new-ddl-mysql.sql")).execute(dataSource);
             jdbc = new JdbcTemplate(dataSource);
-            fixture = new AdmissionFixture(dataSource, db, new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec(), properties,
+            fixture = new AdmissionFixture(dataSource, db, new JacksonExecutionRecordCodec(), properties,
                     () -> {
                     }, dispatchNotifier::committed);
             var clock = Clock.systemUTC();
-            authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock);
+            authorization = TestAuthorizations.create(new TestAuthorizationResolver(properties), properties, clock);
             var generation = new NewAiGenerationProperties(true, List.of(origin), List.of(), 2, 4, 4, Duration.ofSeconds(2), 65536, 65536);
             ConnectionCredentialResolver credentials = (secret, context) -> Mono.just(new ConnectionCredentialResolver.BearerCredential("local-test-token"));
             transport = new HttpConnectionRuntime(fixture.catalog::resolveConnection, authorization, credentials, generation, clock);
@@ -172,7 +180,7 @@ public class DispatchIntegrationTest {
                     new DeepSeekGenerationProviderAdapter(properties.capabilities(), GenerationJson.mapper(65536)),
                     new ChatCompletionsSseProtocolAdapter<>(GenerationJson.mapper(65536), generation), clock);
             coordinator = coordinator(budgetFault());
-            chat = new DefaultChatService(authorization, fixture.conversations, fixture.catalog, fixture.contexts, coordinator, clock, fixture.executions, fixture.executions, fixture.properties);
+            chat = new DefaultChatService(authorization, fixture.conversations, fixture.catalog, fixture.contexts, coordinator, clock, fixture.executions, fixture.executions, fixture.properties.deployment());
             control = new DefaultExecutionControl(authorization, fixture.executions, coordinator);
             reading = new DefaultExecutionEventService(authorization, fixture.executions, fixture.executions, fixture.payloads);
             worker = new InvocationDispatchWorker(fixture.executions, fixture.executions, coordinator, settings, timer, dispatchNotifier);
@@ -180,8 +188,7 @@ public class DispatchIntegrationTest {
         }
 
         DefaultInvocationCoordinator coordinator(BudgetService budgets) {
-            var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.executions, fixture.executions,
-                    fixture.executions, fixture.payloads, fixture.payloads, budgets, gateway, fixture.properties, settings, Clock.systemUTC());
+            var dispatcher = new GenerationDispatcher(authorization, fixture.catalog, fixture.catalog, fixture.catalog.readAdapter(), fixture.catalog.policyProvider(), fixture.catalog.admissionGuard(), fixture.executions, fixture.executions, fixture.executions, fixture.payloads, fixture.payloads, budgets, gateway, fixture.properties.deployment(), settings, Clock.systemUTC(), null);
             return new DefaultInvocationCoordinator(fixture.coordinator, dispatcher, fixture.executions, null);
         }
 
@@ -217,7 +224,7 @@ public class DispatchIntegrationTest {
 
         AcceptedExecution submitWithAttempts(Conversation conversation, String key, int attempts, Duration timeout) {
             var original = fixture.context("alice", key);
-            var context = new com.arte.ainew.common.execution.ExecutionContext(original.executionId(), original.traceId(),
+            var context = new ExecutionContext(original.executionId(), original.traceId(),
                     original.authorization(), Clock.systemUTC().instant().plus(timeout), original.parentExecutionId(),
                     original.budgetRef(), original.releaseRef(), original.idempotencyKey());
             var input = fixture.chatRequest(conversation.conversationId(), 0, "hello", context);
@@ -321,7 +328,7 @@ public class DispatchIntegrationTest {
                 Thread.sleep(25);
             }
             assertEquals(1, rig.requests.get());
-            var other = new com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence(rig.dataSource, rig.fixture.codec, rig.db);
+            var other = new MybatisExecutionPersistence(rig.dataSource, rig.fixture.codec, rig.db);
             var receipt = other.requestControl(AdmissionFixture.owner("alice-id"),
                     new ExecutionControlRequest("other-instance", accepted.executionId(), "stop-stream", ControlReceipt.Command.CANCEL)).block(WAIT).value();
             assertEquals(ControlReceipt.Outcome.ACCEPTED, receipt.outcome());
@@ -450,9 +457,9 @@ public class DispatchIntegrationTest {
             assertEquals("question-1", ((ChatMessage.Text) snapshot.messages().getFirst().content().getFirst()).text());
             var current = rig.fixture.context("alice", "small-capacity");
             var original = rig.fixture.chatRequest(conversation.conversationId(), 12, "next", current);
-            var selection = new com.arte.ainew.pojo.context.ContextRequest(original.context().messages(), null, List.of(), List.of(), null,
-                    new com.arte.ainew.pojo.context.ContextBudget(1024, 128, 256, 0));
-            var limited = new com.arte.ainew.pojo.entry.EntryRequests.Chat(original.conversationId(), original.expectedVersion(), null, null,
+            var selection = new ContextRequest(original.context().messages(), null, List.of(), List.of(), null,
+                    new ContextBudget(1024, 128, 256, 0));
+            var limited = new EntryRequests.Chat(original.conversationId(), original.expectedVersion(), null, null,
                     selection, original.capability(), original.binding(), original.generationOptions(), original.options());
             var error = assertThrows(AdmissionException.class, () -> rig.chat.submit(limited, current).block(WAIT));
             assertEquals(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED, error.getResultCode());
@@ -651,8 +658,7 @@ public class DispatchIntegrationTest {
             var accepted = rig.submit(rig.conversation(), "submit");
             var secondStore = new com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence(rig.dataSource, rig.fixture.codec, rig.db);
             var secondPayloads = new com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence(rig.dataSource, rig.fixture.codec, rig.db);
-            var secondDispatcher = new GenerationDispatcher(rig.authorization, rig.fixture.catalog, secondStore, secondStore,
-                    secondStore, secondPayloads, secondPayloads, secondStore, rig.gateway, rig.fixture.properties, rig.settings, Clock.systemUTC());
+            var secondDispatcher = new GenerationDispatcher(rig.authorization, rig.fixture.catalog, rig.fixture.catalog, rig.fixture.catalog.readAdapter(), rig.fixture.catalog.policyProvider(), rig.fixture.catalog.admissionGuard(), secondStore, secondStore, secondStore, secondPayloads, secondPayloads, secondStore, rig.gateway, rig.fixture.properties.deployment(), rig.settings, Clock.systemUTC(), null);
             var secondCoordinator = new DefaultInvocationCoordinator(rig.fixture.coordinator, secondDispatcher, secondStore, null);
             var secondWorker = new InvocationDispatchWorker(secondStore, secondStore, secondCoordinator, rig.settings, rig.timer);
             var counts = Mono.zip(rig.worker.pollOnce(), secondWorker.pollOnce()).block(WAIT);
@@ -978,9 +984,7 @@ public class DispatchIntegrationTest {
             rig.jdbc.update("UPDATE arte_ai_outbox SET lease_until=0 WHERE kind='DISPATCH'");
             var reduced = retrySettings(null);
             var replacement = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions,
-                    new DefaultInvocationCoordinator(rig.fixture.coordinator, new GenerationDispatcher(rig.authorization, rig.fixture.catalog,
-                            rig.fixture.executions, rig.fixture.executions, rig.fixture.executions, rig.fixture.payloads, rig.fixture.payloads,
-                            rig.fixture.executions, rig.gateway, rig.fixture.properties, reduced, Clock.systemUTC()), rig.fixture.executions, null), reduced, rig.timer);
+                    new DefaultInvocationCoordinator(rig.fixture.coordinator, new GenerationDispatcher(rig.authorization, rig.fixture.catalog, rig.fixture.catalog, rig.fixture.catalog.readAdapter(), rig.fixture.catalog.policyProvider(), rig.fixture.catalog.admissionGuard(), rig.fixture.executions, rig.fixture.executions, rig.fixture.executions, rig.fixture.payloads, rig.fixture.payloads, rig.fixture.executions, rig.gateway, rig.fixture.properties.deployment(), reduced, Clock.systemUTC(), null), rig.fixture.executions, null), reduced, rig.timer);
             replacement.pollOnce().block(WAIT);
             assertEquals(Invocation.State.QUEUED, rig.invocation(accepted).state());
             assertEquals(1, rig.requests.get());

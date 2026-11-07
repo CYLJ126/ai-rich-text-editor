@@ -4,7 +4,6 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.spi.auth.ToolManagementAccess;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
@@ -40,7 +39,7 @@ import static com.arte.core.constant.platform.PlatformActions.WORKSPACE_READ;
 /**
  * 工具管理及调用的宿主授权适配器，统一核验当前账户、RBAC 操作、空间资格及 AI 开关。
  * 支持登录会话和可信执行上下文；初检返回的 Permit 在实际写入时仍须于原事务内重新授权。
- * 身份事实仅在一次同步授权检查内复用，AI 资格来自空间配置或 FIXED grants，不依赖模型或预算账户。
+ * 身份事实仅在一次同步授权检查内复用，AI 资格来自数据库空间配置，不依赖模型或预算账户。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/18 12:52 ✾
@@ -54,15 +53,13 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
     private final AuthorizationService authorization;
     private final PlatformAiControlMapper configuration;
     private final PlatformJson json;
-    private final NewAiProperties properties;
-    private final boolean databaseMode;
     private final Scheduler scheduler;
     private final Clock clock;
 
     /**
      * 组合现有身份、权限、空间门控及配置读取能力；数据库检查由指定调度器执行。
      */
-    public PlatformToolManagementAccess(RbacIdentityProvider identities, RbacToolPermissionReader permissions, PublicTransactionRunner transactions, WorkspaceWriteGuard guard, AuthorizationService authorization, PlatformAiControlMapper configuration, PlatformJson json, NewAiProperties properties, boolean databaseMode, Scheduler scheduler, Clock clock) {
+    public PlatformToolManagementAccess(RbacIdentityProvider identities, RbacToolPermissionReader permissions, PublicTransactionRunner transactions, WorkspaceWriteGuard guard, AuthorizationService authorization, PlatformAiControlMapper configuration, PlatformJson json, Scheduler scheduler, Clock clock) {
         this.identities = identities;
         this.permissions = permissions;
         this.transactions = transactions;
@@ -70,8 +67,6 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
         this.authorization = authorization;
         this.configuration = configuration;
         this.json = json;
-        this.properties = properties;
-        this.databaseMode = databaseMode;
         this.scheduler = scheduler;
         this.clock = clock;
     }
@@ -313,29 +308,21 @@ public final class PlatformToolManagementAccess implements ToolManagementAccess 
                 authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope,
                         com.arte.core.constant.platform.PlatformActions.WORKSPACE_UPDATE, "ai-tool-reconciliation"));
             Set<String> scopes;
-            if (databaseMode) {
-                boolean aiEnabled = enabled(scope);
-                if (operation == Operation.APPROVE && !aiEnabled) throw denied();
-                // 写入门控刚以同一事务的当前事实验证过 AI_USE，不再退出授权批次后重复整轮锁读。
-                boolean mayInvoke = aiEnabled && operation == Operation.BINDING_WRITE;
-                if (aiEnabled && operation != Operation.BINDING_WRITE) {
-                    try {
-                        // 查看／停用等操作只要求可读；另行判断是否还能返回工具调用权限。
-                        authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_AI_USE, "ai-tool-eligibility"));
-                        mayInvoke = true;
-                    } catch (PlatformException error) {
-                        if (error.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw error;
-                    }
+            boolean aiEnabled = enabled(scope);
+            if (operation == Operation.APPROVE && !aiEnabled) throw denied();
+            // 写入门控刚以同一事务的当前事实验证过 AI_USE，不再退出授权批次后重复整轮锁读。
+            boolean mayInvoke = aiEnabled && operation == Operation.BINDING_WRITE;
+            if (aiEnabled && operation != Operation.BINDING_WRITE) {
+                try {
+                    // 查看／停用等操作只要求可读；另行判断是否还能返回工具调用权限。
+                    authorization.requireInCurrentTransaction(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_AI_USE, "ai-tool-eligibility"));
+                    mayInvoke = true;
+                } catch (PlatformException error) {
+                    if (error.getCode() == PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE) throw error;
                 }
-                if (operation == Operation.BINDING_WRITE && !mayInvoke) throw denied();
-                scopes = mayInvoke ? Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.INVOKE) : Set.of(AdmissionAuthorization.READ);
-            } else {
-                // FIXED 模式须匹配同一主体和空间的启用 grant，不能仅凭菜单权限取得执行资格。
-                var grant = properties.grants().stream().filter(g -> g.enabled() && g.subjectName().equals(subjectName) && g.subjectId().equals(actor.principal().subjectId()) && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId()) && g.principalKind() == com.arte.ainew.common.execution.ExecutionPrincipal.Kind.USER).findFirst().orElseThrow(PlatformToolManagementAccess::denied);
-                scopes = grant.scopes();
-                if (!scopes.contains(operation == Operation.BINDING_WRITE ? AdmissionAuthorization.INVOKE : AdmissionAuthorization.READ))
-                    throw denied();
             }
+            if (operation == Operation.BINDING_WRITE && !mayInvoke) throw denied();
+            scopes = mayInvoke ? Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.INVOKE) : Set.of(AdmissionAuthorization.READ);
             // 当前允许范围必须覆盖工具或本次操作明确要求的全部权限。
             if (!scopes.containsAll(required)) throw denied();
             return scopes;

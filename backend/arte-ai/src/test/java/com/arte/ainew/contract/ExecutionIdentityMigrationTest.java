@@ -5,8 +5,8 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.common.search.SearchCursor;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.tool.ToolAdmissionInput;
@@ -77,7 +77,7 @@ public class ExecutionIdentityMigrationTest {
     @Test
     public void fixedGrantAndCoreEnumKeepTheirDifferentExistingWireFormats() throws IOException {
         String original = CanonicalJson.normalize(resource("fixed-grant.json"));
-        var grant = json.readValue(original, NewAiProperties.Grant.class);
+        var grant = json.readValue(original, ControlConfiguration.Grant.class);
         assertEquals(ExecutionPrincipal.Kind.USER, grant.principalKind());
         assertEquals(original, CanonicalJson.encode(grant));
         assertEquals("0", json.writeValueAsString(PrincipalKindEnum.USER));

@@ -5,7 +5,6 @@ import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.*;
 import com.arte.ainew.pojo.model.ModelAccessCandidate;
 import com.arte.ainew.pojo.model.ModelAccessProof;
@@ -36,18 +35,17 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
 
     private final ControlConfigurationReader reader;
     private final AdmissionAuthorization authorization;
-    private final AiEntitlement.Source source;
+    private final AiEntitlement.Source source = AiEntitlement.Source.DATABASE;
     private final ModelAclAccess modelAcl;
 
-    protected ConfigurationAiResourceEntitlementService(ControlConfigurationReader reader, AdmissionAuthorization authorization, AiEntitlement.Source source) {
-        this(reader, authorization, source, null);
+    protected ConfigurationAiResourceEntitlementService(ControlConfigurationReader reader, AdmissionAuthorization authorization) {
+        this(reader, authorization, null);
     }
 
     protected ConfigurationAiResourceEntitlementService(ControlConfigurationReader reader, AdmissionAuthorization authorization,
-                                                        AiEntitlement.Source source, ModelAclAccess modelAcl) {
+                                                        ModelAclAccess modelAcl) {
         this.reader = Objects.requireNonNull(reader);
         this.authorization = Objects.requireNonNull(authorization);
-        this.source = Objects.requireNonNull(source);
         this.modelAcl = modelAcl;
     }
 
@@ -98,10 +96,6 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
     @Override
     public void requireInCurrentTransaction(AiEntitlement expected, ExecutionContext context) {
         reader.inCurrentTransaction(context, configuration -> {
-            // 固定配置模式下，在原事务内重新检查身份和 ai:invoke 资格。
-            if (source == AiEntitlement.Source.FIXED) {
-                authorization.requireInCurrentTransaction(context, AdmissionAuthorization.INVOKE);
-            }
             // 检查当前配置仍覆盖原权限范围，且执行尚未超时。
             authorization.requireConfigurationScope(configuration, context, AdmissionAuthorization.INVOKE);
             // 校验配置定义及依赖，并查找与预检一致的可执行模型。
@@ -136,7 +130,7 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
     /**
      * 在同一次可信配置快照中执行模型发现或精确解析的前置校验与业务回调。统一负责校验、准备配置和执行边界。
      * <p>
-     * FIXED 来源先通过授权协调器检查 ai:invoke；该读取检查可复用本次订阅已建立的可信授权快照。
+     * 数据库来源核验当前身份和空间资格，可复用本次订阅已建立的可信授权快照。
      * DATABASE 来源不重复调用身份解析器，由控制配置来源或已建立的可信快照承担身份及空间资格核验。
      * 随后通过 reader 取得或复用与执行上下文、配置来源匹配的配置，并在回调的 Reactor Context 中共享，
      * 避免嵌套读取在同次操作中混用不同配置；这里不保证每次都重新查询数据库。
@@ -151,21 +145,18 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @param <T>     业务回调的结果类型
      * @return 订阅后执行校验及业务回调的结果流；任一步失败即传播错误，不继续执行后续步骤
      */
-    private <T> Mono<T> inSnapshot(ExecutionContext context, Function<NewAiProperties, Mono<T>> work) {
-        // 检查操作资格：FIXED 检查 ai:invoke；DATABASE 依赖可信配置来源完成身份与空间核验。
-        Mono<ExecutionContext> checked = source == AiEntitlement.Source.FIXED
-                ? authorization.require(context, AdmissionAuthorization.INVOKE) : Mono.just(context);
+    private <T> Mono<T> inSnapshot(ExecutionContext context, Function<ControlConfiguration, Mono<T>> work) {
         // 通过 reader 取得并共享配置：读取或复用本次配置，通过 Reactor Context 供嵌套调用使用，不保证每次重新查询数据库。
-        return checked.flatMap(current -> reader.inSnapshot(current, configuration -> {
+        return reader.inSnapshot(context, configuration -> {
             // 校验范围与定义：检查截止时间、Grant 是否覆盖原权限，以及能力、绑定、连接、费率和预算依赖。
-            authorization.requireConfigurationScope(configuration, current, AdmissionAuthorization.INVOKE);
+            authorization.requireConfigurationScope(configuration, context, AdmissionAuthorization.INVOKE);
             ControlDefinitionChecks.validate(configuration);
             // 执行 work：继续模型发现或解析；任何一步失败都会中断流程。
             return work.apply(configuration);
-        }));
+        });
     }
 
-    private List<ModelAccessCandidate> candidates(NewAiProperties configuration, CapabilityDescriptor.Kind kind) {
+    private List<ModelAccessCandidate> candidates(ControlConfiguration configuration, CapabilityDescriptor.Kind kind) {
         return candidates(configuration, kind, false);
     }
 
@@ -184,14 +175,14 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @return 按绑定 ID 和版本字符串排序、包含精确依赖快照的不可变候选列表
      * @throws AdmissionException 绑定所需的连接或费率定义缺失
      */
-    private List<ModelAccessCandidate> candidates(NewAiProperties configuration, CapabilityDescriptor.Kind kind, boolean includeDisabled) {
+    private List<ModelAccessCandidate> candidates(ControlConfiguration configuration, CapabilityDescriptor.Kind kind, boolean includeDisabled) {
         return configuration.bindings().stream().filter(binding -> binding.capability().kind() == kind
                         && (includeDisabled || binding.capability().availability() == CapabilityDescriptor.Availability.EXECUTABLE))
                 .sorted(Comparator.comparing((ResolvedBinding binding) -> binding.definition().id()).thenComparing(binding -> binding.definition().version()))
                 .map(binding -> {
                     ConnectionDefinition connection = configuration.connections().stream().filter(value -> value.definition().equals(binding.connection()))
                             .findFirst().orElseThrow(ConfigurationAiResourceEntitlementService::unavailable);
-                    NewAiProperties.Rate rate = configuration.rates().stream().filter(value -> value.definition().equals(binding.rate()))
+                    ControlConfiguration.Rate rate = configuration.rates().stream().filter(value -> value.definition().equals(binding.rate()))
                             .findFirst().orElseThrow(ConfigurationAiResourceEntitlementService::unavailable);
                     return new ModelAccessCandidate(binding, connection, new RateDefinition(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall()), configuration.releaseRef());
                 }).filter(value -> includeDisabled || value.connection().state() == ConnectionDefinition.State.ENABLED).toList();
@@ -228,7 +219,7 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @return 仅包含本次 model:use 资格及可选公共 ACL 证明的内存视图
      * @throws AdmissionException 候选能力不可执行或连接未启用
      */
-    private AiEntitlement entitlement(NewAiProperties configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
+    private AiEntitlement entitlement(ControlConfiguration configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
         if (candidate.binding().capability().availability() != CapabilityDescriptor.Availability.EXECUTABLE
                 || candidate.connection().state() != ConnectionDefinition.State.ENABLED) {
             throw new AdmissionException(ResultCodeEnum.AI_CAPABILITY_DISABLED);
@@ -262,7 +253,7 @@ public abstract class ConfigurationAiResourceEntitlementService implements AiRes
      * @param decision      决定采用公共 ACL 或兼容 Grant 的本次资格判定
      * @return 当前选定的授权规则是否允许该候选；不表示已通过全部执行门控
      */
-    private boolean allowed(NewAiProperties configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
+    private boolean allowed(ControlConfiguration configuration, ModelAccessCandidate candidate, ExecutionContext context, ModelAclAccess.Decision decision) {
         if (decision.migrated() || decision.resourceBindings().contains(candidate.binding().definition())
                 || ModelPublications.isResourceBinding(candidate.binding().definition())) {
             return decision.allowed().containsKey(candidate.binding().definition());

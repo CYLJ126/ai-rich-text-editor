@@ -47,7 +47,7 @@ import java.util.function.Function;
 @RestController
 @RequestMapping("/workspace/ai")
 @PreAuthorize("isAuthenticated()")
-@ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
+@ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
 public class WorkspaceAiConfigurationController {
 
     private final DatabaseAiControlService service;

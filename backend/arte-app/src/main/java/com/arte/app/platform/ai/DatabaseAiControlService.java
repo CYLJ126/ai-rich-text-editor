@@ -13,10 +13,7 @@ import com.arte.ainew.infrastructure.http.HttpEgressPolicy;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.pojo.budget.BudgetCommands;
 import com.arte.ainew.pojo.budget.Money;
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ConnectionDefinition;
-import com.arte.ainew.pojo.control.RateDefinition;
-import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.control.*;
 import com.arte.ainew.pojo.model.ModelUsagePreparation;
 import com.arte.ainew.pojo.model.ReviewedModelPlan;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
@@ -77,7 +74,7 @@ import static com.arte.core.constant.platform.PlatformActions.*;
  * @since 2026/10/13 17:22 ✾
  */
 @Service
-@ConditionalOnProperty(prefix = "arte.ai-new", name = "configuration-mode", havingValue = "DATABASE")
+@ConditionalOnProperty(prefix = "arte.ai-new", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(NewAiGenerationProperties.class)
 @Import(WorkspaceAiGovernanceConfiguration.class)
 public class DatabaseAiControlService implements ExecutionReadAuthorizationResolver, ExecutionPreparationAuthorizationResolver, AiControlConfigurationSource {
@@ -120,16 +117,16 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         this.resourceModels = resourceModels;
     }
 
-    private NewAiProperties withResources(TrustedActor actor, Scope scope, NewAiProperties base, boolean current) {
+    private ControlConfiguration withResources(TrustedActor actor, Scope scope, ControlConfiguration base, boolean current) {
         ModelPublicationRuntime runtime = resourceModels == null ? null : resourceModels.getIfAvailable();
-        NewAiProperties configuration = runtime == null ? base : runtime.contribute(actor, scope, base, current);
+        ControlConfiguration configuration = runtime == null ? base : runtime.contribute(actor, scope, base, current);
         Set<String> registered = configuration.bindings().stream().map(binding -> binding.definition().id()).collect(java.util.stream.Collectors.toSet());
-        List<NewAiProperties.Grant> grants = configuration.grants().stream().map(grant -> new NewAiProperties.Grant(
+        List<ControlConfiguration.Grant> grants = configuration.grants().stream().map(grant -> new ControlConfiguration.Grant(
                 grant.subjectName(), grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(), grant.grantRef(),
                 grant.enabled(), grant.scopes(), grant.bindingIds().stream().filter(registered::contains).collect(java.util.stream.Collectors.toSet()), grant.budgetRefs())).toList();
-        return new NewAiProperties(configuration.enabled(), configuration.dataSourceBean(), configuration.releaseRef(), configuration.persistence(),
+        return new ControlConfiguration(configuration.enabled(), configuration.releaseRef(),
                 configuration.limits(), grants, configuration.capabilities(), configuration.bindings(), configuration.connections(), configuration.rates(),
-                configuration.budgets(), configuration.configurationMode());
+                configuration.budgets());
     }
 
     /**
@@ -226,13 +223,13 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
      * DATABASE 仅使用数据库权威；head=0 返回空目录，绝不回退文件中的模型、连接、费率或授权。
      */
     @Override
-    public NewAiProperties definitions() {
+    public ControlConfiguration definitions() {
         var published = published(false);
         Catalog data = published == null ? Catalog.empty() : published.catalog();
         return nonGenerationDefinitions(data);
     }
 
-    private NewAiProperties nonGenerationDefinitions(Catalog data) {
+    private ControlConfiguration nonGenerationDefinitions(Catalog data) {
         Catalog safe = new Catalog(data.capabilities(), data.bindings().stream()
                 .filter(binding -> binding.capability().kind() != CapabilityDescriptor.Kind.GENERATION).toList(),
                 data.connections(), data.rates(), List.of(), List.of(), data.defaults(), data.disabledConnections(), data.reviewedPlans());
@@ -240,7 +237,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     @Override
-    public NewAiProperties.Rate historicalRate(DefinitionRef reference) {
+    public ControlConfiguration.Rate historicalRate(DefinitionRef reference) {
         reference.requireType("rate");
         // 发布修订只允许追加，原费率不可删除或改写；禁止使用尚未导入的文件种子替代历史权威。
         return tx.readOnly(() -> published(true).catalog().rates().stream()
@@ -334,8 +331,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (!includeConfiguration) {
             return new Snapshot(auth, null);
         }
-        List<NewAiProperties.Budget> definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
-                .map(b -> json.read(b.getPayload(), NewAiProperties.Budget.class)).toList();
+        List<ControlConfiguration.Budget> definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
+                .map(b -> json.read(b.getPayload(), ControlConfiguration.Budget.class)).toList();
         Set<String> permissions = new HashSet<>(Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
         if (settings.enabled() && decisions.get(invokeAction).allowed()) {
             permissions.add(AdmissionAuthorization.INVOKE);
@@ -344,14 +341,14 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
         }
         Catalog catalog = published(true).catalog();
-        NewAiProperties.Grant grant = workspaceGrant(actor, settings, permissions, name, definitions, catalog);
+        ControlConfiguration.Grant grant = workspaceGrant(actor, settings, permissions, name, definitions, catalog);
         List<ResolvedBinding> bindings = catalog.bindings().stream().filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION).toList();
         Catalog filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
                 List.of(), List.of(), catalog.defaults(), catalog.disabledConnections());
         return new Snapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
     }
 
-    private ExecutionAuthorization authorization(NewAiProperties.Grant grant, Set<String> requested) {
+    private ExecutionAuthorization authorization(ControlConfiguration.Grant grant, Set<String> requested) {
         return new ExecutionAuthorization(new ExecutionPrincipal(grant.subjectId(), grant.subjectName(), grant.principalKind()),
                 grant.tenantId(), grant.workspaceId(), requested, grant.grantRef());
     }
@@ -372,8 +369,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return authorizationService.getObject();
     }
 
-    private static NewAiProperties.Grant renamed(NewAiProperties.Grant grant, String currentName) {
-        return new NewAiProperties.Grant(currentName, grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(),
+    private static ControlConfiguration.Grant renamed(ControlConfiguration.Grant grant, String currentName) {
+        return new ControlConfiguration.Grant(currentName, grant.subjectId(), grant.principalKind(), grant.tenantId(), grant.workspaceId(),
                 grant.grantRef(), grant.enabled(), grant.scopes(), grant.bindingIds(), grant.budgetRefs());
     }
 
@@ -392,30 +389,30 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         return value;
     }
 
-    private List<NewAiProperties.Budget> budgets(Scope scope, String subjectId) {
+    private List<ControlConfiguration.Budget> budgets(Scope scope, String subjectId) {
         return mapper.budgets(scope.tenantId(), scope.workspaceId(), subjectId).stream()
-                .map(row -> json.read(row.getPayload(), NewAiProperties.Budget.class)).toList();
+                .map(row -> json.read(row.getPayload(), ControlConfiguration.Budget.class)).toList();
     }
 
-    private NewAiProperties.Grant workspaceGrant(TrustedActor actor, WorkspaceConfiguration value, Set<String> permissions, String name, List<NewAiProperties.Budget> definitions, Catalog catalog) {
+    private ControlConfiguration.Grant workspaceGrant(TrustedActor actor, WorkspaceConfiguration value, Set<String> permissions, String name, List<ControlConfiguration.Budget> definitions, Catalog catalog) {
         boolean current = !tx.isReadOnly();
         BudgetRules rules = workspaceAi.rulesForConfiguration(value.scope(), current, value);
         Set<DefinitionRef> rates = rules.rules().stream().filter(rule -> rule.limit().amount().signum() > 0)
                 .map(BudgetPreset::rate).collect(java.util.stream.Collectors.toSet());
         Set<String> refs = definitions.stream().filter(budget -> rates.contains(budget.rate()))
-                .map(NewAiProperties.Budget::budgetRef).collect(java.util.stream.Collectors.toSet());
+                .map(ControlConfiguration.Budget::budgetRef).collect(java.util.stream.Collectors.toSet());
         Set<String> bindings = new HashSet<>(value.models().stream().map(model -> model.binding().id()).toList());
         // 工具定义由独立 Tool 治理授权，模型选择不控制工具预算规则或执行绑定。
         catalog.bindings().stream().filter(binding -> binding.capability().kind() != CapabilityDescriptor.Kind.GENERATION)
                 .map(binding -> binding.definition().id()).forEach(bindings::add);
-        return new NewAiProperties.Grant(name, actor.principal().subjectId(), ExecutionPrincipal.Kind.USER,
+        return new ControlConfiguration.Grant(name, actor.principal().subjectId(), ExecutionPrincipal.Kind.USER,
                 value.scope().tenantId(), value.scope().workspaceId(), "workspace-ai:" + value.version(), true, permissions, bindings, refs);
     }
 
     /**
      * 当前资格与配置发布版本，同一准备边界取得。
      */
-    private record CurrentSnapshot(ExecutionAuthorization authorization, NewAiProperties configuration,
+    private record CurrentSnapshot(ExecutionAuthorization authorization, ControlConfiguration configuration,
                                    Long catalogRevision) {
     }
 
@@ -450,10 +447,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (!includeConfiguration) {
                 return new CurrentSnapshot(auth, null, null);
             }
-            List<NewAiProperties.Budget> definitions = budgets(scope, actor.principal().subjectId());
+            List<ControlConfiguration.Budget> definitions = budgets(scope, actor.principal().subjectId());
             Published publication = publishedCurrent();
             Catalog catalog = publication.catalog();
-            NewAiProperties.Grant grant = workspaceGrant(actor, settings, requested, name, definitions, catalog);
+            ControlConfiguration.Grant grant = workspaceGrant(actor, settings, requested, name, definitions, catalog);
             Catalog filtered = new Catalog(catalog.capabilities(), catalog.bindings().stream()
                     .filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
                     ).toList(), catalog.connections(), catalog.rates(),
@@ -463,7 +460,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     @Override
-    public NewAiProperties configurationInCurrentTransaction(ExecutionContext context) {
+    public ControlConfiguration configurationInCurrentTransaction(ExecutionContext context) {
         tx.requireActive();
         if (tx.isReadOnly()) {
             throw new IllegalStateException("AI admission requires a writable transaction");
@@ -485,12 +482,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     }
 
     @Override
-    public NewAiProperties.Grant grant(ExecutionContext context) {
+    public ControlConfiguration.Grant grant(ExecutionContext context) {
         return snapshot(context).configuration().grants().getFirst();
     }
 
     @Override
-    public NewAiProperties configuration(ExecutionContext context) {
+    public ControlConfiguration configuration(ExecutionContext context) {
         return snapshot(context).configuration();
     }
 
@@ -516,7 +513,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (catalog.bindings().stream().anyMatch(b -> b.definition().version().equalsIgnoreCase("latest"))) {
             throw new IllegalArgumentException("Published models require fixed versions");
         }
-        NewAiProperties properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
+        ControlConfiguration properties = catalog.properties(infrastructure, catalog.legacyGrants(), catalog.legacyBudgets());
         ControlDefinitionChecks.validate(properties);
         for (DefinitionRef ref : preset.bindings()) {
             ResolvedBinding binding = catalog.bindings().stream().filter(b -> b.definition().equals(ref)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published model"));
@@ -525,7 +522,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             }
         }
         for (BudgetPreset budget : preset.budgets()) {
-            NewAiProperties.Rate rate = catalog.rates().stream().filter(r -> r.definition().equals(budget.rate())).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published rate"));
+            ControlConfiguration.Rate rate = catalog.rates().stream().filter(r -> r.definition().equals(budget.rate())).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown published rate"));
             if (!rate.currency().equals(budget.limit().currency()) || budget.limit().amount().compareTo(new BigDecimal("1000000000")) > 0) {
                 throw new IllegalArgumentException("Invalid budget currency or limit");
             }
@@ -535,10 +532,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     private void prepareBudgets(Scope scope, String subject, Preset preset, boolean update) {
         ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), subject);
-        List<NewAiProperties.Budget> existing = budgets(scope, subject);
+        List<ControlConfiguration.Budget> existing = budgets(scope, subject);
         for (BudgetPreset item : preset.budgets()) {
-            Optional<NewAiProperties.Budget> old = existing.stream().filter(b -> b.rate().equals(item.rate())).findFirst();
-            NewAiProperties.Budget definition = old.orElseGet(() -> new NewAiProperties.Budget("ws-budget-" + hash(scope.tenantId(), scope.workspaceId(), subject, item.rate().id(), item.rate().version()), owner, item.limit(), item.rate()));
+            Optional<ControlConfiguration.Budget> old = existing.stream().filter(b -> b.rate().equals(item.rate())).findFirst();
+            ControlConfiguration.Budget definition = old.orElseGet(() -> new ControlConfiguration.Budget("ws-budget-" + hash(scope.tenantId(), scope.workspaceId(), subject, item.rate().id(), item.rate().version()), owner, item.limit(), item.rate()));
             if (!definition.owner().equals(owner)) {
                 throw unavailable();
             }
@@ -574,7 +571,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     PlatformAiControlRow row = rows.stream().filter(r -> r.getBudgetRef().equals(definition.budgetRef())).findFirst().orElseThrow();
                     long expected = row.getVersion();
                     row.setVersion(Math.incrementExact(expected));
-                    row.setPayload(json.write(new NewAiProperties.Budget(definition.budgetRef(), owner, item.limit(), item.rate())));
+                    row.setPayload(json.write(new ControlConfiguration.Budget(definition.budgetRef(), owner, item.limit(), item.rate())));
                     check(mapper.replaceBudget(row, expected) == 1);
                     check(mapper.replaceAccount(key, ownerKey, codec.encode(new BudgetCommands.Account(account.budgetRef(), owner, item.limit(), account.held(), account.charged(), account.rateVersion(), Math.incrementExact(account.version())))) == 1);
                 }
@@ -637,9 +634,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId());
             String ownerKey = hash(scope.tenantId(), scope.workspaceId(), owner.subjectId());
             // 当前读取本主体的预算定义，校验实际归属并收集匹配费率的记录。
-            List<NewAiProperties.Budget> existing = new ArrayList<>();
+            List<ControlConfiguration.Budget> existing = new ArrayList<>();
             for (PlatformAiControlRow row : mapper.budgets(scope.tenantId(), scope.workspaceId(), owner.subjectId())) {
-                NewAiProperties.Budget budget = json.read(row.getPayload(), NewAiProperties.Budget.class);
+                ControlConfiguration.Budget budget = json.read(row.getPayload(), ControlConfiguration.Budget.class);
                 if (!budget.owner().equals(owner) || !budget.budgetRef().equals(row.getBudgetRef())) {
                     throw unavailable();
                 }
@@ -652,7 +649,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             }
             if (!existing.isEmpty()) {
                 // 已有定义却丢失账户属于权威损坏，禁止以“初始化”清零历史费用。
-                NewAiProperties.Budget budget = existing.getFirst();
+                ControlConfiguration.Budget budget = existing.getFirst();
                 String encoded = mapper.account(hash(budget.budgetRef()), ownerKey);
                 if (encoded == null) {
                     throw unavailable();
@@ -697,7 +694,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (rule == null) {
             return new UsageRule(null, "BUDGET_RULE_NOT_CONFIGURED");
         }
-        NewAiProperties.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
+        ControlConfiguration.Rate definition = catalog.rates().stream().filter(r -> r.definition().equals(rate)).findFirst()
                 .orElseThrow(DatabaseAiControlService::unavailable);
         if (!definition.currency().equals(rule.limit().currency())) {
             throw unavailable();
@@ -771,7 +768,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     void adjustExistingAccounts(Scope scope, List<BudgetPreset> rules) {
         Map<String, List<BudgetPreset>> subjects = new TreeMap<>();
         for (PlatformAiControlRow row : mapper.workspaceBudgets(scope.tenantId(), scope.workspaceId())) {
-            NewAiProperties.Budget definition = json.read(row.getPayload(), NewAiProperties.Budget.class);
+            ControlConfiguration.Budget definition = json.read(row.getPayload(), ControlConfiguration.Budget.class);
             if (!definition.owner().equals(new ExecutionOwner(scope.tenantId(), scope.workspaceId(), row.getSubjectId()))
                     || !definition.budgetRef().equals(row.getBudgetRef())) {
                 throw unavailable();
@@ -965,11 +962,11 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             if (settings.toolCalls()) {
                 features.add(CapabilityDescriptor.Feature.TOOL_CALLS);
             }
-            List<NewAiProperties.Rate> rates = new ArrayList<>(old.rates());
+            List<ControlConfiguration.Rate> rates = new ArrayList<>(old.rates());
             Currency currency = Currency.getInstance(settings.currency());
             Money input = new Money(new BigDecimal(settings.inputPerMillion()), currency);
             Money output = new Money(new BigDecimal(settings.outputPerMillion()), currency);
-            NewAiProperties.Rate priorRate = previous == null ? null : rates.stream().filter(rate -> rate.definition().equals(previous.rate())).findFirst().orElseThrow();
+            ControlConfiguration.Rate priorRate = previous == null ? null : rates.stream().filter(rate -> rate.definition().equals(previous.rate())).findFirst().orElseThrow();
             boolean unchangedPrice = previous != null && previous.remoteModel().equals(settings.remoteModel())
                     && priorRate.inputPerMillion().equals(input) && priorRate.outputPerMillion().equals(output);
             DefinitionRef rateRef;
@@ -978,7 +975,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             } else {
                 long rateVersion = rates.stream().filter(rate -> rate.definition().id().equals(family)).count() + 1;
                 rateRef = new DefinitionRef("rate", family, "v" + rateVersion);
-                rates.add(new NewAiProperties.Rate(rateRef, input, output));
+                rates.add(new ControlConfiguration.Rate(rateRef, input, output));
             }
             ReviewedModelPlan plan = new ReviewedModelPlan(new DefinitionRef("model-plan", family, "v" + (familyPlans.size() + 1)),
                     settings.remoteModel(), settings.connection(), settings.remoteModel(), features, settings.contextWindowTokens(), rateRef,

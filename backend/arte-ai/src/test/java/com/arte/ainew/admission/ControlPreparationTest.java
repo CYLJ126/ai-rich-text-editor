@@ -1,16 +1,18 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.spi.auth.AiControlConfigurationSource;
 import com.arte.ainew.spi.auth.ExecutionPreparationAuthorizationResolver;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
+import com.arte.ainew.testing.TestControlCatalog;
 import org.junit.After;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -31,17 +33,16 @@ import static org.junit.Assert.assertThrows;
 public class ControlPreparationTest {
     private final Source source = new Source();
     private final Clock clock = Clock.systemUTC();
-    private final AdmissionAuthorization authorization = new AdmissionAuthorization(source, source.properties, clock,
-            source, Schedulers.boundedElastic());
-    private final FixedControlCatalog catalog = new FixedControlCatalog(source.properties, authorization, clock,
+    private final AdmissionAuthorization authorization = TestAuthorizations.create(source, source.properties, clock, source, Schedulers.boundedElastic());
+    private final TestControlCatalog catalog = new TestControlCatalog(source.properties, authorization, clock,
             source, Schedulers.boundedElastic());
     private final ExecutionContextFactory factory = new ExecutionContextFactory(source, clock);
 
     private static final class Source implements ExecutionPreparationAuthorizationResolver,
             ExecutionReadAuthorizationResolver, AiControlConfigurationSource {
-        final NewAiProperties properties = AdmissionFixture.properties();
-        volatile NewAiProperties configuration = properties;
-        final FixedExecutionAuthorizationResolver fixed = new FixedExecutionAuthorizationResolver(properties);
+        final TestAiConfiguration properties = AdmissionFixture.properties();
+        volatile TestAiConfiguration configuration = properties;
+        final TestAuthorizationResolver fixed = new TestAuthorizationResolver(properties);
         final AtomicInteger preparations = new AtomicInteger(), configurations = new AtomicInteger(), writes = new AtomicInteger();
         volatile boolean revoked;
 
@@ -59,26 +60,26 @@ public class ControlPreparationTest {
         public Mono<Preparation> prepare(String name, String tenant, String workspace, Set<String> scopes) {
             return Mono.defer(() -> {
                 preparations.incrementAndGet();
-                return checked(name, tenant, workspace, scopes).map(auth -> new Preparation(auth, configuration));
+                return checked(name, tenant, workspace, scopes).map(auth -> new Preparation(auth, configuration.snapshot()));
             });
         }
 
         public Mono<Snapshot> readSnapshot(String name, String tenant, String workspace, Set<String> scopes, boolean configuration) {
-            return checked(name, tenant, workspace, scopes).map(auth -> new Snapshot(auth, configuration ? properties : null));
+            return checked(name, tenant, workspace, scopes).map(auth -> new Snapshot(auth, configuration ? properties.snapshot() : null));
         }
 
-        public NewAiProperties configuration(ExecutionContext context) {
+        public ControlConfiguration configuration(ExecutionContext context) {
             configurations.incrementAndGet();
             var auth = context.authorization();
             checked(auth.principal().subjectName(), auth.tenantId(), auth.workspaceId(), auth.scopes()).block();
-            return configuration;
+            return (configuration).snapshot();
         }
 
-        public NewAiProperties definitions() {
-            return properties;
+        public ControlConfiguration definitions() {
+            return (properties).snapshot();
         }
 
-        public NewAiProperties.Grant grant(ExecutionContext context) {
+        public ControlConfiguration.Grant grant(ExecutionContext context) {
             throw new AssertionError("Must reuse prepared configuration");
         }
     }
@@ -171,7 +172,7 @@ public class ControlPreparationTest {
             var changed = new com.arte.ainew.pojo.control.ResolvedBinding(binding.definition(), binding.capability(),
                     binding.connection(), "changed-model", binding.contextWindowTokens(), binding.rate());
             var p = source.properties;
-            source.configuration = new NewAiProperties(p.enabled(), p.releaseRef(), p.dataSourceBean(), p.persistence(), p.limits(),
+            source.configuration = new TestAiConfiguration(p.enabled(), p.releaseRef(), p.dataSourceBean(), p.persistence(), p.limits(),
                     p.grants(), p.capabilities(), java.util.List.of(changed), p.connections(), p.rates(), p.budgets());
             var generation = new com.arte.ainew.pojo.generation.GenerationRequest(java.util.List.of(
                     new com.arte.ainew.pojo.generation.ChatMessage("message", com.arte.ainew.pojo.generation.ChatMessage.Role.USER,

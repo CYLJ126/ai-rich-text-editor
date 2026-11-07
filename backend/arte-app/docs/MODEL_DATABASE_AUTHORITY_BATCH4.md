@@ -1,3 +1,5 @@
+> 当前版本已移除固定文件模式和模式选择键；部署升级以 [数据库单一来源](AI_DATABASE_ONLY.md) 为准。本文保留阶段性设计与验收记录。
+
 # 数据库模型管理第四批：租户模型、跨空间使用和凭据用途
 
 > 后继设计（2026-11-03）：[模型配置重构 M0](../../../ARTE%20AI%20模型配置需求及设计.md) 已定稿，M1～M5 尚未编码。本文保留当批实现与验证事实；后续
@@ -125,7 +127,6 @@ ExecutionOwner、固定发布、当前用途和兼容预算，随后才解密。
 3. 升级全部 API／Worker 节点并排空旧二进制，再显式配置：
 
 ```properties
-arte.ai-new.configuration-mode=DATABASE
 arte.ai-new-model-management.enabled=true
 arte.ai-new-model-publication.enabled=true
 arte.ai-new-model-sharing.enabled=true

@@ -2,6 +2,7 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.model.ModelDraftService;
 import com.arte.ainew.application.model.DefaultModelDraftService;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.model.ModelDrafts.*;
 import com.arte.ainew.pojo.model.ModelResource;
 import com.arte.ainew.spi.model.ModelConnectionTemplates;
@@ -93,7 +94,7 @@ class ModelDraftIntegrationTest {
         var reviewed = new com.arte.ainew.pojo.control.ConnectionDefinition(original.definition(), original.providerId(),
                 com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter.DEFINITION, java.net.URI.create("https://example.invalid/v1/chat/completions"),
                 original.credential(), original.state(), original.connectTimeout(), original.responseTimeout(), original.maxResponseBytes());
-        f.seed = new com.arte.ainew.config.NewAiProperties(false, "appDataSource", f.seed.releaseRef(), f.seed.persistence(), f.seed.limits(), f.seed.grants(),
+        f.seed = new ControlConfiguration(false, f.seed.releaseRef(), f.seed.limits(), f.seed.grants(),
                 f.seed.capabilities(), f.seed.bindings(), List.of(reviewed), f.seed.rates(), f.seed.budgets());
         String ddl = Files.readString(Path.of("scripts/arte-ai-model-draft-ddl-mysql.sql"));
         if (f.f.mysql == null) ddl = ddl.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
@@ -285,7 +286,7 @@ class ModelDraftIntegrationTest {
         var old = f.seed.connections().getFirst();
         var changed = new com.arte.ainew.pojo.control.ConnectionDefinition(old.definition(), old.providerId(), old.protocol(),
                 java.net.URI.create("https://example.invalid/v2/chat/completions"), old.credential(), old.state(), old.connectTimeout(), old.responseTimeout(), old.maxResponseBytes());
-        f.seed = new com.arte.ainew.config.NewAiProperties(false, "appDataSource", f.seed.releaseRef(), f.seed.persistence(), f.seed.limits(), f.seed.grants(),
+        f.seed = new ControlConfiguration(false, f.seed.releaseRef(), f.seed.limits(), f.seed.grants(),
                 f.seed.capabilities(), f.seed.bindings(), List.of(changed), f.seed.rates(), f.seed.budgets());
         assertEquals(ValidationState.STALE, service.completeValidation(f.f.actor, f.scope, v.id(), new ProbeResult(true, "MODEL_FOUND")).state());
     }

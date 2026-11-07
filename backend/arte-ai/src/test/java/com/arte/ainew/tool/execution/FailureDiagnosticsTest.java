@@ -12,6 +12,7 @@ import com.arte.ainew.pojo.tool.ToolChatRunSnapshot;
 import com.arte.ainew.pojo.tool.ToolChatSubmission;
 import com.arte.ainew.spi.persistence.ExecutionResultStore;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -100,8 +101,7 @@ public class FailureDiagnosticsTest {
     }
 
     private ToolChatCoordinator coordinator(ToolChatLoopTest.Rig r, ToolChatRunStore runs, ExecutionResultStore results) {
-        return new ToolChatCoordinator(runs, r.f.executions, results, r.invocationCoordinator, r.toolAdmission, r.budgets,
-                r.authorization, r.access, r.f.store, r.properties, r.f.clock, Duration.ofMillis(100));
+        return new ToolChatCoordinator(runs, r.f.executions, results, r.invocationCoordinator, r.toolAdmission, r.budgets, r.authorization, r.access, r.f.store, r.properties.deployment(), r.f.clock, Duration.ofMillis(100), new TestControlCatalog(r.properties, r.authorization, r.f.clock).policyProvider(), new TestControlCatalog(r.properties, r.authorization, r.f.clock).admissionGuard());
     }
 
     @Test

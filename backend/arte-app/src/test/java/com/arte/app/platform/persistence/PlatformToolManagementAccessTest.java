@@ -4,7 +4,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.persistence.mybatis.MybatisToolBindingStore;
 import com.arte.ainew.persistence.mybatis.MybatisToolCatalogStore;
@@ -107,7 +106,7 @@ class PlatformToolManagementAccessTest {
         grant("aiTool:manage");
         grant("aiConfiguration:manage");
         enabled(true);
-        access = adapter(true, properties(List.of()));
+        access = adapter();
         var codec = new JacksonExecutionRecordCodec();
         catalog = new MybatisToolCatalogStore(f.source, codec, scheduler, clock);
         releases = new MybatisToolReleaseStore(f.source, codec, scheduler, clock);
@@ -341,15 +340,6 @@ class PlatformToolManagementAccessTest {
     }
 
     @Test
-    void fixedModeUsesActualSubjectAndScopeGrantWithoutDependingOnABindingOrRate() {
-        var grant = new NewAiProperties.Grant("alice", f.actor.principal().subjectId(), ExecutionPrincipal.Kind.USER, scope.tenantId(), scope.workspaceId(), "tool-test", true, Set.of("ai:invoke", "ai:read"), Set.of(), Set.of());
-        var fixed = adapter(false, properties(List.of(grant)));
-        assertNotNull(fixed.capture(login()).authorize(scope, BINDING_WRITE).block(wait));
-        var mismatch = new NewAiProperties.Grant("alice", "wrong-subject", ExecutionPrincipal.Kind.USER, scope.tenantId(), scope.workspaceId(), "tool-test", true, Set.of("ai:invoke", "ai:read"), Set.of(), Set.of());
-        assertThrows(RuntimeException.class, () -> adapter(false, properties(List.of(mismatch))).capture(login()).authorize(scope, BINDING_WRITE).block(wait));
-    }
-
-    @Test
     void permissionRowsStayLockedThroughActualToolCommit() throws Exception {
         var permit = permit(BINDING_WRITE);
         var held = new CountDownLatch(1);
@@ -459,8 +449,7 @@ class PlatformToolManagementAccessTest {
     }
 
     private PlatformToolInvocationAccess invocationAdapter() {
-        return new PlatformToolInvocationAccess(identities, permissions, f.tx, f.services.writeGuard(),
-                properties(List.of()), true, scheduler, clock);
+        return new PlatformToolInvocationAccess(identities, permissions, f.tx, f.services.writeGuard(), scheduler, clock);
     }
 
     @Test
@@ -601,12 +590,8 @@ class PlatformToolManagementAccessTest {
                 Invocation.State.ACCEPTED, 0, null, null, null, clock.instant(), clock.instant());
     }
 
-    private PlatformToolManagementAccess adapter(boolean database, NewAiProperties properties) {
-        return new PlatformToolManagementAccess(identities, permissions, f.tx, f.services.writeGuard(), f.services.authorization(), configuration, f.json, properties, database, scheduler, clock);
-    }
-
-    private NewAiProperties properties(List<NewAiProperties.Grant> grants) {
-        return new NewAiProperties(false, "appDataSource", "tool-test", null, null, grants, List.of(), List.of(), List.of(), List.of(), List.of());
+    private PlatformToolManagementAccess adapter() {
+        return new PlatformToolManagementAccess(identities, permissions, f.tx, f.services.writeGuard(), f.services.authorization(), configuration, f.json, scheduler, clock);
     }
 
     private Authentication login() {

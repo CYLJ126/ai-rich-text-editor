@@ -5,7 +5,6 @@ import com.arte.ainew.api.control.CapabilityCatalog;
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.support.AdmissionDigests;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.application.support.TextInputs;
@@ -60,28 +59,6 @@ public final class AdmissionInvocationCoordinator implements InvocationCoordinat
     private final AiAdmissionAuthorizationGuard guard;
     private final PublishedAiCatalog published;
     private final BudgetDefinitionProvider definitions;
-
-    /**
-     * 旧手工装配兼容入口；生产构造器显式传入全部控制面端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public AdmissionInvocationCoordinator(AdmissionAuthorization admissionAuthorization, CapabilityCatalog capabilityCatalog, BindingManager bindingManager,
-                                          BudgetService budgetService, ContextSnapshotStore contextSnapshotStore, ExecutionStore executionStore,
-                                          NewAiProperties properties, Clock clock) {
-        this.admissionAuthorization = admissionAuthorization;
-        this.capabilityCatalog = capabilityCatalog;
-        this.bindingManager = bindingManager;
-        this.budgetService = budgetService;
-        this.contextSnapshotStore = contextSnapshotStore;
-        this.executionStore = executionStore;
-        this.properties = properties;
-        this.clock = clock;
-        FixedControlCatalog compatibility = bindingManager instanceof FixedControlCatalog catalog ? catalog : new FixedControlCatalog(properties, admissionAuthorization, clock);
-        policies = compatibility.policyProvider();
-        guard = compatibility.admissionGuard();
-        published = compatibility.readAdapter();
-        definitions = compatibility.readAdapter();
-    }
 
     @Override
     public Mono<AcceptedExecution> submit(InvocationSubmission<?> submission) {

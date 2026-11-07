@@ -1,6 +1,5 @@
 package com.arte.ainew.search;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.execution.DefaultExecutionEventService;
 import com.arte.ainew.application.search.ConversationSearchSyncWorker;
@@ -25,6 +24,7 @@ import com.arte.ainew.pojo.execution.Usage;
 import com.arte.ainew.pojo.search.ConversationSearch;
 import com.arte.ainew.pojo.search.SearchIndexRecord;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.ConversationHttpContext;
 import com.arte.ainew.web.NewAiHttpContext;
@@ -118,17 +118,16 @@ public class SearchQualityAcceptanceTest {
         service = new DefaultConversationSearchService(new ElasticsearchConversationSearchIndex(env.es, config, env.io), env.sessions, reads,
                 new SearchReadAuthorization(resolver, clock), config, env.app, env.cleanup, clock);
         var store = new MybatisExecutionPersistence(f.ds, f.codec, env.app);
-        conversations = new DefaultConversationService(store, new AdmissionAuthorization(resolver, null, clock), clock,
+        conversations = new DefaultConversationService(store, com.arte.ainew.testing.TestAuthorizations.create(resolver, null, clock), clock,
                 (o, ids) -> Mono.just(ids.stream().filter(f.archived::contains).collect(java.util.stream.Collectors.toSet())));
-        events = new DefaultExecutionEventService(new AdmissionAuthorization(resolver, null, clock), store, store,
+        events = new DefaultExecutionEventService(com.arte.ainew.testing.TestAuthorizations.create(resolver, null, clock), store, store,
                 new MybatisPayloadPersistence(f.ds, f.codec, env.app), null, clock, null, null,
                 (owner, ids) -> Mono.fromCallable(() -> reads.readableInvocations(owner, ids)).subscribeOn(env.app));
-        var props = new NewAiProperties(true, "appDataSource", "release", new NewAiProperties.Persistence(2, 100),
-                new NewAiProperties.Limits(1000, 1000, 10000, Duration.ofSeconds(30), Duration.ofMinutes(5)), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "DATABASE");
-        var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, clock), props);
-        mvc = MockMvcBuilders.standaloneSetup(new NewAiConversationSearchController(service, http, props),
-                        new NewAiConversationController(conversations, new ConversationHttpContext(http, props)),
-                        new NewAiInvocationController(null, events, http, props, null))
+        var props = new TestAiConfiguration(true, "appDataSource", "release", new NewAiProperties.Persistence(2, 100), new NewAiProperties.Limits(1000, 1000, 10000, Duration.ofSeconds(30), Duration.ofMinutes(5)), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, clock), props.deployment());
+        mvc = MockMvcBuilders.standaloneSetup(new NewAiConversationSearchController(service, http, props.deployment()),
+                        new NewAiConversationController(conversations, new ConversationHttpContext(http, props.deployment())),
+                        new NewAiInvocationController(null, events, http, props.deployment(), null))
                 .setControllerAdvice(new ConversationExceptionHandler()).build();
         corpus = json.readTree(new ClassPathResource("search-s5/corpus.json").getInputStream());
         started = System.currentTimeMillis();

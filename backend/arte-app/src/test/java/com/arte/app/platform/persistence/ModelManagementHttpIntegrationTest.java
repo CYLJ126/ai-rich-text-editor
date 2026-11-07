@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ModelManagementHttpIntegrationTest {
 
-    final ModelAclExecutionIntegrationTest f = new ModelAclExecutionIntegrationTest();
+    final ModelManagementFixture f = new ModelManagementFixture();
     Scheduler scheduler;
     ManagementHttpHarness http;
     Authentication alice, bob;
@@ -310,31 +310,6 @@ class ModelManagementHttpIntegrationTest {
         http.rejected(ACL + "batchCheckResourceAccess", json(Map.of("requests", Collections.nCopies(101, checks.getFirst()))), null, alice, 400, "INVALID_ARGUMENT");
     }
 
-    @Test
-    void migrationRequiresExplicitCommandAndManagerAndEmptyManifestDoesNotRevertToLegacy() {
-        assertFalse(model("getModelAclScope", Map.of("scope", f.f.scope), null).getBool("migrated"));
-        assertEquals(0, f.f.count("arte_ai_model_acl_scope"));
-        Map<String, Object> activate = Map.of("scope", f.f.scope, "source", "FIXED", "expectedVersion", 0, "bindings", List.of(V1));
-        http.rejected(MODEL + "updateModelAclScope", json(activate), "activate", bob, 403, "ACCESS_DENIED");
-        JSONObject receipt = model("updateModelAclScope", activate, "activate");
-        assertTrue(receipt.getJSONObject("value").getBool("migrated"));
-        assertEquals(receipt.getStr("operationId"), model("updateModelAclScope", activate, "activate").getStr("operationId"));
-        model("updateModelAclScope", Map.of("scope", f.f.scope, "source", "FIXED", "expectedVersion", 1, "bindings", List.of()), "empty");
-        JSONObject state = model("getModelAclScope", Map.of("scope", f.f.scope), null);
-        assertTrue(state.getBool("migrated"));
-        assertEquals(2L, state.getLong("version"));
-        assertTrue(f.discover().isEmpty());
-    }
-
-    @Test
-    void migrationRejectsMissingMappingsDuplicateBindingsAndSourceSwitches() {
-        for (List<com.arte.core.pojo.reference.DefinitionRef> refs : List.of(List.of(V2), List.of(V1, V1))) {
-            http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.f.scope, "source", "FIXED", "expectedVersion", 0, "bindings", refs)), "invalid", alice,
-                    refs.size() == 1 ? 404 : 400, refs.size() == 1 ? "NOT_FOUND" : "INVALID_ARGUMENT");
-        }
-        http.rejected(MODEL + "updateModelAclScope", json(Map.of("scope", f.f.scope, "source", "DATABASE", "expectedVersion", 0, "bindings", List.of(V1))), "switch", alice, 409, "CAPABILITY_NOT_ENABLED");
-        assertEquals(0, f.f.count("arte_ai_model_acl_scope"));
-    }
 
     @Test
     void concurrentAclCommandsWithOneExpectedVersionHaveOneWinner() throws Exception {

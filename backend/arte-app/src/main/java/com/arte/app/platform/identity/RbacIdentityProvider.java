@@ -1,7 +1,7 @@
 package com.arte.app.platform.identity;
 
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.enums.platform.PrincipalKindEnum;
@@ -34,12 +34,12 @@ public final class RbacIdentityProvider implements IdentityProvider {
     private final JdbcPrincipalIdentityStore identities;
     private final TransactionTemplate transactions;
     private final PlatformIdentityProperties properties;
-    private final Supplier<List<NewAiProperties.Grant>> legacyGrants;
+    private final Supplier<List<ControlConfiguration.Grant>> legacyGrants;
     private final Clock clock;
 
     public RbacIdentityProvider(RbacAccountReader accounts, JdbcPrincipalIdentityStore identities,
                                 TransactionTemplate transactions, PlatformIdentityProperties properties,
-                                Supplier<List<NewAiProperties.Grant>> legacyGrants, Clock clock) {
+                                Supplier<List<ControlConfiguration.Grant>> legacyGrants, Clock clock) {
         this.accounts = accounts;
         this.identities = identities;
         this.transactions = transactions;

@@ -121,7 +121,7 @@ class DatabaseConnectionIntegrationTest {
                 .withBean(org.redisson.api.RedissonClient.class, () -> org.mockito.Mockito.mock(org.redisson.api.RedissonClient.class))
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
                         "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true",
-                        "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE", "arte.ai-new.release-ref=empty-database",
+                        "arte.ai-new.enabled=true", "arte.ai-new.release-ref=empty-database",
                         "arte.ai-new-generation.enabled=true", "arte.ai-new-generation.allowed-origins[0]=https://api.deepseek.com")
                 .run(c -> {
                     assertNull(c.getStartupFailure());

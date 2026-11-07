@@ -1,10 +1,10 @@
 package com.arte.ainew.tool.chat;
 
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.config.NewAiToolChatConfiguration;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
 import com.arte.ainew.spi.persistence.ToolChatRunStore;
+import com.arte.ainew.testing.TestAiConfiguration;
 import org.junit.Test;
 import org.springframework.beans.BeansException;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -57,7 +57,7 @@ public class ToolChatRunAssemblyTest {
     private AnnotationConfigApplicationContext configured() {
         var c = new AnnotationConfigApplicationContext();
         c.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", Map.of("arte.ai-new.enabled", true, "arte.ai-new-tool.enabled", true)));
-        c.registerBean(NewAiProperties.class, () -> new NewAiProperties(true, "runDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "DATABASE"));
+        c.registerBean(com.arte.ainew.config.NewAiProperties.class, () -> new TestAiConfiguration(true, "runDataSource", "release", null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of()).deployment());
         c.registerBean(ExecutionRecordCodec.class, JacksonExecutionRecordCodec::new);
         c.registerBean("newAiPersistenceScheduler", Scheduler.class, () -> Schedulers.newBoundedElastic(1, 8, "run-assembly-test"), definition -> definition.setDestroyMethodName("dispose"));
         c.register(NewAiToolChatConfiguration.class);

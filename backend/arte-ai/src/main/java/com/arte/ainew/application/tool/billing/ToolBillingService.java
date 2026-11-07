@@ -2,7 +2,6 @@ package com.arte.ainew.application.tool.billing;
 
 import com.arte.ainew.api.execution.BudgetService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.pojo.budget.BudgetCommands;
@@ -49,15 +48,6 @@ public final class ToolBillingService {
     private final BudgetService budgets;
     private final ExecutionStore executions;
     private final ToolBillingStore bills;
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ToolBillingService(AdmissionAuthorization authorization, FixedControlCatalog catalog, BudgetService budgets,
-                              ExecutionStore executions, ToolBillingStore bills) {
-        this(authorization, catalog.readAdapter(), catalog.readAdapter(), budgets, executions, bills);
-    }
 
     public ToolBillingService(AdmissionAuthorization authorization, PublishedAiCatalog catalog, BudgetDefinitionProvider definitions,
                               BudgetService budgets, ExecutionStore executions, ToolBillingStore bills) {

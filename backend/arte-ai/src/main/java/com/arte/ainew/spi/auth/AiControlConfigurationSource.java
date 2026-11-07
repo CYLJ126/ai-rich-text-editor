@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.auth;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 
 /**
  * 受信数据库控制面
@@ -16,7 +16,7 @@ public interface AiControlConfigurationSource {
     /**
      * 一致准备配置及其不可变发布版本；版本为空表示来源不支持轻量复核。
      */
-    record PreparedConfiguration(NewAiProperties configuration, Long catalogRevision) {
+    record PreparedConfiguration(ControlConfiguration configuration, Long catalogRevision) {
         public PreparedConfiguration {
             java.util.Objects.requireNonNull(configuration);
             if (catalogRevision != null && catalogRevision < 1)
@@ -28,12 +28,12 @@ public interface AiControlConfigurationSource {
      * 在本次调用中核验当前主体、范围和 context 的全部权限，返回包含该主体 Grant 的一致配置快照。
      * 调用方可在同一次提交／派发准备内复用快照；受理和实际发送边界重新读取，不能跨请求缓存授权。
      */
-    NewAiProperties configuration(ExecutionContext context);
+    ControlConfiguration configuration(ExecutionContext context);
 
     /**
      * 原同库写事务中的当前身份／成员／政策门控；不支持时拒绝，不能默认复用展示快照。
      */
-    default NewAiProperties configurationInCurrentTransaction(ExecutionContext context) {
+    default ControlConfiguration configurationInCurrentTransaction(ExecutionContext context) {
         throw new UnsupportedOperationException("Current transaction configuration is required");
     }
 
@@ -59,16 +59,16 @@ public interface AiControlConfigurationSource {
         return prepareConfiguration(context);
     }
 
-    NewAiProperties definitions();
+    ControlConfiguration definitions();
 
     /**
      * 已有执行结算的精确历史费率；数据库来源必须读取发布权威，不依赖当前用户调用资格。
      */
-    default NewAiProperties.Rate historicalRate(com.arte.core.pojo.reference.DefinitionRef reference) {
+    default ControlConfiguration.Rate historicalRate(com.arte.core.pojo.reference.DefinitionRef reference) {
         reference.requireType("rate");
         return definitions().rates().stream().filter(rate -> rate.definition().equals(reference)).findFirst()
                 .orElseThrow(() -> new com.arte.ainew.application.support.AdmissionException(com.arte.core.enums.ResultCodeEnum.AI_RATE_MISMATCH));
     }
 
-    NewAiProperties.Grant grant(ExecutionContext context);
+    ControlConfiguration.Grant grant(ExecutionContext context);
 }

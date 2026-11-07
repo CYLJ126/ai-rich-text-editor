@@ -1,12 +1,12 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
 import com.arte.ainew.spi.auth.ExecutionReadAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizationResolver;
 import org.junit.After;
 import org.junit.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -27,8 +27,8 @@ public class ReadOperationSnapshotTest {
     private final Fixture holder = new Fixture();
 
     private static class Fixture {
-        final com.arte.ainew.config.NewAiProperties properties = AdmissionFixture.properties();
-        final FixedExecutionAuthorizationResolver fixed = new FixedExecutionAuthorizationResolver(properties);
+        final com.arte.ainew.testing.TestAiConfiguration properties = AdmissionFixture.properties();
+        final TestAuthorizationResolver fixed = new TestAuthorizationResolver(properties);
         final AtomicInteger reads = new AtomicInteger(), writes = new AtomicInteger();
         volatile boolean revoked;
         final ExecutionReadAuthorizationResolver resolver = new ExecutionReadAuthorizationResolver() {
@@ -40,7 +40,7 @@ public class ReadOperationSnapshotTest {
             public Mono<Snapshot> readSnapshot(String name, String tenant, String workspace, Set<String> scopes, boolean configuration) {
                 reads.incrementAndGet();
                 return revoked ? Mono.error(new AccessDeniedException("revoked"))
-                        : fixed.resolve(name, tenant, workspace, scopes).map(auth -> new Snapshot(auth, configuration ? properties : null));
+                        : fixed.resolve(name, tenant, workspace, scopes).map(auth -> new Snapshot(auth, configuration ? properties.snapshot() : null));
             }
         };
     }
@@ -62,7 +62,7 @@ public class ReadOperationSnapshotTest {
     public void snapshotIsBoundToOneSubscriptionAndCannotAuthorizeWritesOrOtherContexts() {
         login("alice");
         var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
-        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(holder.resolver, holder.properties, Clock.systemUTC());
         var saved = new AtomicReference<ExecutionContext>();
         var operation = factory.readCurrent(request(), false, ctx -> {
             saved.set(ctx);
@@ -87,7 +87,7 @@ public class ReadOperationSnapshotTest {
     public void writeBoundaryUsesFreshResolverAndScopeMismatchFailsClosed() {
         login("alice");
         var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
-        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(holder.resolver, holder.properties, Clock.systemUTC());
         assertThrows(AccessDeniedException.class, () -> factory.readCurrent(request(), false,
                         ctx -> auth.require(ctx.child("other", ctx.deadline(), Set.of(AdmissionAuthorization.READ), null), AdmissionAuthorization.READ))
                 .block(Duration.ofSeconds(5)));
@@ -102,7 +102,7 @@ public class ReadOperationSnapshotTest {
     public void freshReadRechecksEligibilityWithoutRemovingReadOnlyBoundary() {
         login("alice");
         var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
-        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(holder.resolver, holder.properties, Clock.systemUTC());
         factory.readCurrent(request(), false, context -> auth.requireFreshRead(context, AdmissionAuthorization.READ)
                 .flatMap(fresh -> {
                     assertEquals(context, fresh);
@@ -124,7 +124,7 @@ public class ReadOperationSnapshotTest {
     public void freshReadCannotUseSnapshotBoundToDifferentContext() {
         login("alice");
         var factory = new ExecutionContextFactory(holder.resolver, Clock.systemUTC());
-        var auth = new AdmissionAuthorization(holder.resolver, holder.properties, Clock.systemUTC());
+        var auth = com.arte.ainew.testing.TestAuthorizations.create(holder.resolver, holder.properties, Clock.systemUTC());
         assertThrows(AccessDeniedException.class, () -> factory.readCurrent(request(), false,
                         context -> auth.requireFreshRead(context.child("other", context.deadline(), Set.of(AdmissionAuthorization.READ), null), AdmissionAuthorization.READ))
                 .block(Duration.ofSeconds(5)));

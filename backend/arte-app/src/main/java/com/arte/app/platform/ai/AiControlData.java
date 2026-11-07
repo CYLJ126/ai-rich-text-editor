@@ -4,6 +4,7 @@ import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.Money;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.model.ModelResourceCommands.ModelKind;
 import com.arte.ainew.pojo.model.ModelSelection;
@@ -54,23 +55,24 @@ public final class AiControlData {
     }
 
     public record Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                          List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
-                          List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
+                          List<ConnectionDefinition> connections, List<ControlConfiguration.Rate> rates,
+                          List<ControlConfiguration.Grant> legacyGrants,
+                          List<ControlConfiguration.Budget> legacyBudgets,
                           Preset defaults, Set<String> disabledConnections, List<ReviewedModelPlan> reviewedPlans) {
 
         /**
          * 受信内部定义装配入口；审核方案必须显式传入，不能从运行绑定推导。
          */
         public Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                       List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
-                       List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets,
+                       List<ConnectionDefinition> connections, List<ControlConfiguration.Rate> rates,
+                       List<ControlConfiguration.Grant> legacyGrants, List<ControlConfiguration.Budget> legacyBudgets,
                        Preset defaults, Set<String> disabledConnections) {
             this(capabilities, bindings, connections, rates, legacyGrants, legacyBudgets, defaults, disabledConnections, List.of());
         }
 
         public Catalog(List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                       List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
-                       List<NewAiProperties.Grant> legacyGrants, List<NewAiProperties.Budget> legacyBudgets, Preset defaults) {
+                       List<ConnectionDefinition> connections, List<ControlConfiguration.Rate> rates,
+                       List<ControlConfiguration.Grant> legacyGrants, List<ControlConfiguration.Budget> legacyBudgets, Preset defaults) {
             this(capabilities, bindings, connections, rates, legacyGrants, legacyBudgets, defaults, Set.of());
         }
 
@@ -99,8 +101,8 @@ public final class AiControlData {
                     new Preset(false, List.of(), List.of()));
         }
 
-        public NewAiProperties properties(NewAiProperties infrastructure, List<NewAiProperties.Grant> grants, List<NewAiProperties.Budget> budgets) {
-            return new NewAiProperties(false, infrastructure.dataSourceBean(), infrastructure.releaseRef(), infrastructure.persistence(),
+        public ControlConfiguration properties(NewAiProperties infrastructure, List<ControlConfiguration.Grant> grants, List<ControlConfiguration.Budget> budgets) {
+            return new ControlConfiguration(false, infrastructure.releaseRef(),
                     infrastructure.limits(), grants, capabilities, bindings, connections.stream().map(c ->
                     disabledConnections.contains(c.definition().id()) ? new ConnectionDefinition(c.definition(), c.providerId(),
                             c.protocol(), c.endpoint(), c.credential(), ConnectionDefinition.State.DISABLED,
@@ -159,7 +161,7 @@ public final class AiControlData {
     public record WorkspaceView(String mode, WorkspaceConfiguration configuration, long workspaceVersion,
                                 boolean canManage, boolean needsImport, long templateVersion, List<Model> models,
                                 Preset defaults,
-                                List<NewAiProperties.Rate> toolRates) {
+                                List<ControlConfiguration.Rate> toolRates) {
     }
 
     /**

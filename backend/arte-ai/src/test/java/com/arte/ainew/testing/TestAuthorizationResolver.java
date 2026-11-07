@@ -1,10 +1,9 @@
-package com.arte.ainew.application.auth;
+package com.arte.ainew.testing;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.common.validation.ContractChecks;
-import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.config.NewAiProperties.Grant;
+import com.arte.ainew.pojo.control.ControlConfiguration.Grant;
 import org.springframework.security.access.AccessDeniedException;
 import reactor.core.publisher.Mono;
 
@@ -17,11 +16,11 @@ import java.util.Set;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
-public final class FixedExecutionAuthorizationResolver implements com.arte.ainew.spi.auth.ExecutionAuthorizationResolver {
+public final class TestAuthorizationResolver implements com.arte.ainew.spi.auth.ExecutionAuthorizationResolver {
 
     private final List<Grant> grants;
 
-    public FixedExecutionAuthorizationResolver(NewAiProperties properties) {
+    public TestAuthorizationResolver(TestAiConfiguration properties) {
         grants = properties.grants();
         ContractChecks.unique(grants.stream().map(g -> List.of(g.subjectName(), g.tenantId(), g.workspaceId())).toList(), "grant identities");
         ContractChecks.unique(grants.stream().map(g -> List.of(g.subjectId(), g.tenantId(), g.workspaceId())).toList(), "stable grant identities");

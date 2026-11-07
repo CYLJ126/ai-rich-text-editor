@@ -1,11 +1,9 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.context.ChatHistoryLoader;
 import com.arte.ainew.application.context.TextContextService;
 import com.arte.ainew.application.control.BudgetAccountInitializer;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.conversation.DefaultConversationService;
 import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
@@ -22,12 +20,16 @@ import com.arte.ainew.pojo.context.ContextBudget;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.entry.EntryRequests;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -48,7 +50,7 @@ import java.util.*;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
-final class AdmissionFixture {
+public final class AdmissionFixture {
     /**
      * 文本生成能力的固定版本引用：capability / text / v1
      */
@@ -75,12 +77,12 @@ final class AdmissionFixture {
      */
     static final Set<String> REGULAR = Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION, AdmissionAuthorization.READ);
 
-    final NewAiProperties properties;
+    final TestAiConfiguration properties;
     final ExecutionRecordCodec codec;
     final ExecutionContextFactory factory;
     final MybatisExecutionPersistence executions;
     final MybatisPayloadPersistence payloads;
-    final FixedControlCatalog catalog;
+    final TestControlCatalog catalog;
     final BudgetAccountInitializer budgets;
     final TextContextService contexts;
     final DefaultConversationService conversations;
@@ -95,58 +97,57 @@ final class AdmissionFixture {
         return new Money(new BigDecimal(amount), Currency.getInstance("CNY"));
     }
 
-    static NewAiProperties properties() {
-        var capabilities = new CapabilityDescriptor(CAP, CapabilityDescriptor.Kind.GENERATION, FixedControlCatalog.INPUT_SCHEMA,
-                FixedControlCatalog.OUTPUT_SCHEMA, Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
+    public static TestAiConfiguration properties() {
+        var capabilities = new CapabilityDescriptor(CAP, CapabilityDescriptor.Kind.GENERATION, TestControlCatalog.INPUT_SCHEMA,
+                TestControlCatalog.OUTPUT_SCHEMA, Set.of(CapabilityDescriptor.Feature.TEXT_INPUT, CapabilityDescriptor.Feature.STREAMING),
                 CapabilityDescriptor.SideEffect.READ_ONLY, CapabilityDescriptor.Availability.EXECUTABLE);
         var grantScopes = new HashSet<>(REGULAR);
         grantScopes.add(AdmissionAuthorization.BUDGET_ADMIN);
-        var grants = List.of(new NewAiProperties.Grant("alice", "alice-id", ExecutionPrincipal.Kind.USER, "tenant", "workspace",
+        var grants = List.of(new ControlConfiguration.Grant("alice", "alice-id", ExecutionPrincipal.Kind.USER, "tenant", "workspace",
                         "alice-grant-v1", true, grantScopes, Set.of("text"), Set.of("alice-budget")),
-                new NewAiProperties.Grant("bob", "bob-id", ExecutionPrincipal.Kind.USER, "tenant", "workspace",
+                new ControlConfiguration.Grant("bob", "bob-id", ExecutionPrincipal.Kind.USER, "tenant", "workspace",
                         "bob-grant-v1", true, grantScopes, Set.of("text"), Set.of("bob-budget")));
         var connection = new ConnectionDefinition(CONNECTION, "test-provider", new DefinitionRef("protocol", "http", "v1"),
                 URI.create("https://example.invalid/v1"), new DefinitionRef("secret", "test-credential", "v1"),
                 ConnectionDefinition.State.ENABLED, Duration.ofSeconds(5), TIMEOUT, 4096);
-        return new NewAiProperties(true, "appDataSource", "release-v1", new NewAiProperties.Persistence(4, 256),
+        return new TestAiConfiguration(true, "appDataSource", "release-v1", new NewAiProperties.Persistence(4, 256),
                 new NewAiProperties.Limits(2048, 256, 4096, TIMEOUT, Duration.ofMinutes(15)), grants, List.of(capabilities),
                 List.of(new ResolvedBinding(BINDING, capabilities, CONNECTION, "test-model", 1024L, RATE)), List.of(connection),
-                List.of(new NewAiProperties.Rate(RATE, money("1"), money("2"))),
-                List.of(new NewAiProperties.Budget("alice-budget", owner("alice-id"), money("100"), RATE),
-                        new NewAiProperties.Budget("bob-budget", owner("bob-id"), money("100"), RATE)));
+                List.of(new ControlConfiguration.Rate(RATE, money("1"), money("2"))),
+                List.of(new ControlConfiguration.Budget("alice-budget", owner("alice-id"), money("100"), RATE),
+                        new ControlConfiguration.Budget("bob-budget", owner("bob-id"), money("100"), RATE)));
     }
 
     AdmissionFixture(DataSource dataSource, Scheduler scheduler) {
         this(dataSource, scheduler, new JacksonExecutionRecordCodec(), properties());
     }
 
-    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, NewAiProperties properties) {
+    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, TestAiConfiguration properties) {
         this(dataSource, scheduler, codec, properties, () -> {
         });
     }
 
-    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, NewAiProperties properties, Runnable wakeup) {
+    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, TestAiConfiguration properties, Runnable wakeup) {
         this(dataSource, scheduler, codec, properties, wakeup, () -> {
         });
     }
 
-    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, NewAiProperties properties,
+    AdmissionFixture(DataSource dataSource, Scheduler scheduler, ExecutionRecordCodec codec, TestAiConfiguration properties,
                      Runnable wakeup, Runnable dispatchWakeup) {
         this.properties = properties;
         this.codec = codec;
         var clock = Clock.systemUTC();
-        var resolver = new FixedExecutionAuthorizationResolver(properties);
-        var authorization = new AdmissionAuthorization(resolver, properties, clock);
+        var resolver = new TestAuthorizationResolver(properties);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, clock);
         factory = new ExecutionContextFactory(resolver, clock);
         executions = new MybatisExecutionPersistence(dataSource, codec, scheduler, wakeup, dispatchWakeup);
         payloads = new MybatisPayloadPersistence(dataSource, codec, scheduler);
-        catalog = new FixedControlCatalog(properties, authorization, clock);
-        budgets = new BudgetAccountInitializer(catalog, authorization, executions, executions);
+        catalog = new TestControlCatalog(properties, authorization, clock);
+        budgets = new BudgetAccountInitializer(catalog.readAdapter(), authorization, executions, executions);
         conversations = new DefaultConversationService(executions, authorization, clock);
-        contexts = new TextContextService(authorization, catalog, payloads, properties, clock,
-                new ChatHistoryLoader(conversations, authorization, executions, payloads, payloads));
-        coordinator = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties, clock);
-        chat = new DefaultChatService(authorization, conversations, catalog, contexts, coordinator, clock, executions, executions, properties);
+        contexts = new TextContextService(authorization, catalog, payloads, properties.limits(), clock, new ChatHistoryLoader(conversations, authorization, executions, payloads, payloads), catalog.policyProvider());
+        coordinator = new AdmissionInvocationCoordinator(authorization, catalog, catalog, executions, payloads, executions, properties.deployment(), clock, catalog.policyProvider(), catalog.admissionGuard(), catalog.readAdapter(), catalog.readAdapter());
+        chat = new DefaultChatService(authorization, conversations, catalog, contexts, coordinator, clock, executions, executions, properties.deployment());
     }
 
     ExecutionContext context(String name, String key) {

@@ -5,8 +5,8 @@ import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.discovery.StaticToolRegistry;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionError;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.budget.Money;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.tool.*;
@@ -117,7 +117,7 @@ class PlatformToolBillingIntegrationTest {
         DatabaseAiTestCatalog.publish(db, c, rig.base.f.actor, rig.base.meta("import"));
         var old = db.catalog().catalog();
         var rates = new ArrayList<>(old.rates());
-        rates.add(new NewAiProperties.Rate(PRICE.rate(), null, null, PRICE.perCall()));
+        rates.add(new ControlConfiguration.Rate(PRICE.rate(), null, null, PRICE.perCall()));
         var preset = new AiControlData.Preset(true, List.of(), List.of(new AiControlData.BudgetPreset(PRICE.rate(), money("10"))));
         db.publish(rig.base.f.actor, rig.base.meta("publish-tool-price"), 1, new AiControlData.Catalog(old.capabilities(), old.bindings(), old.connections(), rates, old.legacyGrants(), old.legacyBudgets(), preset, old.disabledConnections(), old.reviewedPlans()));
         var current = db.get(rig.base.f.actor, rig.scope);

@@ -1,12 +1,8 @@
 package com.arte.ainew.application.model;
 
 import com.arte.ainew.api.model.ModelPublicationService;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.control.ControlDefinitionChecks;
-import com.arte.ainew.pojo.control.CapabilityDescriptor;
-import com.arte.ainew.pojo.control.ConnectionDefinition;
-import com.arte.ainew.pojo.control.RateDefinition;
-import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.control.*;
 import com.arte.ainew.pojo.model.*;
 import com.arte.ainew.pojo.model.ModelDrafts.Credential;
 import com.arte.ainew.pojo.model.ModelDrafts.Draft;
@@ -246,8 +242,8 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
                     check(models.replace(new ModelResource(resource, old.ownership(), draft.name(), old.createdBy(), ModelResource.State.PUBLISHED,
                             bindingRef.id(), nextVersion, old.createdAt(), old.managementScope()), old.version()));
                     // 在提交前校验实际目录容量和精确引用冲突，不提交无法装配的版本。
-                    mergeDefinitions(new NewAiProperties(false, null, reviewed.releaseRef(), null, null, List.of(), List.of(), List.of(), List.of(),
-                            reviewed.rates().stream().map(item -> new NewAiProperties.Rate(item.definition(), item.inputPerMillion(), item.outputPerMillion(), item.toolPerCall())).toList(), List.of()), releases.list(scope, true).stream()
+                    mergeDefinitions(new ControlConfiguration(false, reviewed.releaseRef(), null, List.of(), List.of(), List.of(), List.of(),
+                            reviewed.rates().stream().map(item -> new ControlConfiguration.Rate(item.definition(), item.inputPerMillion(), item.outputPerMillion(), item.toolPerCall())).toList(), List.of()), releases.list(scope, true).stream()
                             .map(item -> models.findCurrentBinding(scope.tenantId(), item.binding()).orElseThrow().publication()).toList());
                     if (old.ownership().workspaceId() == null) {
                         com.arte.core.pojo.workspace.Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow();
@@ -267,21 +263,20 @@ public final class DefaultModelPublicationService implements ModelPublicationSer
     /**
      * 同空间目录合并只追加不可变定义，绝不覆盖原授权和预算。
      */
-    public static NewAiProperties mergeDefinitions(NewAiProperties base, List<ModelPublication> publications) {
+    public static ControlConfiguration mergeDefinitions(ControlConfiguration base, List<ModelPublication> publications) {
         Map<DefinitionRef, CapabilityDescriptor> capabilities = index(base.capabilities(), CapabilityDescriptor::definition);
         Map<DefinitionRef, ResolvedBinding> bindings = index(base.bindings(), ResolvedBinding::definition);
         Map<DefinitionRef, ConnectionDefinition> connections = index(base.connections(), ConnectionDefinition::definition);
-        Map<DefinitionRef, NewAiProperties.Rate> rates = index(base.rates(), NewAiProperties.Rate::definition);
+        Map<DefinitionRef, ControlConfiguration.Rate> rates = index(base.rates(), ControlConfiguration.Rate::definition);
         for (ModelPublication publication : publications) {
             put(capabilities, publication.binding().capability().definition(), publication.binding().capability());
             put(bindings, publication.binding().definition(), publication.binding());
             put(connections, publication.connection().definition(), publication.connection());
             RateDefinition rate = publication.rate();
-            put(rates, rate.definition(), new NewAiProperties.Rate(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall()));
+            put(rates, rate.definition(), new ControlConfiguration.Rate(rate.definition(), rate.inputPerMillion(), rate.outputPerMillion(), rate.toolPerCall()));
         }
-        return new NewAiProperties(base.enabled(), base.dataSourceBean(), base.releaseRef(), base.persistence(), base.limits(), base.grants(),
-                List.copyOf(capabilities.values()), List.copyOf(bindings.values()), List.copyOf(connections.values()), List.copyOf(rates.values()), base.budgets(),
-                base.configurationMode());
+        return new ControlConfiguration(base.enabled(), base.releaseRef(), base.limits(), base.grants(),
+                List.copyOf(capabilities.values()), List.copyOf(bindings.values()), List.copyOf(connections.values()), List.copyOf(rates.values()), base.budgets());
     }
 
     private static <T> Map<DefinitionRef, T> index(List<T> values, java.util.function.Function<T, DefinitionRef> key) {

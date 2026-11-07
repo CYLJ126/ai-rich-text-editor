@@ -1,8 +1,8 @@
 package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.model.ModelUsagePreparationService;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.model.ModelSelection;
 import com.arte.ainew.pojo.model.ReviewedModelPlan;
@@ -43,7 +43,7 @@ final class DatabaseAiTestCatalog {
 
     static CommandReceipt<AiControlData.CatalogView> publish(DatabaseAiControlService db, ApplicationContext context,
                                                              TrustedActor actor, CommandMeta meta) {
-        return db.publish(actor, meta, 0, catalog(context.getBean(NewAiProperties.class), actor));
+        return db.publish(actor, meta, 0, catalog(context.getBean(ControlConfiguration.class), actor));
     }
 
     /**
@@ -108,7 +108,7 @@ final class DatabaseAiTestCatalog {
                 new ResourceRef(scope.tenantId(), new ResourceType("model"), resourceId), binding);
     }
 
-    static AiControlData.Catalog catalog(NewAiProperties source, TrustedActor actor) {
+    static AiControlData.Catalog catalog(ControlConfiguration source, TrustedActor actor) {
         List<DefinitionRef> bindings = source.bindings().stream().map(ResolvedBinding::definition)
                 .filter(definition -> source.grants().stream().anyMatch(g -> g.enabled()
                         && g.subjectId().equals(actor.principal().subjectId()) && g.bindingIds().contains(definition.id()))).toList();

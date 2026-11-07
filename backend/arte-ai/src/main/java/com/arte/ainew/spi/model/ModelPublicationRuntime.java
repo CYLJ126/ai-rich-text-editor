@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.model;
 
 import com.arte.ainew.common.execution.ExecutionContext;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.model.ModelAccessCandidate;
 import com.arte.core.pojo.platform.Scope;
 import com.arte.core.pojo.platform.TrustedActor;
@@ -27,7 +27,7 @@ public interface ModelPublicationRuntime {
      * @param current 是否在原写事务中读取当前事实
      * @return 同一发布标识下的完整配置，不含密钥明文，不改变原 Grant 和预算
      */
-    NewAiProperties contribute(TrustedActor actor, Scope scope, NewAiProperties base, boolean current);
+    ControlConfiguration contribute(TrustedActor actor, Scope scope, ControlConfiguration base, boolean current);
 
     /**
      * 独立检查个人候选的资源、精确内容、凭据用途和当前授权，不依赖旧空间迁移清单。

@@ -4,8 +4,8 @@ import com.arte.ainew.application.model.DefaultModelDraftService;
 import com.arte.ainew.application.model.DefaultModelPublicationService;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.infrastructure.http.GenerationException;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.model.ModelDrafts;
 import com.arte.ainew.pojo.model.ModelPublication;
@@ -50,16 +50,17 @@ public final class ModelPublicationCredentialResolver implements ConnectionCrede
     private final ModelDraftStore drafts;
     private final ModelCredentialCipher cipher;
     private final DefaultModelPublicationService publications;
-    private final Function<ExecutionContext, NewAiProperties> configuration;
+    private final Function<ExecutionContext, ControlConfiguration> configuration;
     private final IdentityProvider identity;
     private final PublicTransactionRunner tx;
     private final Scheduler scheduler;
     private final Clock clock;
 
     public ModelPublicationCredentialResolver(ConnectionCredentialResolver legacy, Supplier<ExecutionReadStore> executions,
-                                              ModelPublicationStore releases, ModelResourceStore models, ModelDraftStore drafts, ModelCredentialCipher cipher,
-                                              DefaultModelPublicationService publications, Function<ExecutionContext, NewAiProperties> configuration,
-                                              IdentityProvider identity, PublicTransactionRunner tx, Scheduler scheduler, Clock clock) {
+                                              ModelPublicationStore releases, ModelResourceStore models, ModelDraftStore drafts,
+                                              ModelCredentialCipher cipher, DefaultModelPublicationService publications,
+                                              Function<ExecutionContext, ControlConfiguration> configuration, IdentityProvider identity,
+                                              PublicTransactionRunner tx, Scheduler scheduler, Clock clock) {
         this.legacy = legacy;
         this.executions = executions;
         this.releases = releases;
@@ -110,7 +111,7 @@ public final class ModelPublicationCredentialResolver implements ConnectionCrede
             throw GenerationException.beforeSend("CREDENTIAL_NOT_AVAILABLE");
         }
         ModelPublication publication = models.findCurrentBinding(scope.tenantId(), release.binding()).orElseThrow().publication();
-        NewAiProperties config = configuration.apply(context);
+        ControlConfiguration config = configuration.apply(context);
         if (publication.source() != ModelPublication.Source.RESOURCE || !publication.binding().capability().definition().equals(invocation.request().capability())
                 || !publication.connection().credential().equals(secret) || !config.releaseRef().equals(context.releaseRef())
                 || config.bindings().stream().noneMatch(publication.binding()::equals)

@@ -65,8 +65,7 @@ public class ConversationHttpIntegrationTest {
         jdbc = new JdbcTemplate(dataSource);
         scheduler = Schedulers.newBoundedElastic(4, 128, "conversation-http-test");
         fixture = new AdmissionFixture(dataSource, scheduler);
-        var controller = new NewAiConversationController(fixture.conversations,
-                new ConversationHttpContext(new NewAiHttpContext(fixture.factory, fixture.properties), fixture.properties));
+        var controller = new NewAiConversationController(fixture.conversations, new ConversationHttpContext(new NewAiHttpContext(fixture.factory, fixture.properties.deployment()), fixture.properties.deployment()));
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new ConversationExceptionHandler())
@@ -271,8 +270,8 @@ public class ConversationHttpIntegrationTest {
 
     @Test
     public void defaultCreationReplayedAcrossMidnightKeepsFirstDateAndIdentity() {
-        var resolver = new com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver(fixture.properties);
-        var authorization = new com.arte.ainew.application.auth.AdmissionAuthorization(resolver, fixture.properties, java.time.Clock.systemUTC());
+        var resolver = new com.arte.ainew.testing.TestAuthorizationResolver(fixture.properties);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create(resolver, fixture.properties, java.time.Clock.systemUTC());
         var before = new com.arte.ainew.application.conversation.DefaultConversationService(fixture.executions, authorization,
                 java.time.Clock.fixed(Instant.parse("2026-10-14T15:59:59Z"), java.time.ZoneOffset.UTC));
         var after = new com.arte.ainew.application.conversation.DefaultConversationService(fixture.executions, authorization,

@@ -2,6 +2,7 @@ package com.arte.ainew.search;
 
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiConversationSearchController;
@@ -34,9 +35,8 @@ public class ConversationSearchHttpTest {
     @Before
     public void setup() {
         q = new SearchQueryFixture();
-        var properties = new NewAiProperties(true, "appDataSource", "release", new NewAiProperties.Persistence(2, 100),
-                new NewAiProperties.Limits(1000, 1000, 10000, Duration.ofSeconds(30), Duration.ofMinutes(5)), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "DATABASE");
-        var controller = new NewAiConversationSearchController(q.service, new NewAiHttpContext(new ExecutionContextFactory(q.resolver, q.clock), properties), properties);
+        var properties = new TestAiConfiguration(true, "appDataSource", "release", new NewAiProperties.Persistence(2, 100), new NewAiProperties.Limits(1000, 1000, 10000, Duration.ofSeconds(30), Duration.ofMinutes(5)), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        var controller = new NewAiConversationSearchController(q.service, new NewAiHttpContext(new ExecutionContextFactory(q.resolver, q.clock), properties.deployment()), properties.deployment());
         validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).build();

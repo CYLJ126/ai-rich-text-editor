@@ -25,6 +25,7 @@ import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.AiEntitlement;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ChatConfigurationOptions;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.entry.EntryRequests;
 import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -121,6 +122,24 @@ class PersonalModelPublicationIntegrationTest {
                         "arte.ai-new-model-management.encryption-keys.primary=" + Base64.getEncoder().encodeToString(new byte[16]));
     }
 
+    private ControlConfiguration runtimeSeed;
+
+    void useLoopbackSeed(String origin, boolean tools) {
+        var seed = f.f.seed();
+        var old = seed.connections().getFirst();
+        var connection = new com.arte.ainew.pojo.control.ConnectionDefinition(old.definition(), old.providerId(), old.protocol(),
+                java.net.URI.create(origin + "/v1"), old.credential(), old.state(), old.connectTimeout(), old.responseTimeout(), old.maxResponseBytes());
+        var previous = seed.capabilities().getFirst();
+        var features = new java.util.HashSet<>(previous.features());
+        if (tools) features.add(com.arte.ainew.pojo.control.CapabilityDescriptor.Feature.TOOL_CALLS);
+        var capability = new com.arte.ainew.pojo.control.CapabilityDescriptor(previous.definition(), previous.kind(), previous.inputSchema(), previous.outputSchema(),
+                features, previous.sideEffect(), previous.availability());
+        var oldBinding = seed.bindings().getFirst();
+        var binding = new com.arte.ainew.pojo.control.ResolvedBinding(oldBinding.definition(), capability, oldBinding.target(), oldBinding.contextWindowTokens(), oldBinding.rate());
+        runtimeSeed = new ControlConfiguration(seed.enabled(), seed.releaseRef(), seed.limits(), seed.grants(), List.of(capability),
+                List.of(binding), List.of(connection), seed.rates(), seed.budgets());
+    }
+
     ApplicationContextRunner realGenerationContext() {
         return realGenerationContext(true);
     }
@@ -135,11 +154,12 @@ class PersonalModelPublicationIntegrationTest {
                 .withPropertyValues("arte.platform.identity.enabled=true", "arte.platform.identity.legacy-user-id-ceiling=0",
                         "arte.platform.persistence.enabled=true", "arte.platform.workspace.enabled=true", "arte.ai-new-generation.enabled=true")
                 .withBean("appDataSource", javax.sql.DataSource.class, () -> f.f.f.source)
+                .withBean(ControlConfiguration.class, () -> runtimeSeed == null ? f.f.seed() : runtimeSeed)
                 .withBean(RbacAccountReader.class, () -> new RbacAccountReader(f.f.f.source,
                         new RbacAccountMapperConfiguration().identityUserMapper(f.f.f.source)))
                 .withBean(org.redisson.api.RedissonClient.class, () -> org.mockito.Mockito.mock(org.redisson.api.RedissonClient.class));
         base = fileSeed ? base.withPropertyValues(f.f.seedProperties()) : base.withPropertyValues(
-                "arte.ai-new.enabled=true", "arte.ai-new.configuration-mode=DATABASE", "arte.ai-new.release-ref=release-v1");
+                "arte.ai-new.enabled=true", "arte.ai-new.release-ref=release-v1");
         return personalConfiguration(base);
     }
 
@@ -436,9 +456,8 @@ class PersonalModelPublicationIntegrationTest {
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
                 NewAiProperties infrastructure = c.getBean(NewAiProperties.class);
-                assertTrue(infrastructure.connections().isEmpty());
-                assertTrue(infrastructure.bindings().isEmpty());
-                assertTrue(infrastructure.rates().isEmpty());
+
+
                 DatabaseAiControlService db = c.getBean(DatabaseAiControlService.class);
                 assertTrue(db.definitions().connections().isEmpty());
                 com.arte.core.pojo.reference.DefinitionRef connection = db.publishConnection(f.f.f.actor, f.f.meta("independent-connection"), 0,
@@ -500,7 +519,7 @@ class PersonalModelPublicationIntegrationTest {
             });
             runner.run(c -> {
                 assertNull(c.getStartupFailure());
-                assertTrue(c.getBean(NewAiProperties.class).bindings().isEmpty());
+
                 assertEquals(3, c.getBean(DatabaseAiControlService.class).catalog().version());
                 assertTrue(c.getBean(DatabaseAiControlService.class).definitions().bindings().isEmpty());
                 assertEquals("independent-model", c.getBean(DatabaseAiControlService.class).catalog().catalog().reviewedPlans().getFirst().remoteModel());
@@ -546,9 +565,8 @@ class PersonalModelPublicationIntegrationTest {
         try {
             String origin = "http://127.0.0.1:" + server.port();
             f.f.allowOrigins(origin);
-            realGenerationContext().withPropertyValues("arte.ai-new.connections[0].endpoint=" + origin + "/v1",
-                    "arte.ai-new.capabilities[0].features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT"),
-                    "arte.ai-new.bindings[0].capability.features[2]=" + ("CHILD".equals(governanceChange) ? "TOOL_CALLS" : "TEXT_INPUT")).run(c -> {
+            useLoopbackSeed(origin, "CHILD".equals(governanceChange));
+            realGenerationContext().run(c -> {
                 assertNull(c.getStartupFailure());
                 prepare(c, "127.0.0.1", true);
                 ModelResourceVersion version = publishSelectedFixture(c, "publish", 0, 1, 1);

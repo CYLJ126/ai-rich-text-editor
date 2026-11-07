@@ -1,7 +1,7 @@
 package com.arte.ainew.spi.auth;
 
 import com.arte.ainew.common.execution.ExecutionAuthorization;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import reactor.core.publisher.Mono;
 
 import java.util.Objects;
@@ -25,11 +25,11 @@ public interface ExecutionPreparationAuthorizationResolver extends ExecutionAuth
      * @param configuration 包含已授权主体 Grant 的一致控制配置
      * @param catalogRevision 不可变目录的发布版本；为空表示不支持版本复核优化
      */
-    record Preparation(ExecutionAuthorization authorization, NewAiProperties configuration, Long catalogRevision) {
+    record Preparation(ExecutionAuthorization authorization, ControlConfiguration configuration, Long catalogRevision) {
         /**
          * 为不提供发布版本凭证的来源创建兼容准备结果。
          */
-        public Preparation(ExecutionAuthorization authorization, NewAiProperties configuration) {
+        public Preparation(ExecutionAuthorization authorization, ControlConfiguration configuration) {
             this(authorization, configuration, null);
         }
         /**

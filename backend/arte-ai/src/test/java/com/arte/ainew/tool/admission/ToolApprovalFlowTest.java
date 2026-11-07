@@ -18,6 +18,7 @@ import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.OutboxMessage;
 import com.arte.ainew.pojo.tool.*;
 import com.arte.ainew.spi.auth.ToolApprovalAccess;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.ToolManagementExceptionHandler;
 import com.arte.ainew.web.controller.NewAiToolApprovalController;
@@ -119,15 +120,15 @@ public class ToolApprovalFlowTest {
             var beans = new DefaultListableBeanFactory();
             beans.registerSingleton("admissions", admissions);
             beans.registerSingleton("approvals", service);
-            var props = new NewAiProperties(false, "appDataSource", "release", null,
+            var props = new TestAiConfiguration(false, "appDataSource", "release", null,
                     new NewAiProperties.Limits(65536, 4096, 100_000, Duration.ofMinutes(16), Duration.ofDays(1)), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
             var factory = new com.arte.ainew.context.ExecutionContextFactory((name, t, w, scopes) -> Mono.just(new ExecutionAuthorization(
                     new ExecutionPrincipal(name.equals("reviewer") ? "reviewer" : "subject", name, ExecutionPrincipal.Kind.USER), t, w,
                     scopes, "test-current")), f.clock);
             validator.afterPropertiesSet();
-            var contexts = new NewAiHttpContext(factory, props);
-            mvc = standaloneSetup(new NewAiToolSubmissionController(beans.getBeanProvider(ToolAdmissionService.class), contexts, props),
-                    new NewAiToolApprovalController(beans.getBeanProvider(ToolApprovalService.class), contexts, props))
+            var contexts = new NewAiHttpContext(factory, props.deployment());
+            mvc = standaloneSetup(new NewAiToolSubmissionController(beans.getBeanProvider(ToolAdmissionService.class), contexts, props.deployment()),
+                    new NewAiToolApprovalController(beans.getBeanProvider(ToolApprovalService.class), contexts, props.deployment()))
                     .setControllerAdvice(new ToolManagementExceptionHandler()).setValidator(validator).build();
         }
 

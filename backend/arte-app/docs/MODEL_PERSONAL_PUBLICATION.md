@@ -1,3 +1,5 @@
+> 当前版本已移除固定文件模式和模式选择键；部署升级以 [数据库单一来源](AI_DATABASE_ONLY.md) 为准。本文保留阶段性设计与验收记录。
+
 # 个人模型管理 4-02：发布与执行闭环
 
 > 后继设计（2026-11-03）：[模型配置重构 M0](../../../ARTE%20AI%20模型配置需求及设计.md) 已定稿，M1～M5 尚未编码。本文保留当批实现与验证事实；后续
@@ -112,7 +114,6 @@ source=2，不执行该升级脚本。
 ```properties
 arte.ai-new-model-management.enabled=true
 arte.ai-new-model-publication.enabled=true
-arte.ai-new.configuration-mode=DATABASE
 ```
 
 沿用 4-01 的 SM4 密钥环、公共身份／持久化／空间及 AI enabled，并启用原生成、执行及 Worker 配置才能自动处理聊天任务。

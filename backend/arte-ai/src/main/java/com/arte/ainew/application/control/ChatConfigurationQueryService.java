@@ -3,8 +3,6 @@ package com.arte.ainew.application.control;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.config.NewAiProperties;
-import com.arte.ainew.infrastructure.control.ConfigurationExecutionPolicyProvider;
-import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
 import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.budget.BudgetDefinition;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
@@ -30,34 +28,7 @@ public final class ChatConfigurationQueryService {
     private final Supplier<ModelGateway> gateway;
     private final PublishedAiCatalog published;
     private final BudgetDefinitionProvider definitions;
-    private AiExecutionPolicyProvider policies;
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
-                                         FixedControlCatalog catalog, Supplier<ModelGateway> gateway) {
-        this(properties, authorization, catalog, catalog.readAdapter(), catalog.readAdapter(), gateway);
-    }
-
-    /**
-     * 旧手工装配兼容入口；生产装配使用显式业务端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
-                                         FixedControlCatalog catalog, PublishedAiCatalog published,
-                                         BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
-        this(properties, authorization, catalog.entitlementAdapter(), published, definitions, gateway);
-        this.policies = catalog.policyProvider();
-    }
-
-    public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
-                                         AiResourceEntitlementService entitlements, PublishedAiCatalog published,
-                                         BudgetDefinitionProvider definitions, Supplier<ModelGateway> gateway) {
-        this(properties, authorization, entitlements, published, definitions, gateway,
-                new ConfigurationExecutionPolicyProvider(new ControlConfigurationReader(properties), properties.limits()));
-    }
+    private final AiExecutionPolicyProvider policies;
 
     public ChatConfigurationQueryService(NewAiProperties properties, AdmissionAuthorization authorization,
                                          AiResourceEntitlementService entitlements, PublishedAiCatalog published, BudgetDefinitionProvider definitions,
@@ -69,15 +40,6 @@ public final class ChatConfigurationQueryService {
         this.entitlements = entitlements;
         this.gateway = gateway;
         this.policies = java.util.Objects.requireNonNull(policies);
-    }
-
-    /**
-     * 旧手工装配覆盖入口；生产装配通过完整构造器注入端口。
-     */
-    @Deprecated(since = "control-ports-batch-4")
-    public ChatConfigurationQueryService policyProvider(AiExecutionPolicyProvider policies) {
-        this.policies = policies;
-        return this;
     }
 
     public Mono<ChatConfigurationOptions> discover(ExecutionContext context) {

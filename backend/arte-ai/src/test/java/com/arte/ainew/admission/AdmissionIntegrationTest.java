@@ -3,6 +3,7 @@ package com.arte.ainew.admission;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.entry.EntryRequests;
 import com.arte.ainew.pojo.execution.*;
@@ -11,6 +12,7 @@ import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.ModelResult;
 import com.arte.ainew.spi.persistence.ExecutionRecordCodec;
+import com.arte.ainew.testing.TestAiConfiguration;
 import com.arte.core.enums.ResultCodeEnum;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
@@ -305,9 +307,9 @@ public class AdmissionIntegrationTest {
         var conversation = conversation("create");
         var current = first.context("alice", "submit");
         var original = AdmissionFixture.properties();
-        var grants = original.grants().stream().map(g -> new com.arte.ainew.config.NewAiProperties.Grant(g.subjectName(), g.subjectId(), g.principalKind(),
+        var grants = original.grants().stream().map(g -> new ControlConfiguration.Grant(g.subjectName(), g.subjectId(), g.principalKind(),
                 g.tenantId(), g.workspaceId(), g.grantRef(), !g.subjectName().equals("alice"), g.scopes(), g.bindingIds(), g.budgetRefs())).toList();
-        var revoked = new com.arte.ainew.config.NewAiProperties(true, original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
+        var revoked = new TestAiConfiguration(true, original.dataSourceBean(), original.releaseRef(), original.persistence(), original.limits(),
                 grants, original.capabilities(), original.bindings(), original.connections(), original.rates(), original.budgets());
         var restarted = new AdmissionFixture(dataSource, scheduler, first.codec, revoked);
         assertThrows(AccessDeniedException.class, () -> restarted.chat.submit(first.chatRequest(conversation.conversationId(), 0, "hello", current), current).block());

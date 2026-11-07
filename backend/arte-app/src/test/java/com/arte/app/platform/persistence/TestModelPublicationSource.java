@@ -1,14 +1,12 @@
-package com.arte.app.platform.ai;
+package com.arte.app.platform.persistence;
 
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.PublishedAiDefinitions;
 import com.arte.ainew.pojo.control.RateDefinition;
 import com.arte.ainew.pojo.model.ModelPublication;
 import com.arte.ainew.spi.model.ModelPublicationSource;
 import com.arte.app.platform.identity.RbacIdentityProvider;
 import com.arte.app.platform.identity.RbacToolPermissionReader;
-import com.arte.app.platform.persistence.PlatformJson;
-import com.arte.app.platform.persistence.mapper.PlatformAiControlMapper;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.platform.Scope;
@@ -24,20 +22,16 @@ import com.arte.core.spi.platform.PublicTransactionRunner;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/30 22:40 ✾
  */
-public final class PlatformModelPublicationSource implements ModelPublicationSource {
+public final class TestModelPublicationSource implements ModelPublicationSource {
 
-    private final NewAiProperties fixed;
-    private final PlatformAiControlMapper mapper;
-    private final PlatformJson json;
+    private final ControlConfiguration fixed;
     private final PublicTransactionRunner tx;
     private final RbacIdentityProvider identities;
     private final RbacToolPermissionReader permissions;
 
-    public PlatformModelPublicationSource(NewAiProperties fixed, PlatformAiControlMapper mapper, PlatformJson json, PublicTransactionRunner tx,
-                                          RbacIdentityProvider identities, RbacToolPermissionReader permissions) {
+    public TestModelPublicationSource(ControlConfiguration fixed, PublicTransactionRunner tx,
+                                      RbacIdentityProvider identities, RbacToolPermissionReader permissions) {
         this.fixed = fixed;
-        this.mapper = mapper;
-        this.json = json;
         this.tx = tx;
         this.identities = identities;
         this.permissions = permissions;
@@ -46,7 +40,7 @@ public final class PlatformModelPublicationSource implements ModelPublicationSou
     @Override
     public ModelPublication requireCurrent(TrustedActor actor, Scope scope, ModelPublication.Source source, Long revision, DefinitionRef binding) {
         tx.requireWritable();
-        if (source != ModelPublication.Source.FIXED || "DATABASE".equals(fixed.configurationMode())) {
+        if (source != ModelPublication.Source.FIXED) {
             throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
         }
         var name = identities.currentSubjectName(actor.principal().subjectId()).orElseThrow(() -> error(PlatformErrorCodeEnum.UNAUTHENTICATED));
@@ -56,7 +50,7 @@ public final class PlatformModelPublicationSource implements ModelPublicationSou
         if (revision != null) {
             throw error(PlatformErrorCodeEnum.INVALID_ARGUMENT);
         }
-        NewAiProperties properties = fixed;
+        ControlConfiguration properties = fixed;
         var definitions = new PublishedAiDefinitions(properties.releaseRef(), properties.capabilities(), properties.bindings(), properties.connections(),
                 properties.rates().stream().map(r -> new RateDefinition(r.definition(), r.inputPerMillion(), r.outputPerMillion(), r.toolPerCall())).toList());
         var model = definitions.bindings().stream().filter(b -> b.definition().equals(binding)).findFirst().orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));

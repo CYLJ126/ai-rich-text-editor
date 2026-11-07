@@ -4,7 +4,6 @@ import com.arte.ainew.common.execution.ExecutionAuthorization;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.spi.auth.ToolInvocationAccess;
@@ -40,20 +39,15 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
     private final RbacToolPermissionReader permissions;
     private final PublicTransactionRunner transactions;
     private final WorkspaceWriteGuard guard;
-    private final NewAiProperties properties;
-    private final boolean databaseMode;
     private final Scheduler scheduler;
     private final Clock clock;
 
     public PlatformToolInvocationAccess(RbacIdentityProvider identities, RbacToolPermissionReader permissions,
-                                        PublicTransactionRunner transactions, WorkspaceWriteGuard guard, NewAiProperties properties,
-                                        boolean databaseMode, Scheduler scheduler, Clock clock) {
+                                        PublicTransactionRunner transactions, WorkspaceWriteGuard guard, Scheduler scheduler, Clock clock) {
         this.identities = identities;
         this.permissions = permissions;
         this.transactions = transactions;
         this.guard = guard;
-        this.properties = properties;
-        this.databaseMode = databaseMode;
         this.scheduler = scheduler;
         this.clock = clock;
     }
@@ -113,7 +107,7 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
      * 随后通过 WORKSPACE_READ 门控复核空间访问资格，在锁内重查账户与 RBAC：READ 要求 aiTool:list，
      * CANCEL 要求 aiTool:invoke；admin 仅免除该菜单操作检查，不绕过身份、归属和空间门控。
      * <p>
-     * FIXED 模式还须匹配启用的主体／空间 grant，且覆盖本次上下文的全部 scopes；DATABASE 模式不要求 AI 仍启用，
+     * 读取／取消已有 TOOL 调用不要求 AI 仍启用，
      * 使关闭新调用后仍有资格的本人可以查询、停止已有操作。本方法不执行工具、不查询模型目录或预算。
      *
      * @param invocation 待读取或停止的原调用，用于核对租户、空间及主体归属
@@ -147,10 +141,6 @@ public final class PlatformToolInvocationAccess implements ToolInvocationAccess 
             var current = permissions.current(principal.subjectName());
             if (!current.contains("admin") && !current.contains(operation == Operation.READ ? "aiTool:list" : "aiTool:invoke"))
                 throw denied();
-            if (!databaseMode && properties.grants().stream().noneMatch(g -> g.enabled() && g.subjectId().equals(principal.subjectId())
-                    && g.subjectName().equals(principal.subjectName()) && g.principalKind() == principal.kind()
-                    && g.tenantId().equals(scope.tenantId()) && g.workspaceId().equals(scope.workspaceId())
-                    && g.scopes().containsAll(context.authorization().scopes()))) throw denied();
             return true;
         });
     }

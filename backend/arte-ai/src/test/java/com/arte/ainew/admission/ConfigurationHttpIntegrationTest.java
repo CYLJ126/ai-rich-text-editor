@@ -1,9 +1,7 @@
 package com.arte.ainew.admission;
 
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
-import com.arte.ainew.application.control.FixedControlCatalog;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
 import com.arte.ainew.config.NewAiGenerationProperties;
 import com.arte.ainew.config.NewAiProperties;
@@ -15,12 +13,17 @@ import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekGenerationProvide
 import com.arte.ainew.infrastructure.provider.deepseek.DeepSeekWire;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.control.ConnectionDefinition;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.GatewayCall;
 import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.pojo.generation.GenerationSignal;
 import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
+import com.arte.ainew.testing.TestControlCatalog;
 import com.arte.ainew.web.ConversationExceptionHandler;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.controller.NewAiConfigurationController;
@@ -70,8 +73,8 @@ public class ConfigurationHttpIntegrationTest {
     private final AtomicBoolean revoked = new AtomicBoolean();
     private LocalValidatorFactoryBean validator;
     private MockMvc mvc;
-    private NewAiProperties properties;
-    private FixedControlCatalog catalog;
+    private TestAiConfiguration properties;
+    private TestControlCatalog catalog;
     private ExecutionContextFactory factory;
 
     @Before
@@ -93,12 +96,12 @@ public class ConfigurationHttpIntegrationTest {
         validator.close();
     }
 
-    private void configure(NewAiProperties configuration, boolean gatewayAvailable) {
-        var fixed = new FixedExecutionAuthorizationResolver(configuration);
+    private void configure(TestAiConfiguration configuration, boolean gatewayAvailable) {
+        var fixed = new TestAuthorizationResolver(configuration);
         ExecutionAuthorizationResolver resolver = (name, tenant, workspace, scopes) -> revoked.get()
                 ? Mono.empty() : fixed.resolve(name, tenant, workspace, scopes);
-        var authorization = new AdmissionAuthorization(resolver, configuration, clock);
-        catalog = new FixedControlCatalog(configuration, authorization, clock);
+        var authorization = TestAuthorizations.create(resolver, configuration, clock);
+        catalog = new TestControlCatalog(configuration, authorization, clock);
         factory = new ExecutionContextFactory(resolver, clock);
         var generation = new NewAiGenerationProperties(true, null, null, 0, 0, 0, null, 0, 0);
         var provider = new DeepSeekGenerationProviderAdapter(configuration.capabilities(), GenerationJson.mapper(generation.maxFrameBytes()));
@@ -120,16 +123,16 @@ public class ConfigurationHttpIntegrationTest {
                 throw new AssertionError("Discovery must never generate, reserve budget or contact a provider");
             }
         };
-        var service = new ChatConfigurationQueryService(configuration, authorization, catalog, () -> gatewayAvailable ? gateway : null);
-        mvc = standaloneSetup(new NewAiConfigurationController(service, new NewAiHttpContext(factory, configuration), configuration))
+        var service = new ChatConfigurationQueryService(configuration.deployment(), authorization, catalog.entitlementAdapter(), catalog.readAdapter(), catalog.readAdapter(), () -> gatewayAvailable ? gateway : null, catalog.policyProvider());
+        mvc = standaloneSetup(new NewAiConfigurationController(service, new NewAiHttpContext(factory, configuration.deployment()), configuration.deployment()))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
-    private static NewAiProperties copy(NewAiProperties original, List<NewAiProperties.Grant> grants,
+    private static TestAiConfiguration copy(TestAiConfiguration original, List<ControlConfiguration.Grant> grants,
                                         List<CapabilityDescriptor> capabilities, List<ResolvedBinding> bindings,
-                                        List<ConnectionDefinition> connections, List<NewAiProperties.Rate> rates,
-                                        List<NewAiProperties.Budget> budgets, NewAiProperties.Limits limits) {
-        return new NewAiProperties(true, original.dataSourceBean(), original.releaseRef(), original.persistence(), limits,
+                                            List<ConnectionDefinition> connections, List<ControlConfiguration.Rate> rates,
+                                            List<ControlConfiguration.Budget> budgets, NewAiProperties.Limits limits) {
+        return new TestAiConfiguration(true, original.dataSourceBean(), original.releaseRef(), original.persistence(), limits,
                 grants, capabilities, bindings, connections, rates, budgets);
     }
 
@@ -139,13 +142,13 @@ public class ConfigurationHttpIntegrationTest {
                 original.connectTimeout(), original.responseTimeout(), original.maxResponseBytes());
     }
 
-    private NewAiProperties grants(UnaryOperator<NewAiProperties.Grant> change) {
+    private TestAiConfiguration grants(UnaryOperator<ControlConfiguration.Grant> change) {
         return copy(properties, properties.grants().stream().map(change).toList(), properties.capabilities(), properties.bindings(),
                 properties.connections(), properties.rates(), properties.budgets(), properties.limits());
     }
 
-    private static NewAiProperties.Grant grant(NewAiProperties.Grant original, Set<String> scopes, Set<String> bindings, Set<String> budgets) {
-        return new NewAiProperties.Grant(original.subjectName(), original.subjectId(), original.principalKind(), original.tenantId(),
+    private static ControlConfiguration.Grant grant(ControlConfiguration.Grant original, Set<String> scopes, Set<String> bindings, Set<String> budgets) {
+        return new ControlConfiguration.Grant(original.subjectName(), original.subjectId(), original.principalKind(), original.tenantId(),
                 original.workspaceId(), original.grantRef(), original.enabled(), scopes, bindings, budgets);
     }
 
@@ -213,7 +216,7 @@ public class ConfigurationHttpIntegrationTest {
         properties = copy(properties, properties.grants(), List.of(capability), List.of(binding), properties.connections(), properties.rates(), properties.budgets(), properties.limits());
         configure(properties, true);
         assertTrue(options().get(0).path("toolCallsSupported").asBoolean());
-        var auth = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(properties), properties, clock);
+        var auth = TestAuthorizations.create(new TestAuthorizationResolver(properties), properties, clock);
         ModelGateway textGateway = new ModelGateway() {
             public boolean supportsTextChat(ResolvedBinding b, ConnectionDefinition c) {
                 return true;
@@ -223,7 +226,7 @@ public class ConfigurationHttpIntegrationTest {
                 throw new AssertionError("Read only");
             }
         };
-        var service = new ChatConfigurationQueryService(properties, auth, catalog, () -> textGateway);
+        var service = new ChatConfigurationQueryService(properties.deployment(), auth, catalog.entitlementAdapter(), catalog.readAdapter(), catalog.readAdapter(), () -> textGateway, catalog.policyProvider());
         var context = factory.create(UsernamePasswordAuthenticationToken.authenticated("alice", "unused", List.of()),
                 new ExecutionContextRequest("tenant", "workspace", Set.of(AdmissionAuthorization.INVOKE), Duration.ofSeconds(5), null, null, null, null)).block(Duration.ofSeconds(5));
         assertFalse(service.discover(context).block(Duration.ofSeconds(5)).options().getFirst().toolCallsSupported());
@@ -312,17 +315,17 @@ public class ConfigurationHttpIntegrationTest {
 
     @Test
     public void excludesDifferentRateVersionBudgetsAndKeepsUninitializedMatchingBudgetsSorted() throws Exception {
-        var otherRate = new NewAiProperties.Rate(new DefinitionRef("rate", "text", "v2"), AdmissionFixture.money("1"), AdmissionFixture.money("2"));
+        var otherRate = new ControlConfiguration.Rate(new DefinitionRef("rate", "text", "v2"), AdmissionFixture.money("1"), AdmissionFixture.money("2"));
         var budgets = new ArrayList<>(properties.budgets());
-        budgets.add(new NewAiProperties.Budget("wrong-rate", AdmissionFixture.owner("alice-id"), AdmissionFixture.money("100"), otherRate.definition()));
-        budgets.add(new NewAiProperties.Budget("a-matching", AdmissionFixture.owner("alice-id"), AdmissionFixture.money("100"), AdmissionFixture.RATE));
+        budgets.add(new ControlConfiguration.Budget("wrong-rate", AdmissionFixture.owner("alice-id"), AdmissionFixture.money("100"), otherRate.definition()));
+        budgets.add(new ControlConfiguration.Budget("a-matching", AdmissionFixture.owner("alice-id"), AdmissionFixture.money("100"), AdmissionFixture.RATE));
         var grants = properties.grants().stream().map(g -> g.subjectName().equals("alice")
                 ? grant(g, g.scopes(), g.bindingIds(), Set.of("wrong-rate", "a-matching", "alice-budget")) : g).toList();
         configure(copy(properties, grants, properties.capabilities(), properties.bindings(), properties.connections(),
                 List.of(properties.rates().getFirst(), otherRate), budgets, properties.limits()), true);
         assertEquals(json.valueToTree(List.of("a-matching", "alice-budget")), options().get(0).path("budgetRefs"));
         var mismatched = budgets.stream().map(b -> b.budgetRef().equals("alice-budget")
-                ? new NewAiProperties.Budget(b.budgetRef(), b.owner(), b.limit(), otherRate.definition()) : b).toList();
+                ? new ControlConfiguration.Budget(b.budgetRef(), b.owner(), b.limit(), otherRate.definition()) : b).toList();
         configure(copy(properties, properties.grants(), properties.capabilities(), properties.bindings(), properties.connections(),
                 List.of(properties.rates().getFirst(), otherRate), mismatched, properties.limits()), true);
         assertEquals(0, options().size());

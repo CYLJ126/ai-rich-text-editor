@@ -1,7 +1,7 @@
 package com.arte.app.platform.identity;
 
 import com.arte.ainew.common.execution.ExecutionPrincipal;
-import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.app.pojo.rbac.JwtUserDto;
 import com.arte.core.enums.StatusEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
@@ -13,10 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.transaction.support.TransactionTemplate;
-import reactor.core.scheduler.Schedulers;
 
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -41,7 +39,7 @@ class RbacIdentityProviderTest {
     private RbacAccountReader accounts;
     private JdbcPrincipalIdentityStore store;
     private RbacIdentityProvider provider;
-    private List<NewAiProperties.Grant> grants = List.of();
+    private List<ControlConfiguration.Grant> grants = List.of();
 
     @BeforeEach
     void setup() {
@@ -233,38 +231,11 @@ class RbacIdentityProviderTest {
                 new PlatformIdentityProperties.Binding(2, "same"))));
     }
 
-    private NewAiProperties.Grant grant(String name, String subject) {
-        return new NewAiProperties.Grant(name, subject, ExecutionPrincipal.Kind.USER, "old-tenant", "old-space", "grant", true,
+    private ControlConfiguration.Grant grant(String name, String subject) {
+        return new ControlConfiguration.Grant(name, subject, ExecutionPrincipal.Kind.USER, "old-tenant", "old-space", "grant", true,
                 Set.of("chat"), Set.of(), Set.of());
     }
 
-    @Test
-    void fixedAiResolverPreservesOwnerAndRejectsDisabledAccount() {
-        grants = List.of(grant("alice", "old-ai-subject"));
-        provider = create(1, List.of(new PlatformIdentityProperties.Binding(1, "old-ai-subject")));
-        var ai = new NewAiProperties(false, null, null, null, null, grants, null, null, null, null, null);
-        var resolver = new RbacFixedExecutionAuthorizationResolver(provider, ai, Schedulers.boundedElastic());
-        var result = resolver.resolve("alice", "old-tenant", "old-space", Set.of("chat")).block();
-        assertNotNull(result);
-        assertEquals("old-ai-subject", result.principal().subjectId());
-        assertEquals("old-tenant", result.tenantId());
-        assertEquals("old-space", result.workspaceId());
-        assertEquals("grant", result.grantRef());
-        jdbc.update("UPDATE arte_rbac_user SET status=3 WHERE id=1");
-        assertThrows(AccessDeniedException.class, () -> resolver.resolve("alice", "old-tenant", "old-space", Set.of("chat")).block());
-    }
-
-    @Test
-    void newSameNamedAccountCannotInheritFixedAiGrant() {
-        grants = List.of(grant("alice", "old-ai-subject"));
-        provider = create(1, List.of(new PlatformIdentityProperties.Binding(1, "old-ai-subject")));
-        subject();
-        jdbc.update("UPDATE arte_rbac_user SET user_name='renamed' WHERE id=1");
-        add(2, "alice");
-        var ai = new NewAiProperties(false, null, null, null, null, grants, null, null, null, null, null);
-        var resolver = new RbacFixedExecutionAuthorizationResolver(provider, ai, Schedulers.boundedElastic());
-        assertThrows(AccessDeniedException.class, () -> resolver.resolve("alice", "old-tenant", "old-space", Set.of("chat")).block());
-    }
 
     @Test
     void executionSnapshotKeepsStableIdentityButRenameRequiresTheCurrentAuthenticatedName() {

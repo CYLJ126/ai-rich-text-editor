@@ -5,16 +5,19 @@ import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.config.NewAiAdmissionConfiguration;
 import com.arte.ainew.config.NewAiGenerationConfiguration;
 import com.arte.ainew.config.NewAiGenerationProperties;
-import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.context.ExecutionContextFactory;
 import com.arte.ainew.context.ExecutionContextRequest;
+import com.arte.ainew.infrastructure.http.ChatCompletionsSseProtocolAdapter;
 import com.arte.ainew.infrastructure.http.EnvironmentCredentialResolver;
 import com.arte.ainew.infrastructure.http.HttpConnectionRuntime;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.control.ConnectionDefinition;
 import com.arte.ainew.pojo.control.ExecutionTarget;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.spi.credential.ConnectionCredentialResolver;
 import com.arte.ainew.spi.gateway.ModelGateway;
+import com.arte.ainew.testing.TestAiConfiguration;
+import com.arte.ainew.testing.TestSources;
 import com.arte.core.pojo.reference.DefinitionRef;
 import org.junit.Test;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -46,9 +49,22 @@ import static org.junit.Assert.*;
  */
 public class GenerationAssemblyTest {
 
+    private static TestAiConfiguration exampleData() {
+        var data = AdmissionFixture.properties();
+        var original = data.connections().getFirst();
+        var connection = new ConnectionDefinition(original.definition(), "deepseek",
+                ChatCompletionsSseProtocolAdapter.DEFINITION, original.endpoint(), original.credential(),
+                original.state(), original.connectTimeout(), original.responseTimeout(), original.maxResponseBytes());
+        var old = data.bindings().getFirst();
+        var binding = new ResolvedBinding(old.definition(), old.capability(), old.connection(), "deepseek-chat", old.contextWindowTokens(), old.rate());
+        return new TestAiConfiguration(data.enabled(), data.dataSourceBean(), data.releaseRef(), data.persistence(), data.limits(),
+                data.grants(), data.capabilities(), List.of(binding), List.of(connection), data.rates(), data.budgets());
+    }
+
     private static AnnotationConfigApplicationContext context(boolean example) throws Exception {
         var context = new AnnotationConfigApplicationContext();
         if (example) {
+            TestSources.install(context, exampleData());
             new YamlPropertySourceLoader().load("generation-example", new FileSystemResource("examples/ainew-generation.yml"))
                     .forEach(source -> context.getEnvironment().getPropertySources().addLast(source));
             context.registerBean("appDataSource", DataSource.class, () -> new AbstractDataSource() {
@@ -68,6 +84,7 @@ public class GenerationAssemblyTest {
     @Test
     public void defaultDisabledRequiresNoResources() throws Exception {
         try (var context = context(false)) {
+            com.arte.ainew.testing.TestSources.install(context);
             context.refresh();
             assertTrue(context.getBeansOfType(ModelGateway.class).isEmpty());
             assertTrue(context.getBeansOfType(HttpConnectionRuntime.class).isEmpty());
@@ -78,6 +95,7 @@ public class GenerationAssemblyTest {
     public void generationAloneCannotBypassAdmissionAssembly() throws Exception {
         try (var context = context(false)) {
             context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("generation-only", Map.of("arte.ai-new-generation.enabled", "true")));
+            com.arte.ainew.testing.TestSources.install(context);
             context.refresh();
             assertTrue(context.getBeansOfType(ModelGateway.class).isEmpty());
         }
@@ -92,11 +110,12 @@ public class GenerationAssemblyTest {
                 throw new AssertionError("Startup must not resolve credential values");
             });
             context.registerBean("testCredentialResolver", ConnectionCredentialResolver.class, () -> custom);
+            com.arte.ainew.testing.TestSources.install(context);
             context.refresh();
             assertNotNull(context.getBean(ModelGateway.class));
             assertNotNull(context.getBean("newAiHttpConnectionRuntime"));
             assertSame(custom, context.getBean(ConnectionCredentialResolver.class));
-            var configuration = context.getBean(NewAiProperties.class);
+            var configuration = exampleData();
             var localCapability = new CapabilityDescriptor(new DefinitionRef("capability", "counter", "v1"),
                     CapabilityDescriptor.Kind.TOOL, new DefinitionRef("schema", "counter-input", "v1"),
                     new DefinitionRef("schema", "counter-output", "v1"), Set.of(),
@@ -113,7 +132,7 @@ public class GenerationAssemblyTest {
             assertNotNull(options);
             assertEquals(1, options.options().size());
             assertEquals("deepseek-chat", options.options().getFirst().displayName());
-            assertEquals(List.of("example-budget"), options.options().getFirst().budgetRefs());
+            assertEquals(List.of("alice-budget"), options.options().getFirst().budgetRefs());
             assertEquals(0, credentialReads.get());
             var generation = context.getBean(NewAiGenerationProperties.class);
             assertEquals("ARTE_DEEPSEEK_API_KEY", generation.secrets().getFirst().environmentVariable());
@@ -135,6 +154,7 @@ public class GenerationAssemblyTest {
                             new NewAiGenerationProperties(false, List.of(URI.create("https://tool.invalid")),
                                     List.of(), 0, 0, 0, null, 0, 0), Clock.systemUTC()));
                 }
+                com.arte.ainew.testing.TestSources.install(context);
                 context.refresh();
                 assertEquals(names.size() + 1, context.getBeansOfType(HttpConnectionRuntime.class).size());
                 assertSame(context.getBean("newAiHttpConnectionRuntime"),
@@ -146,6 +166,7 @@ public class GenerationAssemblyTest {
     @Test
     public void defaultEnvironmentResolverIsInstalledAndUnknownOptionsFailStrictly() throws Exception {
         try (var context = context(true)) {
+            com.arte.ainew.testing.TestSources.install(context);
             context.refresh();
             assertTrue(context.getBean(ConnectionCredentialResolver.class) instanceof EnvironmentCredentialResolver);
         }

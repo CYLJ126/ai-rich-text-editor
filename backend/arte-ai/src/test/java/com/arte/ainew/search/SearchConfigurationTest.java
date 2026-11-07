@@ -1,18 +1,30 @@
 package com.arte.ainew.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.json.jackson.Jackson3JsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
+import co.elastic.clients.transport.rest5_client.Rest5ClientTransport;
+import co.elastic.clients.transport.rest5_client.low_level.Rest5Client;
 import com.arte.ainew.api.conversation.ConversationArchiveCommands;
+import com.arte.ainew.api.conversation.ConversationSearchService;
 import com.arte.ainew.application.conversation.UnsupportedConversationArchiveCommands;
+import com.arte.ainew.application.search.ConversationSearchMaintenance;
+import com.arte.ainew.common.search.SearchFailure;
 import com.arte.ainew.config.*;
+import com.arte.ainew.infrastructure.search.ConversationSearchBootstrap;
+import com.arte.ainew.spi.auth.ExecutionAuthorizationResolver;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
-import com.arte.ainew.spi.search.ConversationSearchIndex;
+import com.arte.ainew.spi.conversation.ConversationContentVisibility;
+import com.arte.ainew.spi.search.*;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import org.junit.Test;
 import org.redisson.api.RedissonClient;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.MapPropertySource;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.lang.reflect.Proxy;
 import java.time.Duration;
@@ -146,13 +158,13 @@ public class SearchConfigurationTest {
                 "arte.ai-new-search.scan-enabled", true, "arte.ai-new-search.sync.generation", "conversation-search-v2-g01"))) {
             c.register(NewAiSearchSyncConfiguration.class);
             c.registerBean("rawRead", ConversationSearchIndex.class, () -> proxy(ConversationSearchIndex.class));
-            c.registerBean("source", com.arte.ainew.spi.search.ConversationSearchSource.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchSource.class));
-            c.registerBean("progress", com.arte.ainew.spi.search.ConversationSearchSyncStore.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchSyncStore.class));
-            c.registerBean("writer", com.arte.ainew.spi.search.ConversationSearchWriter.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchWriter.class));
-            c.registerBean("indexLock", com.arte.ainew.spi.search.ConversationSearchIndexLock.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchIndexLock.class));
+            c.registerBean("source", ConversationSearchSource.class, () -> proxy(ConversationSearchSource.class));
+            c.registerBean("progress", ConversationSearchSyncStore.class, () -> proxy(ConversationSearchSyncStore.class));
+            c.registerBean("writer", ConversationSearchWriter.class, () -> proxy(ConversationSearchWriter.class));
+            c.registerBean("indexLock", ConversationSearchIndexLock.class, () -> proxy(ConversationSearchIndexLock.class));
             c.refresh();
             assertNotNull(c.getBean(ConversationSearchScanLifecycle.class));
-            assertNotNull(c.getBean(com.arte.ainew.application.search.ConversationSearchMaintenance.class));
+            assertNotNull(c.getBean(ConversationSearchMaintenance.class));
         }
         assertThrows(IllegalArgumentException.class, () -> new NewAiSearchProperties(true, false, true, false, false, null, null, null));
         assertThrows(IllegalArgumentException.class, () -> new NewAiSearchProperties(true, false, true, false, false, null, null, null,
@@ -172,18 +184,18 @@ public class SearchConfigurationTest {
         try (var c = context(Map.of("arte.ai-new.enabled", true))) {
             c.register(NewAiSearchQueryConfiguration.class);
             c.refresh();
-            assertTrue(c.getBeansOfType(com.arte.ainew.api.conversation.ConversationSearchService.class).isEmpty());
+            assertTrue(c.getBeansOfType(ConversationSearchService.class).isEmpty());
         }
         try (var c = context(Map.of("arte.ai-new.enabled", true, "arte.ai-new-search.enabled", true, "arte.ai-new-search.query-enabled", true))) {
             c.register(NewAiSearchQueryConfiguration.class);
             c.registerBean("index", ConversationSearchIndex.class, () -> proxy(ConversationSearchIndex.class));
-            c.registerBean("sessions", com.arte.ainew.spi.search.ConversationSearchSessions.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchSessions.class));
-            c.registerBean("reads", com.arte.ainew.spi.search.ConversationSearchReads.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchReads.class));
+            c.registerBean("sessions", ConversationSearchSessions.class, () -> proxy(ConversationSearchSessions.class));
+            c.registerBean("reads", ConversationSearchReads.class, () -> proxy(ConversationSearchReads.class));
             c.registerBean("newAiClock", java.time.Clock.class, java.time.Clock::systemUTC);
-            c.registerBean(com.arte.ainew.spi.auth.ExecutionAuthorizationResolver.class, () -> (name, t, w, s) -> Mono.error(new AssertionError("No startup authorization")));
+            c.registerBean(ExecutionAuthorizationResolver.class, () -> (name, t, w, s) -> Mono.error(new AssertionError("No startup authorization")));
             c.refresh();
-            assertNotNull(c.getBean(com.arte.ainew.api.conversation.ConversationSearchService.class));
-            assertNotNull(c.getBean(com.arte.ainew.spi.conversation.ConversationContentVisibility.class));
+            assertNotNull(c.getBean(ConversationSearchService.class));
+            assertNotNull(c.getBean(ConversationContentVisibility.class));
         }
     }
 
@@ -219,31 +231,30 @@ public class SearchConfigurationTest {
 
     @Test
     public void initializationOnlyAssemblyDefersAllRemoteOperationsUntilApplicationReady() throws Exception {
-        var rest = co.elastic.clients.transport.rest5_client.low_level.Rest5Client.builder(org.apache.hc.core5.http.HttpHost.create("http://127.0.0.1:1")).build();
-        var transport = new co.elastic.clients.transport.rest5_client.Rest5ClientTransport(rest,
-                new co.elastic.clients.json.jackson.Jackson3JsonpMapper(tools.jackson.databind.json.JsonMapper.builder().build()));
+        var rest = Rest5Client.builder(org.apache.hc.core5.http.HttpHost.create("http://127.0.0.1:1")).build();
+        var transport = new Rest5ClientTransport(rest, new Jackson3JsonpMapper(JsonMapper.builder().build()));
         try (transport; var c = context(Map.of("arte.ai-new.enabled", true, "arte.ai-new-search.enabled", true,
                 "arte.ai-new-search.initialize-on-startup", true, "arte.ai-new-search.sync.generation", "conversation-search-v2-g01",
-                "arte.ai-new.release-ref", "test-release", "arte.ai-new.configuration-mode", "DATABASE"))) {
+                "arte.ai-new.release-ref", "test-release"))) {
             c.register(NewAiSearchSyncConfiguration.class);
             c.register(PropertiesBinding.class);
             c.registerBean("appDataSource", javax.sql.DataSource.class, () -> proxy(javax.sql.DataSource.class));
             c.registerBean(ElasticsearchClient.class, () -> new ElasticsearchClient(transport));
             c.registerBean(RedissonClient.class, () -> proxy(RedissonClient.class));
-            c.registerBean("source", com.arte.ainew.spi.search.ConversationSearchSource.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchSource.class));
-            c.registerBean("progress", com.arte.ainew.spi.search.ConversationSearchSyncStore.class, () -> proxy(com.arte.ainew.spi.search.ConversationSearchSyncStore.class));
+            c.registerBean("source", ConversationSearchSource.class, () -> proxy(ConversationSearchSource.class));
+            c.registerBean("progress", ConversationSearchSyncStore.class, () -> proxy(ConversationSearchSyncStore.class));
             c.refresh();
-            var bootstrap = c.getBean(com.arte.ainew.infrastructure.search.ConversationSearchBootstrap.class);
+            var bootstrap = c.getBean(ConversationSearchBootstrap.class);
             assertFalse(bootstrap.isReady());
             assertNotNull(c.getBean(ConversationSearchScanLifecycle.class));
-            assertEquals(com.arte.ainew.common.search.SearchFailure.Code.DEPENDENCY_UNAVAILABLE,
-                    assertThrows(com.arte.ainew.common.search.SearchFailure.class,
+            assertEquals(SearchFailure.Code.DEPENDENCY_UNAVAILABLE,
+                    assertThrows(SearchFailure.class,
                             () -> c.getBean(ConversationSearchIndex.class).open(Duration.ofSeconds(10)).block()).code());
         }
     }
 
-    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
-    @org.springframework.boot.context.properties.EnableConfigurationProperties(NewAiProperties.class)
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(NewAiProperties.class)
     static class PropertiesBinding {
     }
 }

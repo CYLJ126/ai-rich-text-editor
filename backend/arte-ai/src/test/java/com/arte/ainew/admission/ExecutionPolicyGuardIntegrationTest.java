@@ -1,7 +1,5 @@
 package com.arte.ainew.admission;
 
-import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.auth.FixedExecutionAuthorizationResolver;
 import com.arte.ainew.application.entry.DefaultChatService;
 import com.arte.ainew.application.execution.AdmissionInvocationCoordinator;
 import com.arte.ainew.application.support.AdmissionException;
@@ -10,10 +8,13 @@ import com.arte.ainew.infrastructure.control.ConfigurationAiAdmissionAuthorizati
 import com.arte.ainew.infrastructure.control.ControlConfigurationReader;
 import com.arte.ainew.infrastructure.control.ExecutionPolicies;
 import com.arte.ainew.pojo.control.AiExecutionPolicy;
+import com.arte.ainew.pojo.control.ControlConfiguration;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.spi.auth.AiAdmissionAuthorizationGuard;
 import com.arte.ainew.spi.control.AiExecutionPolicyProvider;
 import com.arte.ainew.spi.persistence.DispatchPreparationStore;
+import com.arte.ainew.testing.TestAuthorizationResolver;
+import com.arte.ainew.testing.TestAuthorizations;
 import com.arte.core.enums.ResultCodeEnum;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.After;
@@ -78,8 +79,8 @@ public class ExecutionPolicyGuardIntegrationTest {
         scheduler = Schedulers.newBoundedElastic(4, 128, "policy-guard-test");
         f = new AdmissionFixture(source, scheduler);
         current.set(ExecutionPolicies.from(f.properties.limits()));
-        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(f.properties), f.properties, clock);
-        guard = new ConfigurationAiAdmissionAuthorizationGuard(new ControlConfigurationReader(f.properties), authorization,
+        var authorization = TestAuthorizations.create(new TestAuthorizationResolver(f.properties), f.properties, clock);
+        guard = new ConfigurationAiAdmissionAuthorizationGuard(new ControlConfigurationReader(f.properties.source(), reactor.core.scheduler.Schedulers.immediate()), authorization,
                 f.catalog.entitlementAdapter(), f.catalog.readAdapter(), policies, f.properties.limits(), clock);
         f.initializeBudget("alice");
     }
@@ -101,15 +102,13 @@ public class ExecutionPolicyGuardIntegrationTest {
 
     @Test
     public void tighteningAfterPreflightRollsBackAcceptanceAndTurnWithoutDispatchWork() {
-        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(f.properties), f.properties, clock);
+        var authorization = TestAuthorizations.create(new TestAuthorizationResolver(f.properties), f.properties, clock);
         AiAdmissionAuthorizationGuard racing = check -> guard.authorize(check).map(permit -> actual -> {
             current.set(tightened());
             permit.requireInCurrentTransaction(actual);
         });
-        var coordinator = new AdmissionInvocationCoordinator(authorization, f.catalog, f.catalog, f.executions, f.payloads,
-                f.executions, f.properties, clock, policies, racing, f.catalog.readAdapter(), f.catalog.readAdapter());
-        var chat = new DefaultChatService(authorization, f.conversations, f.catalog, f.contexts, coordinator, clock,
-                f.executions, f.executions, f.properties);
+        var coordinator = new AdmissionInvocationCoordinator(authorization, f.catalog, f.catalog, f.executions, f.payloads, f.executions, f.properties.deployment(), clock, policies, racing, f.catalog.readAdapter(), f.catalog.readAdapter());
+        var chat = new DefaultChatService(authorization, f.conversations, f.catalog, f.contexts, coordinator, clock, f.executions, f.executions, f.properties.deployment());
         var conversation = f.conversations.create("policy", null, List.of(), f.context("alice", "create")).block();
         var context = f.context("alice", "submit");
         var error = assertThrows(AdmissionException.class, () -> chat.submit(f.chatRequest(conversation.conversationId(), 0, "hello", context), context).block());
@@ -189,7 +188,7 @@ public class ExecutionPolicyGuardIntegrationTest {
         current.set(new AiExecutionPolicy(1_000_000, 1000, 1_000_000, Duration.ofMinutes(10), Duration.ofDays(1)));
         var invocation = accepted();
         assertNotNull(guard.authorize(check(invocation, AiAdmissionAuthorizationGuard.Boundary.EXTERNAL_SEND)).block());
-        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(f.properties), f.properties, clock);
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create(new TestAuthorizationResolver(f.properties), f.properties, clock);
         var gateway = new com.arte.ainew.spi.gateway.ModelGateway() {
             public boolean supportsTextChat(com.arte.ainew.pojo.control.ResolvedBinding binding, com.arte.ainew.pojo.control.ConnectionDefinition connection) {
                 return true;
@@ -199,7 +198,7 @@ public class ExecutionPolicyGuardIntegrationTest {
                 throw new AssertionError("Discovery must not send");
             }
         };
-        var discovery = new com.arte.ainew.application.control.ChatConfigurationQueryService(f.properties, authorization, f.catalog, () -> gateway).policyProvider(policies);
+        var discovery = new com.arte.ainew.application.control.ChatConfigurationQueryService(f.properties.deployment(), authorization, f.catalog.entitlementAdapter(), f.catalog.readAdapter(), f.catalog.readAdapter(), () -> gateway, policies);
         var context = f.context("alice", "discover");
         var limit = discovery.discover(context).block().options().getFirst().limits();
         assertEquals(f.properties.limits().maxOutputTokens(), limit.maxOutputTokens());
@@ -228,8 +227,8 @@ public class ExecutionPolicyGuardIntegrationTest {
     @Test
     public void asyncOnlyPolicyCannotAuthorizeTheWriteTransaction() {
         var invocation = accepted();
-        var authorization = new AdmissionAuthorization(new FixedExecutionAuthorizationResolver(f.properties), f.properties, clock);
-        var asyncOnly = new ConfigurationAiAdmissionAuthorizationGuard(new ControlConfigurationReader(f.properties), authorization,
+        var authorization = com.arte.ainew.testing.TestAuthorizations.create(new TestAuthorizationResolver(f.properties), f.properties, clock);
+        var asyncOnly = new ConfigurationAiAdmissionAuthorizationGuard(new ControlConfigurationReader(f.properties.source(), reactor.core.scheduler.Schedulers.immediate()), authorization,
                 f.catalog.entitlementAdapter(), f.catalog.readAdapter(), context -> Mono.just(current.get()), f.properties.limits(), clock);
         var permit = asyncOnly.authorize(check(invocation, AiAdmissionAuthorizationGuard.Boundary.ADMISSION)).block();
         var transaction = new TransactionTemplate(new DataSourceTransactionManager(source));
@@ -245,20 +244,20 @@ public class ExecutionPolicyGuardIntegrationTest {
         var context = f.context("alice", "current-source");
         var configuration = new AtomicReference<>(f.properties);
         var authority = new com.arte.ainew.spi.auth.AiControlConfigurationSource() {
-            public com.arte.ainew.config.NewAiProperties configuration(ExecutionContext ignored) {
-                return f.properties;
+            public ControlConfiguration configuration(ExecutionContext ignored) {
+                return f.properties.snapshot();
             }
 
-            public com.arte.ainew.config.NewAiProperties configurationInCurrentTransaction(ExecutionContext ignored) {
+            public ControlConfiguration configurationInCurrentTransaction(ExecutionContext ignored) {
                 reads.incrementAndGet();
-                return configuration.get();
+                return configuration.get().snapshot();
             }
 
-            public com.arte.ainew.config.NewAiProperties definitions() {
-                return f.properties;
+            public ControlConfiguration definitions() {
+                return f.properties.snapshot();
             }
 
-            public com.arte.ainew.config.NewAiProperties.Grant grant(ExecutionContext ignored) {
+            public com.arte.ainew.pojo.control.ControlConfiguration.Grant grant(ExecutionContext ignored) {
                 throw new AssertionError();
             }
         };
@@ -268,7 +267,7 @@ public class ExecutionPolicyGuardIntegrationTest {
         // 读范围持有旧配置；事务当前读必须绕过它，并仅在本次同步回调复用来源。
         first.inSnapshot(context, old -> {
             var p = f.properties;
-            configuration.set(new com.arte.ainew.config.NewAiProperties(p.enabled(), p.dataSourceBean(), p.releaseRef(), p.persistence(),
+            configuration.set(new com.arte.ainew.testing.TestAiConfiguration(p.enabled(), p.dataSourceBean(), p.releaseRef(), p.persistence(),
                     ExecutionPolicies.legacy(tightened()), p.grants(), p.capabilities(), p.bindings(), p.connections(), p.rates(), p.budgets()));
             return Mono.fromCallable(() -> transaction.execute(status -> first.inCurrentTransaction(context, value -> {
                 assertNotSame(old, value);
@@ -287,7 +286,7 @@ public class ExecutionPolicyGuardIntegrationTest {
 
     @Test
     public void suspendedTransactionCannotLendItsCurrentFactsToAnotherTransaction() {
-        var reader = new ControlConfigurationReader(f.properties);
+        var reader = new ControlConfigurationReader(f.properties.source(), reactor.core.scheduler.Schedulers.immediate());
         var context = f.context("alice", "suspended");
         var manager = new DataSourceTransactionManager(source);
         var outer = new TransactionTemplate(manager);
