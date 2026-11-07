@@ -14,6 +14,7 @@ import com.arte.core.application.workspace.WorkspaceGovernanceLocks;
 import com.arte.core.application.workspace.WorkspaceMutationEffects;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
+import com.arte.core.pojo.access.AccessDecision;
 import com.arte.core.pojo.access.AccessRequest;
 import com.arte.core.pojo.access.Action;
 import com.arte.core.pojo.access.ResourceRef;
@@ -176,12 +177,31 @@ public final class DefaultAssistantManager implements AssistantManager {
     }
 
     @Override
+    public Capabilities capabilities(TrustedActor actor, Scope scope, String id) {
+        authorization.require(actor, DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_READ, "assistant-capabilities"));
+        boolean create = authorization.check(actor, DefaultAuthorizationService.workspaceRequest(scope, ASSISTANT_CREATE, "assistant-create")).allowed();
+        if (id == null) {
+            return new Capabilities(create, false, false, false, false);
+        }
+        Resource resource = get(actor, scope, id).resource();
+        if (resource.state() == State.DISABLED) {
+            return new Capabilities(create, false, false, false, false);
+        }
+        List<AccessDecision> allowed = authorization.batchCheck(actor, List.of(ASSISTANT_EDIT, ASSISTANT_USE, ASSISTANT_PUBLISH, ASSISTANT_DISABLE)
+                .stream().map(action -> request(resource, action)).toList());
+        boolean edit = allowed.get(0).allowed();
+        return new Capabilities(create, edit, edit && allowed.get(1).allowed(), allowed.get(2).allowed(), allowed.get(3).allowed());
+    }
+
+    @Override
     public Detail get(TrustedActor actor, Scope scope, String id) {
         return tx.required(() -> {
             lock(actor, scope);
             var resource = current(scope, id);
             require(actor, resource, ASSISTANT_READ);
-            return new Detail(resource, draft(resource, true));
+            Long publishedDraftRevision = resource.releaseVersion() == null ? null
+                    : release(resource, resource.releaseVersion()).draftRevision();
+            return new Detail(resource, draft(resource, true), publishedDraftRevision);
         });
     }
 

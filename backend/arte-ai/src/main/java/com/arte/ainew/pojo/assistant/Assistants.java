@@ -83,7 +83,14 @@ public final class Assistants {
                         String snapshotId, String invocationId) {
     }
 
-    public record Detail(Resource resource, Draft draft) {
+    public record Capabilities(boolean canCreate, boolean canEdit, boolean canTrial, boolean canPublish,
+                               boolean canDisable) {
+    }
+
+    public record TrialHistory(String trialId, long draftRevision, String invocationId, Instant createdAt) {
+    }
+
+    public record Detail(Resource resource, Draft draft, Long publishedDraftRevision) {
     }
 
     public record Managed(Resource resource, String displayName, long draftRevision) {
@@ -91,6 +98,9 @@ public final class Assistants {
 
     public record Summary(String assistantId, String displayName, String description, List<String> examplePrompts,
                           DefinitionRef chatProfile) {
+    }
+
+    public record ConversationAssistant(Summary summary, boolean available, boolean disabled) {
     }
 
     public record Receipt(String assistantId, long resourceVersion, long draftRevision, DefinitionRef chatProfile) {

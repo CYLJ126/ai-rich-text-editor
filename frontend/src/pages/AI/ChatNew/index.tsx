@@ -52,6 +52,9 @@ import {registerWorkspaceGuard, useCurrentWorkspace} from '@/features/workspace/
 import type {WorkspaceView} from '@/services/platform/workspace';
 import ChatConfigurationForm, {type ConfigurationDraft} from '@/features/ainew/ChatConfigurationForm';
 import BusinessChatPanel, {type ChatInteractionState} from '@/features/ainew/BusinessChatPanel';
+import AssistantWorkspace from '@/features/ainew/AssistantWorkspace';
+import {useAssistantRead} from '@/features/ainew/assistantState';
+import {type AssistantSummary, getConversationAssistant} from '@/services/arte-ai/assistant';
 import {chatConfigSchema, chatScopeSchema, type ChatTestConfig, modelOptionKey} from '@/features/ainew/config';
 import {useConversationDirectory} from '@/features/ainew/useConversationDirectory';
 import {
@@ -107,6 +110,12 @@ function WorkspaceChat({
   const {saved: preparedModel} = useModelChatHandoff(context);
   const conversations = useConversationDirectory(workspace.scope, context);
   const selectedId = conversations.selectedId ?? '';
+  const profile = conversations.selected?.chatProfile;
+  const assistantIdentity = useAssistantRead(profile ? JSON.stringify([selectedId, profile]) : null, signal =>
+    getConversationAssistant({scope: context.scope, conversationId: selectedId}, {signal}), true);
+  const assistantSummary = assistantIdentity.value?.summary;
+  const assistantUnavailable = assistantIdentity.value?.available === false;
+  const [assistantUnsafe, setAssistantUnsafe] = useState(false);
   const [formDraft, setFormDraft] = useState<{ id: string; values: ConfigurationDraft } | null>(null);
   const [configState, setConfigState] = useState<{ id: string; config: ChatTestConfig } | null>(null);
   const config = configState?.id === selectedId ? configState.config : null;
@@ -205,16 +214,16 @@ function WorkspaceChat({
     return true;
   }
 
-  useAiLeaveGuard(dirty || modelManagementUnsafe || aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave,
-    React.useCallback(() => setWarning('请先应用或取消配置修改，保存模型编辑并确认原操作后再离开。'), []));
+  useAiLeaveGuard(dirty || assistantUnsafe || modelManagementUnsafe || aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave,
+    React.useCallback(() => setWarning('请先处理未保存的设置或草稿，并确认正在提交的操作。'), []));
 
   const guardState = useRef({
     dirty,
-    unsafe: modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
+    unsafe: assistantUnsafe || modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
   });
   guardState.current = {
     dirty,
-    unsafe: modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
+    unsafe: assistantUnsafe || modelManagementUnsafe || aiSettingsUnsafe || interaction.unsafeToLeave || conversations.unsafeToLeave
   };
 
   function guard(proceed: () => void, onCancel?: () => void, isCurrent = () => true) {
@@ -224,7 +233,7 @@ function WorkspaceChat({
         return;
       }
       if (guardState.current.unsafe) {
-        setWarning(modelManagementUnsafe ? '模型管理中还有未保存内容或临时密钥，请先保存、放弃或清除输入后再切换。' : '未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
+        setWarning(assistantUnsafe ? '请先在助手管理中保存或放弃草稿，并等待提交完成。' : modelManagementUnsafe ? '模型管理中还有未保存内容或临时密钥，请先保存、放弃或清除输入后再切换。' : '未确认操作未能保存，请保留当前会话并确认原操作后再切换。');
         onCancel?.();
         return;
       }
@@ -248,6 +257,12 @@ function WorkspaceChat({
   }, [guard]);
   const rejectConfiguration: ConfigurationRejected = (request, error) => {
     if (!sameScope(request.scope, workspace.scope)) return;
+    if (profile && error.code === '205001') {
+      assistantIdentity.reload();
+      setDiscoveryRefresh(value => ({id: selectedId, revision: value.id === selectedId ? value.revision + 1 : 1}));
+      setWarning('请核对助手版本的使用资格、当前模型及预算。');
+      return;
+    }
     if (config && (error.httpStatus === 401 || error.httpStatus === 403 || (request.binding.id === config.bindingId && request.binding.version === config.bindingVersion && request.budgetRef === config.budgetRef))) {
       setConfigState(null);
       setDirtyState({id: selectedId, dirty: true});
@@ -331,15 +346,25 @@ function WorkspaceChat({
       <Button onClick={() => setAccessHelpOpen(true)}>查看开通说明</Button>
       <Button loading={conversations.listLoading} onClick={recheckAccess}>重新检查</Button>
     </Flex>;
-  const createConversation = () => guard(() => {
-    void conversations.create().then(created => {
-      if (created) {
-        void search.exit(search.active);
-        setLocation(null);
-        layout.open('chat');
-      }
+
+  function createChat(assistant?: AssistantSummary, reloadAssistants?: () => void) {
+    guard(() => {
+      void conversations.create(assistant ? {
+        title: assistant.displayName,
+        chatProfile: assistant.chatProfile
+      } : undefined).then(created => {
+        if (created) {
+          void search.exit(search.active);
+          setLocation(null);
+          layout.open('chat');
+        } else {
+          reloadAssistants?.();
+        }
+      });
     });
-  });
+  }
+
+  const createConversation = () => createChat();
 
   function invalidated(value: SearchInvalidation) {
     if (value.kind === 'scope' || value.kind === 'conversation' && value.conversationId === selectedId
@@ -618,13 +643,17 @@ function WorkspaceChat({
         key: 'assistants',
         label: '',
         icon: <Tooltip title='助手管理'><RobotOutlined aria-label="助手管理"/></Tooltip>,
-        children: <Typography.Paragraph>当前：通用文本聊天。助手模板尚未接入新 AI 链路。</Typography.Paragraph>
+        children: <AssistantWorkspace context={context} writable={workspace.state === 0 || workspace.state === null}
+                                      selectionDisabled={readBlocked || conversations.creating || conversations.hasPendingCreate}
+                                      onUse={createChat} onUnsafeChange={setAssistantUnsafe}
+                                      onUpdated={assistantIdentity.reload}/>
       },
       {
         key: 'ai-tool',
         label: '',
         icon: <Tooltip title='工具配置'><FunctionOutlined aria-label="工具配置"/></Tooltip>,
         children: <div ref={setToolSettingsContainer}>
+          {profile && <Typography.Paragraph>助手会话使用纯文本模式。工具配置可在通用会话中使用。</Typography.Paragraph>}
           {(!conversations.selected || conversations.detailLoading || !!conversations.detailError) &&
             <Typography.Paragraph>请选择并加载一个会话后设置本次聊天的工具。</Typography.Paragraph>}
         </div>
@@ -643,9 +672,21 @@ function WorkspaceChat({
     <Flex component="header" align="center" justify="space-between" gap={8} wrap className="ainew-conversation-header">
       <Flex vertical className="ainew-conversation-heading">
         <Typography.Title level={2}>{conversations.selected?.title ?? 'AI 聊天（新版）'}</Typography.Title>
-        <Typography.Text type="secondary" className="ainew-muted">通用文本聊天</Typography.Text>
+        <Typography.Text type="secondary" className="ainew-muted">
+          {profile ? (assistantSummary?.displayName ?? '助手') + ' · v' + profile.version : '通用文本聊天'}
+        </Typography.Text>
       </Flex>
     </Flex>
+    {assistantUnavailable && <Alert type="warning"
+                                    title={assistantIdentity.value?.disabled ? '此助手已停用。' : '当前账号已失去此助手的使用资格。'}
+                                    description="可以查看旧会话，也可以从助手目录开启其他会话。"
+                                    action={<Button onClick={() => {
+                                      setTab('assistants');
+                                      layout.open('settings');
+                                    }}>查看助手目录</Button>}/>}
+    {profile && !!assistantIdentity.error && <Alert type="warning" title="助手详情暂时无法读取。"
+                                                    action={<Button
+                                                      onClick={assistantIdentity.reload}>重读助手详情</Button>}/>}
     <PreparedModelNotice context={context}
                          disabled={modelManagementUnsafe || aiSettingsUnsafe || !!interaction.unsafeToLeave || !!conversations.unsafeToLeave}
                          onSelect={choosePreparedModel}/>
@@ -701,6 +742,8 @@ function WorkspaceChat({
                 setTab('ai-tool');
                 layout.open('settings');
               }}
+              assistantExamples={assistantSummary?.examplePrompts}
+              assistantUnavailable={assistantUnavailable}
               toolSettingsContainer={toolSettingsContainer}
               toolSettingsActive={layout.visible.settings && tab === 'ai-tool'}
               writable={workspace.state === 0 || workspace.state === null}/>

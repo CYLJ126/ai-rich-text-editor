@@ -4,6 +4,7 @@ import com.arte.ainew.application.assistant.DefaultAssistantManager;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
+import com.arte.ainew.common.execution.ExecutionPrincipal;
 import com.arte.ainew.persistence.mybatis.MybatisExecutionPersistence;
 import com.arte.ainew.persistence.mybatis.MybatisPayloadPersistence;
 import com.arte.ainew.pojo.assistant.Assistants.*;
@@ -37,8 +38,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
 
-import static com.arte.core.constant.platform.PlatformActions.ASSISTANT_EDIT;
-import static com.arte.core.constant.platform.PlatformActions.ASSISTANT_USE;
+import static com.arte.core.constant.platform.PlatformActions.*;
 import static com.arte.core.constant.platform.PlatformResourceTypes.ASSISTANT;
 
 /**
@@ -136,6 +136,43 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
                 || !trial.snapshotId().equals(invocation.contextSnapshotId()) || !matches(trial, snapshot)) {
             throw new PlatformException(PlatformErrorCodeEnum.INVALID_ARGUMENT, "assistant-trial");
         }
+    }
+
+    public Mono<Page<TrialHistory>> trialHistory(
+            ExecutionContext context, String assistantId, String after, int limit) {
+        return executor.inTransaction(() -> {
+            TrustedActor actor = lockActor(context);
+            Scope scope = scope(context);
+            Resource resource = store.find(new ResourceRef(scope.tenantId(), ASSISTANT, assistantId), true)
+                    .filter(value -> value.scope().equals(scope)).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
+            require(actor, resource, ASSISTANT_READ);
+            List<TrialHistory> items = store.trialHistory(assistantId, actor.principal().subjectId(), after, limit + 1);
+            return items.size() <= limit ? new Page<>(items, null)
+                    : new Page<>(items.subList(0, limit), items.get(limit - 1).trialId());
+        });
+    }
+
+    /**
+     * 会话读权决定历史摘要可见性，当前使用资格单独投影。
+     */
+    public Mono<ConversationAssistant> conversationAssistant(ExecutionContext context, DefinitionRef profile) {
+        if (profile == null || !"chat-profile".equals(profile.type())) {
+            return Mono.empty();
+        }
+        return executor.read(() -> store.findByProfile(scope(context), profile.id(), false)
+                .flatMap(resource -> store.release(resource.id(), DefaultAssistantManager.parseVersion(profile.version()))
+                        .map(release -> {
+                            ExecutionPrincipal principal = context.authorization().principal();
+                            boolean available = resource.state() == State.ACTIVE && identities.findBySubjectId(principal.subjectId())
+                                    .filter(principal::sameIdentityAs).filter(value -> value.status() == PrincipalStatusEnum.ACTIVE)
+                                    .map(value -> authorization.check(new TrustedActor(value, clock.instant()),
+                                            new AccessRequest(resource.scope(), resource.ref(), ASSISTANT_USE, "assistant-execution")).allowed())
+                                    .orElse(false);
+                            Content content = release.content();
+                            return new ConversationAssistant(new Summary(release.assistantId(), content.displayName(),
+                                    content.description(), content.examplePrompts(), profile), available, resource.state() == State.DISABLED);
+                        }))
+                .orElse(null));
     }
 
     Draft draftForTrial(ExecutionContext context, String assistantId, long revision) {

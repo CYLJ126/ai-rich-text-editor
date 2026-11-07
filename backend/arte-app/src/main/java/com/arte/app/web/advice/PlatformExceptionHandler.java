@@ -51,7 +51,8 @@ public class PlatformExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<IResult> handle(Exception exception, HttpServletRequest request, Locale locale) {
-        if ((request.getRequestURI().endsWith("/trialAssistantDraft") || request.getRequestURI().endsWith("/getInvocationAssistant"))
+        if ((request.getRequestURI().endsWith("/trialAssistantDraft") || request.getRequestURI().endsWith("/getInvocationAssistant")
+                || request.getRequestURI().endsWith("/listAssistantTrials") || request.getRequestURI().endsWith("/getConversationAssistant"))
                 && (exception instanceof com.arte.ainew.application.support.AdmissionException
                 || exception instanceof com.arte.ainew.application.execution.DispatchSchedulingException
                 || exception instanceof java.util.concurrent.TimeoutException

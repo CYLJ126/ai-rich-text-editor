@@ -154,7 +154,7 @@ export function shareAiRead<T>(resource: unknown, signal: AbortSignal | undefine
   });
 }
 
-async function post<T extends AiResultMetadata>(path: string, data: unknown, options: AiRequestOptions | undefined,
+export async function post<T extends AiResultMetadata>(path: string, data: unknown, options: AiRequestOptions | undefined,
                                                 idempotencyKey?: string, basePath = '/arte/ai-new'): Promise<AiHttpResponse<T>> {
   if (basePath !== '/arte/ai-new' || idempotencyKey || !readPaths.has(path))
     return transport<T>(path, data, options, idempotencyKey, basePath);

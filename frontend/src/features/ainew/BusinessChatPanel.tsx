@@ -49,6 +49,8 @@ export default function BusinessChatPanel({
                                             onChooseModel,
                                             onInteraction,
                                             onOpenToolSettings,
+                                            assistantExamples,
+                                            assistantUnavailable = false,
                                             toolSettingsContainer,
                                             toolSettingsActive = false,
                                             writable = true,
@@ -62,14 +64,17 @@ export default function BusinessChatPanel({
   onConfigurationRejected: ConfigurationRejected; onChooseModel: (key: string) => void;
   onInteraction: (state: ChatInteractionState) => void; writable?: boolean;
   onOpenToolSettings: () => void;
+  assistantExamples?: string[];
+  assistantUnavailable?: boolean;
   toolSettingsContainer?: HTMLElement | null;
   toolSettingsActive?: boolean;
   location?: LocatedHistory | null; onReturnLatest?: () => void;
   onLocationInvalidated?: (error: unknown, target: LocatedHistory) => void;
 }) {
+  const assistantChat = !!conversation.chatProfile;
   const readingConfig = config ?? {...DEFAULT_CHAT_CONFIG, ...context.scope, temperature: null, topP: null};
   const option = options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion);
-  const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable, writable, onTitleUpdated);
+  const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable && !assistantUnavailable, writable, onTitleUpdated);
   const located = useLocatedHistory(location, conversation, context.scope, (error, target) => onLocationInvalidated?.(error, target));
   const [toolChoice, setToolChoice] = useState<ToolChatChoice | null>(null);
   const [runContentRevision, setRunContentRevision] = useState(0);
@@ -90,7 +95,7 @@ export default function BusinessChatPanel({
   const toolChoiceInvalid = !!toolChoice && (!toolChoice.toolBindingIds.length || !chat.budget || !toolChoice.budgetLimits.some(b => b.currency === chat.budget?.currency) || toolChoice.budgetLimits.some(b => !/^[0-9]{1,18}(\.[0-9]{1,18})?$/.test(b.amount)));
 
   function sendMessage() {
-    if (!toolChoice) {
+    if (assistantChat || !toolChoice) {
       void chat.send();
       return;
     }
@@ -171,8 +176,8 @@ export default function BusinessChatPanel({
   const composing = useRef(false);
   const available = !!chat.budget && hasAvailableBudget(chat.budget.available);
   const pending = !!chat.pending || !!chat.pendingRegeneration;
-  const blocked = toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
-  const regenerationBlocked = toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
+  const blocked = assistantUnavailable || toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
+  const regenerationBlocked = assistantUnavailable || toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
   const tooLarge = !!option && new TextEncoder().encode(chat.draft.trim()).length > option.limits.maxInputBytes;
 
   useEffect(() => {
@@ -464,6 +469,13 @@ export default function BusinessChatPanel({
                                onClick={() => void chat.send()}>重试确认原提交</Button>}
       {chat.pendingRegeneration && <Button loading={chat.submitting} disabled={chat.recoveryBlocked || !writable}
                                            onClick={() => void chat.regenerate()}>重试确认原重新生成</Button>}
+      {!!assistantExamples?.length && !assistantUnavailable && writable &&
+        <Flex align="center" gap={8} wrap aria-label="助手示例问题">
+          <Typography.Text type="secondary">示例问题</Typography.Text>
+          {assistantExamples.map((example, index) => <Button key={index} size="small" title={example}
+                                                             disabled={!!chat.draft.trim() || pending || chat.activeIds.length > 0}
+                                                             onClick={() => chat.setDraft(example + '\n\n')}>填入示例 {index + 1}</Button>)}
+        </Flex>}
       <Input.TextArea aria-label="输入问题" placeholder="输入问题，Enter 发送，Shift+Enter 换行"
                       autoSize={{minRows: 2, maxRows: 7}} maxLength={1_000_000} value={chat.draft}
                       onChange={event => chat.setDraft(event.target.value)} onCompositionStart={() => {
@@ -478,10 +490,10 @@ export default function BusinessChatPanel({
                         }
                       }}/>
       <Flex align="center" gap={8} wrap className="ainew-compose-actions">
-        <Button disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
+        {!assistantChat && <Button disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
                 onClick={onOpenToolSettings}>
           {toolChoice ? `工具已开启 · ${toolChoice.toolBindingIds.length} 项` : '工具设置'}
-        </Button>
+        </Button>}
         <Select aria-label="当前发送模型" placeholder="选择模型" value={config ? modelOptionKey({
           binding: {
             type: 'binding',
@@ -502,7 +514,7 @@ export default function BusinessChatPanel({
       </Flex>
     </Flex>
     {/* 表单呈现在侧栏，选择与执行限制仍由当前会话统一持有。 */}
-    {toolSettingsContainer && createPortal(
+    {!assistantChat && toolSettingsContainer && createPortal(
       <ToolChatSettings context={context} active={toolSettingsActive} value={toolChoice} onChange={setToolChoice}
                         disabled={toolBlocked || pending || chat.activeIds.length > 0 || !writable}
                         currency={chat.budget?.currency} modelSupportsTools={option?.toolCallsSupported === true}/>,

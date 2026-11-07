@@ -1,13 +1,18 @@
 package com.arte.app.web.controller.platform;
 
+import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.assistant.Assistants.ConversationAssistant;
+import com.arte.ainew.pojo.assistant.Assistants.Page;
+import com.arte.ainew.pojo.assistant.Assistants.TrialHistory;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.ainew.web.NewAiHttpContext;
 import com.arte.ainew.web.request.ConversationRequests;
 import com.arte.app.platform.assistant.AssistantTrialService;
 import com.arte.app.platform.assistant.AssistantTrialService.AcceptedTrial;
+import com.arte.app.platform.assistant.PlatformAssistantExecutionAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.reference.DefinitionRef;
@@ -29,11 +34,17 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-assistant.enabled", "ai-new-execution.enabled",
         "platform.identity.enabled", "platform.persistence.enabled", "platform.workspace.enabled"}, havingValue = "true")
 public class AssistantTrialController {
+
     private final AssistantTrialService trials;
     private final NewAiHttpContext http;
     private final Duration queryTimeout;
+    private final PlatformAssistantExecutionAccess assistantAccess;
+    private final ConversationService conversations;
 
-    public AssistantTrialController(AssistantTrialService trials, NewAiHttpContext http, NewAiProperties properties) {
+    public AssistantTrialController(AssistantTrialService trials, NewAiHttpContext http, NewAiProperties properties,
+                                    PlatformAssistantExecutionAccess assistantAccess, ConversationService conversations) {
+        this.assistantAccess = assistantAccess;
+        this.conversations = conversations;
         this.trials = trials;
         this.http = http;
         var maximum = properties.limits().maximumTimeout();
@@ -49,6 +60,27 @@ public class AssistantTrialController {
                           @NotNull @Min(1) @Max(10_000_000) Long maxInputTokens,
                           @NotNull GenerationOptions generationOptions,
                           @NotNull @Min(1) @Max(3600) Long timeoutSeconds) {
+    }
+
+    public record HistoryRequest(@NotNull @Valid ConversationRequests.Scope scope,
+                                 @NotBlank @Size(max = 36) String assistantId, @Size(max = 36) String cursor,
+                                 @NotNull @Min(1) @Max(100) Integer limit) {
+    }
+
+    @PostMapping("/listAssistantTrials")
+    public Mono<ResultContext<Page<TrialHistory>>> listAssistantTrials(@Valid @RequestBody HistoryRequest request, Locale locale) {
+        return http.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                        context -> assistantAccess.trialHistory(context, request.assistantId(), request.cursor(), request.limit()))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getConversationAssistant")
+    public Mono<ResultContext<ConversationAssistant>> getConversationAssistant(@Valid @RequestBody ConversationRequests.Find request, Locale locale) {
+        return http.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
+                        context -> conversations.find(request.conversationId(), context)
+                                .flatMap(value -> assistantAccess.conversationAssistant(context, value.chatProfile())))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale))
+                .switchIfEmpty(Mono.fromSupplier(() -> ResultContext.success(null, ResultCodeEnum.SUCCESS, locale)));
     }
 
     @PostMapping("/getInvocationAssistant")

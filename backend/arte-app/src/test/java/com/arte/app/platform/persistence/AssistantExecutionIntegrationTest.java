@@ -21,6 +21,7 @@ import com.arte.ainew.pojo.generation.ChatMessage;
 import com.arte.ainew.pojo.generation.GenerationOptions;
 import com.arte.app.platform.assistant.AssistantTrialService;
 import com.arte.app.platform.assistant.PlatformAssistantConfiguration;
+import com.arte.app.platform.assistant.PlatformAssistantExecutionAccess;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
 import com.arte.core.exception.platform.PlatformException;
@@ -87,6 +88,7 @@ class AssistantExecutionIntegrationTest {
                         var scope = fixture.f.scope;
                         var manager = context.getBean(AssistantManager.class);
                         var trials = context.getBean(AssistantTrialService.class);
+                        var assistantAccess = context.getBean(PlatformAssistantExecutionAccess.class);
                         var conversations = context.getBean(ConversationService.class);
                         var chat = context.getBean(ChatService.class);
                         var initial = manager.create(actor, scope,
@@ -134,6 +136,16 @@ class AssistantExecutionIntegrationTest {
                         var v2 = manager.publish(actor, scope, assistantId, next.resourceVersion(), 2, trialV2.trialId(), meta("publish-v2")).value();
                         assertTrue(bodies.get(2).contains("Pinned V2 instructions"));
                         assertEquals("2", v2.chatProfile().version());
+                        assertEquals(2L, manager.get(actor, scope, assistantId).publishedDraftRevision());
+                        var historyContext = fixture.f.execution(context, "trial-history");
+                        var firstPage = assistantAccess.trialHistory(historyContext, assistantId, null, 1).block(WAIT);
+                        var secondPage = assistantAccess.trialHistory(historyContext, assistantId, firstPage.nextCursor(), 1).block(WAIT);
+                        assertEquals(java.util.Set.of(trial.trialId(), trialV2.trialId()), java.util.Set.of(
+                                firstPage.items().getFirst().trialId(), secondPage.items().getFirst().trialId()));
+                        assertNull(secondPage.nextCursor());
+                        var historyBeforeDisable = assistantAccess.conversationAssistant(historyContext, conversation.chatProfile()).block(WAIT);
+                        assertTrue(historyBeforeDisable.available());
+                        assertEquals(v1.chatProfile(), historyBeforeDisable.summary().chatProfile());
 
                         var retry = fixture.f.execution(context, "regenerate-v1");
                         var current = conversations.find(conversation.conversationId(), retry).block(WAIT);
@@ -160,6 +172,10 @@ class AssistantExecutionIntegrationTest {
                         var summary = trials.executionAssistant(accepted.executionId(), fixture.f.execution(context, "assistant-history")).block(WAIT);
                         assertEquals(v1.chatProfile(), summary.chatProfile());
                         assertEquals("Outline", summary.displayName());
+                        var historical = assistantAccess.conversationAssistant(historyContext, conversation.chatProfile()).block(WAIT);
+                        assertFalse(historical.available());
+                        assertTrue(historical.disabled());
+                        assertEquals(historyBeforeDisable.summary(), historical.summary());
                         assertEquals(4, persistence.jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM arte_ai_settlement WHERE evidence_kind='PROVIDER_BILL'", Integer.class));
                         var conflict = assertThrows(AdmissionException.class, () -> trials.submit(inputV2,

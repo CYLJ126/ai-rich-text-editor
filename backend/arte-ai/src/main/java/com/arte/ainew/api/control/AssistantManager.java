@@ -27,6 +27,8 @@ public interface AssistantManager {
 
     CommandReceipt<Receipt> disable(TrustedActor actor, Scope scope, String id, long expectedVersion, CommandMeta meta);
 
+    Capabilities capabilities(TrustedActor actor, Scope scope, String id);
+
     Detail get(TrustedActor actor, Scope scope, String id);
 
     Page<Managed> managed(TrustedActor actor, Scope scope, String afterId, String name, int limit);

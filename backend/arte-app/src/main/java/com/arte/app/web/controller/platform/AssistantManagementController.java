@@ -81,6 +81,14 @@ public class AssistantManagementController {
         return call(auth, locale, actor -> assistants.usable(actor, request.scope(), request.cursor(), request.name(), request.limit()));
     }
 
+    public record CapabilitiesRequest(@NotNull Scope scope, @Size(max = 36) String assistantId) {
+    }
+
+    @PostMapping("/getAssistantCapabilities")
+    public Mono<ResultContext<Capabilities>> capabilities(Authentication auth, @Valid @RequestBody CapabilitiesRequest request, Locale locale) {
+        return call(auth, locale, actor -> assistants.capabilities(actor, request.scope(), request.assistantId()));
+    }
+
     @PostMapping("/getAssistant")
     public Mono<ResultContext<Detail>> get(Authentication auth, @Valid @RequestBody GetRequest request, Locale locale) {
         return call(auth, locale, actor -> assistants.get(actor, request.scope(), request.assistantId()));

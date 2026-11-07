@@ -225,6 +225,11 @@ class AssistantControlIntegrationTest {
             String target = fixture.json.write(Map.of("scope", scope, "assistantId", assistant));
             assertEquals(FIRST.systemInstruction(), http.ok(root + "getAssistant", target, null, alice)
                     .getJSONObject("data").getJSONObject("draft").getJSONObject("content").getStr("systemInstruction"));
+            var capabilities = http.ok(root + "getAssistantCapabilities", target, null, alice).getJSONObject("data");
+            assertTrue(capabilities.getBool("canEdit"));
+            assertTrue(capabilities.getBool("canTrial"));
+            assertTrue(capabilities.getBool("canPublish"));
+            http.rejected(root + "getAssistantCapabilities", target, null, bob, 403, "ACCESS_DENIED");
             http.rejected(root + "getAssistant", target, null, bob, 403, "ACCESS_DENIED");
             assertTrue(http.ok(root + "listManagedAssistants", fixture.json.write(Map.of("scope", scope, "limit", 10)),
                     null, bob).getJSONObject("data").getJSONArray("items").isEmpty());

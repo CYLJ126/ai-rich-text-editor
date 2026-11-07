@@ -80,6 +80,14 @@ public final class JdbcAssistantStore implements AssistantStore {
                         row.getString("context_snapshot_id"), row.getString("invocation_id")), row.getString("request_digest")), key);
     }
 
+    public List<TrialHistory> trialHistory(String assistantId, String actorId, String after, int limit) {
+        return jdbc.query("""
+                SELECT trial_id,draft_revision,invocation_id,created_at FROM arte_ai_assistant_trial
+                WHERE assistant_id=? AND actor_id=? AND trial_id>? ORDER BY trial_id LIMIT ?
+                """, (row, index) -> new TrialHistory(row.getString("trial_id"), row.getLong("draft_revision"),
+                row.getString("invocation_id"), time(row, "created_at")), assistantId, actorId, after == null ? "" : after, limit);
+    }
+
     public void insertTrial(Trial trial, String key, String requestDigest, Instant createdAt) {
         tx.requireWritable();
         jdbc.update("""

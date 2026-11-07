@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {assistantCommandSchema} from '@/services/arte-ai/assistant';
 import {connectionCommandSchema} from '@/services/platform/connection';
 import {modelPlanCommandSchema} from '@/services/platform/modelPlan';
 import {egressPolicyUpdate} from '@/services/platform/modelEgress';
@@ -18,6 +19,7 @@ const scopeSchema = z.object({tenantId: id, workspaceId: id});
 const ref = z.object({type: id, id, version: id});
 const version = z.number().int().nonnegative();
 const schemas = {
+  'assistant-command': assistantCommandSchema,
   'workspace-ai-governance': z.discriminatedUnion('kind', [
     z.object({
       scope: scopeSchema, kind: z.literal('prepare'), confirmed: z.boolean().optional(),
