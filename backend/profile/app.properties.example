@@ -197,6 +197,7 @@ arte.ai-new-execution.scheduling.enabled=false
 
 # 业务写工具和人工审批是独立功能，按实际启用的工具和审批策略设置。
 arte.ai-new-tool-write.enabled=true
+# 工具审批功能待完善 TODO
 arte.ai-new-tool-approval.enabled=true
 
 # S5-01 匿名 HTTP 工具。核对固定端点、网络出口和部署清单后再启用。
