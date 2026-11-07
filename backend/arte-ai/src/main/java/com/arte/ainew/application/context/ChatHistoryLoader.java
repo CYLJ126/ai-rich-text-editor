@@ -5,6 +5,7 @@ import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
+import com.arte.ainew.pojo.context.AssistantSource;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.ConversationPage;
@@ -48,7 +49,7 @@ public final class ChatHistoryLoader {
      * @param selection 实际选入历史的会话版本及 Turn ID 列表；没有选入历史时为 null。
      */
     public record Loaded(List<ChatMessage> messages, ContextRequest.HistorySelection selection,
-                         com.arte.ainew.pojo.context.AssistantSource assistant) {
+                         AssistantSource assistant) {
         public Loaded(List<ChatMessage> messages, ContextRequest.HistorySelection selection) {
             this(messages, selection, null);
         }

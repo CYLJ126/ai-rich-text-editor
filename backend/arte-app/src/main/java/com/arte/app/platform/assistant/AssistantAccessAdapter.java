@@ -16,9 +16,15 @@ import static com.arte.core.constant.platform.PlatformActions.*;
 import static com.arte.core.constant.platform.PlatformResourceTypes.ASSISTANT;
 
 /**
+ * 助手访问适配器
+ * <p>
  * Adapts raw workspace-owned assistant facts to the common ACL service.
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/11/7 00:09 ✾
  */
 public final class AssistantAccessAdapter implements ResourceDescriptorProvider, DomainAccessConditionProvider {
+
     private final AssistantStore store;
 
     public AssistantAccessAdapter(AssistantStore store) {

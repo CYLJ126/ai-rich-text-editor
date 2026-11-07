@@ -26,12 +26,15 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * 用户文本及服务端有界会话历史组装；不加载外部资料，不派发模型。
+ * 用户文本及服务端有界会话历史组装
+ * <p>
+ * 不加载外部资料，不派发模型。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
@@ -46,6 +49,7 @@ public final class TextContextService implements ContextService {
     private final Clock clock;
     private AiExecutionPolicyProvider policies;
     private final ChatHistoryLoader chatHistoryLoader;
+    private AssistantContextAccess assistants;
 
     /**
      * 旧手工装配兼容入口。
@@ -81,8 +85,6 @@ public final class TextContextService implements ContextService {
         return this;
     }
 
-    private AssistantContextAccess assistants;
-
     public TextContextService assistants(AssistantContextAccess assistants) {
         this.assistants = assistants;
         return this;
@@ -96,7 +98,9 @@ public final class TextContextService implements ContextService {
     @Override
     public Mono<ContextSnapshot> assembleForAssistant(ContextRequest request, ResolvedBinding binding,
                                                       ExecutionContext context, DefinitionRef profile) {
-        if (assistants == null) return ContextService.super.assembleForAssistant(request, binding, context, profile);
+        if (assistants == null) {
+            return ContextService.super.assembleForAssistant(request, binding, context, profile);
+        }
         return assemble(request, binding, context, profile, null);
     }
 
@@ -118,7 +122,8 @@ public final class TextContextService implements ContextService {
                                            ExecutionContext executionContext, AiExecutionPolicy policy, DefinitionRef profile,
                                            AssistantContextAccess.Prompt trial) {
         return admissionAuthorization.require(executionContext, AdmissionAuthorization.INVOKE)
-                .flatMap(currentContext -> bindingManager.resolve(resolvedBinding.definition(), resolvedBinding.capability().definition(), currentContext))
+                .flatMap(currentContext -> bindingManager.resolve(resolvedBinding.definition(),
+                        resolvedBinding.capability().definition(), currentContext))
                 .flatMap(actualBinding -> {
                     // 重新解析的绑定必须与调用方传入的绑定一致，避免使用已变化或不匹配的模型配置。
                     // 当前仅支持用户文本和会话历史；记忆、外部资源与目标资源尚未接入，显式拒绝而非忽略。
@@ -144,21 +149,23 @@ public final class TextContextService implements ContextService {
                         }
                         return Mono.just(loaded);
                     }
-                    if (profile == null && trial == null) return Mono.just(loaded);
-                    var prompt = trial == null ? assistants.resolve(executionContext, profile) : Mono.just(trial);
+                    if (profile == null && trial == null) {
+                        return Mono.just(loaded);
+                    }
+                    Mono<AssistantContextAccess.Prompt> prompt = trial == null ? assistants.resolve(executionContext, profile) : Mono.just(trial);
                     return prompt.map(value -> {
-                        var messages = new ArrayList<ChatMessage>();
+                        List<ChatMessage> messages = new ArrayList<ChatMessage>();
                         messages.add(new ChatMessage(UUID.randomUUID().toString(), ChatMessage.Role.SYSTEM,
                                 List.of(new ChatMessage.Text(value.instruction())), List.of(), null));
                         messages.addAll(loaded.messages());
                         return new ChatHistoryLoader.Loaded(messages, loaded.selection(), value.source());
                     });
                 }).map(loaded -> {
-                    var messages = new ArrayList<>(loaded.messages());
+                    List<ChatMessage> messages = new ArrayList<>(loaded.messages());
                     // 添加本轮用户输入的消息（即提问的问题）
                     messages.addAll(contextRequest.messages());
                     TextInputs.validateContext(messages, ExecutionPolicies.legacy(policy), loaded.assistant() != null);
-                    var tokenCount = TextInputs.estimatedTokens(messages);
+                    long tokenCount = TextInputs.estimatedTokens(messages);
                     // 历史消息与本轮用户输入共同占用输入额度；按 UTF-8 字节数加固定开销估算 Token。
                     // 超过 maxInputTokens 就明确拒绝，不静默截断历史或用户文本；估算值不用于冒充实际计费用量。
                     if (tokenCount > contextRequest.budget().maxInputTokens()) {
@@ -166,7 +173,7 @@ public final class TextContextService implements ContextService {
                                 executionContext.executionId(), executionContext.traceId(), tokenCount, contextRequest.budget().maxInputTokens());
                         throw new AdmissionException(ResultCodeEnum.AI_CONTEXT_CAPACITY_EXCEEDED);
                     }
-                    var now = clock.instant();
+                    Instant now = clock.instant();
                     // 构造最终输入快照：记录实际选入的历史轮次、固定绑定、消息、容量约束、估算规则及内容摘要。
                     // 未加载外部资料且未进行截断，因此 fragments、truncations 均为空；有效期由快照保留配置决定。
                     // 此处只组装快照，由协调器在受理阶段持久化；到期禁止新调用，不表示立即删除存储字节。

@@ -1,9 +1,12 @@
 package com.arte.ainew.api.context;
 
+import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.reference.DefinitionRef;
 import reactor.core.publisher.Mono;
 
 /**
@@ -24,9 +27,8 @@ public interface ContextService {
     Mono<ContextSnapshot> assemble(ContextRequest request, ResolvedBinding binding, ExecutionContext context);
 
     default Mono<ContextSnapshot> assembleForAssistant(ContextRequest request, ResolvedBinding binding,
-                                                       ExecutionContext context, com.arte.core.pojo.reference.DefinitionRef profile) {
-        return Mono.error(new com.arte.ainew.application.support.AdmissionException(
-                com.arte.core.enums.ResultCodeEnum.AI_CONVERSATION_CONFIGURATION_NOT_SUPPORTED));
+                                                       ExecutionContext context, DefinitionRef profile) {
+        return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_CONFIGURATION_NOT_SUPPORTED));
     }
 
     /**

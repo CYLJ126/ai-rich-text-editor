@@ -22,7 +22,14 @@ import java.util.Optional;
 
 import static com.arte.core.constant.platform.PlatformResourceTypes.ASSISTANT;
 
+/**
+ * 助手持久化层
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/11/7 00:09 ✾
+ */
 public final class JdbcAssistantStore implements AssistantStore {
+
     private final JdbcTemplate jdbc;
     private final PublicTransactionRunner tx;
     private final PlatformJson json;

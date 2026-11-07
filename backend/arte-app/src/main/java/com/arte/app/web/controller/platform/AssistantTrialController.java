@@ -28,6 +28,12 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * 助手验证控制器
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/11/7 00:09 ✾
+ */
 @RestController
 @RequestMapping("/ai-new/assistant")
 @PreAuthorize("isAuthenticated()")

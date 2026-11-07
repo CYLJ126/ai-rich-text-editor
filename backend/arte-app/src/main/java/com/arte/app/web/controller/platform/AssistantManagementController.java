@@ -23,6 +23,12 @@ import reactor.core.publisher.Mono;
 import java.util.Locale;
 import java.util.function.Function;
 
+/**
+ * 助手管理控制器
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/11/7 00:09 ✾
+ */
 @RestController
 @RequestMapping("/ai-new/assistant")
 @PreAuthorize("isAuthenticated()")
@@ -71,6 +77,9 @@ public class AssistantManagementController {
                                  @NotNull @PositiveOrZero Long expectedVersion) {
     }
 
+    public record CapabilitiesRequest(@NotNull Scope scope, @Size(max = 36) String assistantId) {
+    }
+
     @PostMapping("/listManagedAssistants")
     public Mono<ResultContext<Page<Managed>>> managed(Authentication auth, @Valid @RequestBody DirectoryRequest request, Locale locale) {
         return call(auth, locale, actor -> assistants.managed(actor, request.scope(), request.cursor(), request.name(), request.limit()));
@@ -79,9 +88,6 @@ public class AssistantManagementController {
     @PostMapping("/listUsableAssistants")
     public Mono<ResultContext<Page<Summary>>> usable(Authentication auth, @Valid @RequestBody DirectoryRequest request, Locale locale) {
         return call(auth, locale, actor -> assistants.usable(actor, request.scope(), request.cursor(), request.name(), request.limit()));
-    }
-
-    public record CapabilitiesRequest(@NotNull Scope scope, @Size(max = 36) String assistantId) {
     }
 
     @PostMapping("/getAssistantCapabilities")

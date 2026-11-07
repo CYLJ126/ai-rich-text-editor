@@ -29,6 +29,12 @@ import org.springframework.context.annotation.Configuration;
 import javax.sql.DataSource;
 import java.time.Clock;
 
+/**
+ * 平台助手配置
+ *
+ * @author CYLJ126 ≧◔◡◔≦
+ * @since 2026/11/7 00:09 ✾
+ */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte", name = {"ai-new.enabled", "ai-new-assistant.enabled", "platform.identity.enabled",
         "platform.persistence.enabled", "platform.workspace.enabled"}, havingValue = "true")

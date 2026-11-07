@@ -42,7 +42,12 @@ import static com.arte.core.constant.platform.PlatformActions.*;
 import static com.arte.core.constant.platform.PlatformResourceTypes.ASSISTANT;
 
 /**
- * Revalidates assistant eligibility under the same workspace gate as management writes.
+ * 助手执行权限的平台适配器
+ * <p>
+ * 负责解析发布配置、复核试用和会话的执行资格，以及校验发布所需的试用结果。
+ * <p>
+ * 执行资格复核与助手管理写入共用工作空间治理锁，在事务内检查当前身份、资源状态和权限。
+ * 会话历史摘要单独读取，并返回当前使用资格和停用状态。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/11/7 00:45 ✾
@@ -84,31 +89,41 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
         published(context, profile, true);
     }
 
+    /**
+     * 在当前写事务中锁定工作空间授权范围，校验助手使用权限并读取指定发布版本的指令。
+     *
+     * @param context         包含当前主体、租户和工作空间的可信执行上下文。
+     * @param profile         类型为 {@code chat-profile} 的精确发布版本引用。
+     * @param newConversation 为 {@code true} 时必须引用当前发布版本，为 {@code false} 时可解析已有会话绑定的历史版本。
+     * @return 该发布版本的助手来源和供系统消息使用的指令。
+     */
     private Prompt published(ExecutionContext context, DefinitionRef profile, boolean newConversation) {
         Scope scope = scope(context);
         TrustedActor actor = lockActor(context);
-        var resource = store.findByProfile(scope, profile.id(), true).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
+        Resource resource = store.findByProfile(scope, profile.id(), true).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
         require(actor, resource, ASSISTANT_USE);
         long version = DefaultAssistantManager.parseVersion(profile.version());
         if (resource.state() != State.ACTIVE || newConversation && !Objects.equals(version, resource.releaseVersion())) {
             throw unavailable();
         }
-        var release = store.release(resource.id(), version).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
+        Release release = store.release(resource.id(), version).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
         return new Prompt(new AssistantSource(resource.id(), profile, null, release.draftRevision(),
                 release.contentDigest(), release.content().displayName(), null), instruction(release.content()));
     }
 
     @Override
     public void requireCurrent(ExecutionContext context, ContextSnapshot snapshot) {
-        var source = snapshot.assistant();
+        AssistantSource source = snapshot.assistant();
         if (source.profile() != null) {
-            var prompt = published(context, source.profile(), false);
-            if (!source.equals(prompt.source()) || !hasInstruction(snapshot, prompt.instruction())) throw unavailable();
+            Prompt prompt = published(context, source.profile(), false);
+            if (!source.equals(prompt.source()) || !hasInstruction(snapshot, prompt.instruction())) {
+                throw unavailable();
+            }
             return;
         }
         requireTrialAccess(context, source.assistantId());
-        var trial = store.trial(source.assistantId(), source.trialId()).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
-        var saved = payloadStore().findInCurrentTransaction(ExecutionOwners.from(context), trial.snapshotId());
+        Trial trial = store.trial(source.assistantId(), source.trialId()).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
+        ContextSnapshot saved = payloadStore().findInCurrentTransaction(ExecutionOwners.from(context), trial.snapshotId());
         if (!matches(trial, saved) || !snapshot.equals(saved) || !trial.invocationId().equals(context.executionId())
                 || !trial.actorId().equals(context.authorization().principal().subjectId())) {
             throw unavailable();
@@ -126,11 +141,13 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
     @Override
     public void requireSucceeded(Scope scope, Trial trial) {
         transactions.requireWritable();
-        var owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), trial.actorId());
-        var store = executions.getIfAvailable();
-        if (store == null) throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "assistant-trial");
-        var invocation = store.findInCurrentTransaction(owner, trial.invocationId());
-        var snapshot = payloadStore().findInCurrentTransaction(owner, trial.snapshotId());
+        ExecutionOwner owner = new ExecutionOwner(scope.tenantId(), scope.workspaceId(), trial.actorId());
+        MybatisExecutionPersistence store = executions.getIfAvailable();
+        if (store == null) {
+            throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "assistant-trial");
+        }
+        Invocation invocation = store.findInCurrentTransaction(owner, trial.invocationId());
+        ContextSnapshot snapshot = payloadStore().findInCurrentTransaction(owner, trial.snapshotId());
         if (invocation == null || invocation.state() != Invocation.State.SUCCEEDED || invocation.conversation() != null
                 || !invocation.request().context().executionId().equals(trial.invocationId())
                 || !trial.snapshotId().equals(invocation.contextSnapshotId()) || !matches(trial, snapshot)) {
@@ -138,6 +155,15 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
         }
     }
 
+    /**
+     * 在事务内复核助手读取权限，按试用标识升序分页查询当前主体发起的试用记录。
+     *
+     * @param context     包含当前主体、租户和工作空间的可信执行上下文。
+     * @param assistantId 要查询的助手资源标识。
+     * @param after       上一页返回的试用标识游标，查询首页时为空。
+     * @param limit       每页最多返回的试用记录数。
+     * @return 本页试用历史及下一页游标，已到末页时游标为空。
+     */
     public Mono<Page<TrialHistory>> trialHistory(
             ExecutionContext context, String assistantId, String after, int limit) {
         return executor.inTransaction(() -> {
@@ -153,7 +179,13 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
     }
 
     /**
-     * 会话读权决定历史摘要可见性，当前使用资格单独投影。
+     * 读取会话绑定版本的助手摘要，并单独计算当前主体的使用资格和助手停用状态。
+     * <p>
+     * 调用方先校验会话读取权限。助手停用或使用权限撤销后，仍可通过有权读取的会话查看历史摘要。
+     *
+     * @param context 用于定位租户和工作空间并核对当前主体的可信执行上下文。
+     * @param profile 已有会话绑定的精确聊天配置引用，普通会话传空。
+     * @return 固定发布版本的摘要和当前状态。缺少助手引用、引用类型不符或找不到对应发布记录时返回空流。
      */
     public Mono<ConversationAssistant> conversationAssistant(ExecutionContext context, DefinitionRef profile) {
         if (profile == null || !"chat-profile".equals(profile.type())) {
@@ -175,32 +207,46 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
                 .orElse(null));
     }
 
+    /**
+     * 在校验试用权限后锁定并读取草稿，确认修订号匹配且内容完整。
+     */
     Draft draftForTrial(ExecutionContext context, String assistantId, long revision) {
         requireTrialAccess(context, assistantId);
-        var draft = store.draft(assistantId, true).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
-        if (draft.revision() != revision) throw new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT);
+        Draft draft = store.draft(assistantId, true).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
+        if (draft.revision() != revision) {
+            throw new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT);
+        }
         DefaultAssistantManager.requireComplete(draft.content());
         return draft;
     }
 
+    /**
+     * 在当前写事务中锁定主体及工作空间的治理范围，并确认主体身份一致且仍处于启用状态。
+     */
     TrustedActor lockActor(ExecutionContext context) {
         transactions.requireWritable();
-        var principal = context.authorization().principal();
+        ExecutionPrincipal principal = context.authorization().principal();
         locks.scopes(principal.subjectId(), List.of(scope(context)));
         return identities.findCurrentBySubjectId(principal.subjectId()).filter(principal::sameIdentityAs)
                 .filter(value -> value.status() == PrincipalStatusEnum.ACTIVE)
                 .map(value -> new TrustedActor(value, clock.instant())).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
     }
 
+    /**
+     * 校验助手归属当前工作空间，并要求当前主体同时具备编辑和使用权限。
+     */
     private void requireTrialAccess(ExecutionContext context, String assistantId) {
-        var actor = lockActor(context);
+        TrustedActor actor = lockActor(context);
         Scope scope = scope(context);
-        var resource = store.find(new ResourceRef(scope.tenantId(), ASSISTANT, assistantId), true)
+        Resource resource = store.find(new ResourceRef(scope.tenantId(), ASSISTANT, assistantId), true)
                 .filter(value -> value.scope().equals(scope)).orElseThrow(PlatformAssistantExecutionAccess::unavailable);
         require(actor, resource, ASSISTANT_EDIT);
         require(actor, resource, ASSISTANT_USE);
     }
 
+    /**
+     * 在当前事务中校验指定助手操作的权限，将平台授权异常转换为助手配置不可用。
+     */
     private void require(TrustedActor actor, Resource resource, Action action) {
         try {
             authorization.requireInCurrentTransaction(actor, new AccessRequest(resource.scope(), resource.ref(), action, "assistant-execution"));
@@ -209,9 +255,14 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
         }
     }
 
+    /**
+     * 获取执行输入快照的持久化组件，组件缺失时报告试用能力未启用。
+     */
     private MybatisPayloadPersistence payloadStore() {
-        var store = payloads.getIfAvailable();
-        if (store == null) throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "assistant-trial");
+        MybatisPayloadPersistence store = payloads.getIfAvailable();
+        if (store == null) {
+            throw new PlatformException(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED, "assistant-trial");
+        }
         return store;
     }
 
@@ -224,8 +275,10 @@ public final class PlatformAssistantExecutionAccess implements AssistantContextA
     }
 
     static boolean matches(Trial trial, ContextSnapshot snapshot) {
-        if (snapshot == null || snapshot.assistant() == null) return false;
-        var source = snapshot.assistant();
+        if (snapshot == null || snapshot.assistant() == null) {
+            return false;
+        }
+        AssistantSource source = snapshot.assistant();
         return trial.id().equals(source.trialId()) && trial.assistantId().equals(source.assistantId())
                 && trial.snapshotId().equals(snapshot.snapshotId()) && trial.draftRevision() == source.revision()
                 && trial.contentDigest().equals(source.contentDigest());
