@@ -179,12 +179,14 @@ public class RegenerationReconciliationIntegrationTest {
     }
 
     @Test
-    public void ordinaryUnknownCanContinueOnlyAfterBillAndExecutionAreConfirmed() {
+    public void ordinaryUnknownReleasesGateWhileHistoryAndBillRemainIndependent() {
         var conversation = create();
         var id = submit(conversation.conversationId(), "question");
         var reservation = start(id);
         complete(id, "partial", true, false);
         reservation = pending(reservation);
+        assertNull(first.conversations.executionState(conversation.conversationId(), first.context("alice", "execution-state")).block().activeExecution());
+        // 历史跳过仍属 ER-3；此处拒绝来自历史加载，不是会话门闩或费用占用。
         code(ResultCodeEnum.AI_CONVERSATION_BUSY, () -> submit(conversation.conversationId(), "blocked"));
         var confirm = command(id, reservation, "verify", "0");
         assertEquals(APPLIED, first.executions.confirmReconciliation(confirm).block().code());
@@ -195,6 +197,67 @@ public class RegenerationReconciliationIntegrationTest {
         var next = submit(conversation.conversationId(), "can continue");
         var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
         assertEquals(1, snapshot.messages().size());
+    }
+
+    @Test
+    public void ordinaryUnknownCanRegenerateWithIndependentFundsAndOldBillCannotClearNewGate() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var originalReservation = start(id);
+        complete(id, "partial", true, false);
+        originalReservation = pending(originalReservation);
+        var original = find(id);
+        var regenerated = regenerate(id, 1, "regenerate-unknown");
+        var replacement = find(regenerated.executionId());
+        assertEquals(original.request().input(), replacement.request().input());
+        assertEquals(original.request().binding(), replacement.request().binding());
+        assertEquals(original.request().capability(), replacement.request().capability());
+        assertEquals(original.request().context().budgetRef(), replacement.request().context().budgetRef());
+        assertEquals(first.payloads.find(owner, original.contextSnapshotId()).block().messages(),
+                first.payloads.find(owner, replacement.contextSnapshotId()).block().messages());
+        assertNotEquals(original.contextSnapshotId(), replacement.contextSnapshotId());
+        var replacementReservation = start(regenerated.executionId());
+        assertNotEquals(originalReservation.reservationId(), replacementReservation.reservationId());
+        assertEquals(AdmissionFixture.money("2"), account().held());
+        assertEquals(original, find(id));
+        var turn = first.executions.findTurn(owner, conversation.conversationId(), original.conversation().turnId()).block();
+        assertEquals(List.of(id, regenerated.executionId()), turn.invocationIds());
+        assertEquals(id, turn.selectedInvocationId());
+        var confirm = command(id, originalReservation, "old-bill", "0.25");
+        assertEquals(APPLIED, first.executions.confirmReconciliation(confirm).block().code());
+        assertEquals(REPLAYED, second.executions.confirmReconciliation(confirm).block().code());
+        assertEquals(Invocation.State.FAILED, find(id).state());
+        assertEquals(Invocation.State.RUNNING, find(regenerated.executionId()).state());
+        assertEquals(regenerated.executionId(), first.conversations.executionState(conversation.conversationId(), first.context("alice", "state")).block().activeExecution().executionId());
+        assertEquals(turn, first.executions.findTurn(owner, conversation.conversationId(), turn.turnId()).block());
+        assertEquals(replacementReservation, first.executions.reservation(owner, replacementReservation.reservationId()).block());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertEquals(AdmissionFixture.money("0.25"), account().charged());
+        assertEquals(regenerated, regenerate(id, 1, "regenerate-unknown"));
+        assertEquals(1, count("arte_ai_turn"));
+        assertEquals(2, count("arte_ai_invocation"));
+        assertEquals(2, count("arte_ai_reservation"));
+    }
+
+    @Test
+    public void repeatedUnknownRegenerationUsesOneAcceptanceAcrossInstances() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        pending(reservation);
+        var results = Flux.range(0, 8).flatMap(i -> {
+            var fixture = i % 2 == 0 ? first : second;
+            var context = fixture.context("alice", "same-regeneration");
+            return fixture.chat.regenerate(new EntryRequests.Regenerate(id, 1,
+                    fixture.chatRequest("unused", 0, "unused", context).options()), context);
+        }, 8).collectList().block();
+        assertEquals(1, results.stream().map(AcceptedExecution::executionId).distinct().count());
+        assertEquals(2, count("arte_ai_invocation"));
+        assertEquals(1, count("arte_ai_turn"));
+        assertEquals(1, count("arte_ai_reservation"));
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertEquals(2, first.executions.findTurn(owner, conversation.conversationId(), find(id).conversation().turnId()).block().candidates().size());
     }
 
     @Test

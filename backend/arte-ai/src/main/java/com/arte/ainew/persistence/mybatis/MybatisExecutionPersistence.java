@@ -1,6 +1,7 @@
 package com.arte.ainew.persistence.mybatis;
 
 import com.arte.ainew.api.execution.BudgetService;
+import com.arte.ainew.application.conversation.ConversationExecutionPolicy;
 import com.arte.ainew.application.execution.DispatchSchedulingException;
 import com.arte.ainew.application.support.AdmissionException;
 import com.arte.ainew.common.execution.ExecutionError;
@@ -611,17 +612,12 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
             require(conversation != null, NOT_FOUND);
             require(conversation.owner().equals(owner), OWNER_MISMATCH);
             require(conversation.state() == Conversation.State.ACTIVE, INVALID_STATE);
-            var row = admission.conversationGate(hash(link.conversationId()));
-            require(row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
-            if (row.activeInvocation() != null) {
-                require("INVOCATION".equals(row.activeKind()), CONVERSATION_BUSY);
-                // 兼容旧版本留下的停止门闩。会话行已锁定，只读旧终态，避免反向领取旧 Invocation 行锁。
-                var stopped = workspaceSnapshot(execution.invocationSnapshot(row.activeInvocation(), false), Invocation.class);
-                require(stopped != null && ExecutionOwners.from(stopped.request().context()).equals(owner)
-                        && stopped.conversation() != null && stopped.conversation().conversationId().equals(link.conversationId())
-                        && userStoppedGeneration(stopped), CONVERSATION_BUSY);
-                require(admission.releaseConversation(hash(link.conversationId()), row.activeInvocation()) == 1, CONVERSATION_BUSY);
-            }
+            // 锁内使用当前读取，不让 MySQL REPEATABLE_READ 的较早快照覆盖其他实例新占用。
+            var row = admission.conversationGateCurrent(hash(link.conversationId()));
+            require(conversation.version() == link.conversationVersion()
+                    && row.versionNo() == link.conversationVersion(), VERSION_CONFLICT);
+            // 新终态在原事务正常释放；受理不修复、猜测或清理任何旧占用。
+            require(row.activeInvocation() == null, CONVERSATION_BUSY);
             var turn = command.turn();
             lock(hash("turn-id", turn.turnId()));
             var oldTurn = workspaceSnapshot(admission.turnSnapshot(hash(turn.turnId()), true), Turn.class);
@@ -641,7 +637,9 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 require(source != null && ExecutionOwners.from(source.request().context()).equals(owner)
                                 && source.conversation() != null && source.conversation().turnId().equals(oldTurn.turnId())
                                 && source.conversation().conversationId().equals(link.conversationId())
-                                && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN || userStoppedGeneration(source)),
+                                && source.state().terminal() && (source.state() != Invocation.State.UNKNOWN
+                                || ConversationExecutionPolicy.ordinaryText(source, conversation, oldTurn)
+                                && candidate.ordinaryTextRequest()),
                         RECONCILIATION_REQUIRED);
                 require(source.request().kind() == candidate.request().kind()
                         && source.request().capability().equals(candidate.request().capability())
@@ -781,8 +779,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                     var completed = state(invocation, Invocation.State.TIMED_OUT, invocation.activeAttemptId(), null, error);
                     save(completed);
                     event(completed, completed.activeAttemptId(), new ExecutionPayload.Terminal(Invocation.State.TIMED_OUT, null, error));
-                    if (completed.conversation() != null)
-                        admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+                    releaseConversationIfUnblocked(completed);
                     return StoreOutcome.applied(completed);
                 })).count().map(Math::toIntExact);
     }
@@ -1081,6 +1078,27 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         return dispatched;
     }
 
+    /**
+     * 终态、事件和本调用占用在同一物理事务提交；本地终止不改变预算或远端结果事实。
+     * UNKNOWN 只对耐久请求及会话／候选关联均确认的普通文本释放。子执行从不释放父 Run。
+     * 沿用 Invocation → 会话的收尾锁序，受理只读取来源 Invocation 而不反向领取其行锁。
+     */
+    private void releaseConversationIfUnblocked(Invocation completed) {
+        requirePhysicalTransaction();
+        if (completed.conversation() == null || completed.request().context().parentExecutionId() != null) return;
+        Conversation conversation = null;
+        Turn turn = null;
+        if (completed.state() == Invocation.State.UNKNOWN && completed.ordinaryTextRequest()) {
+            var link = completed.conversation();
+            conversation = workspaceSnapshot(admission.conversationSnapshot(hash(link.conversationId()), true), Conversation.class);
+            turn = workspaceSnapshot(admission.turnSnapshot(hash(link.turnId()), false), Turn.class);
+        }
+        if (!ConversationExecutionPolicy.blocksConversation(completed, conversation, turn)) {
+            // SQL 同时比较 active_kind=INVOCATION 和原调用 ID；旧费用收尾不能清空新调用或父 Run。
+            admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+        }
+    }
+
     private static final String CANCEL_REQUEST_KEY = hash("control-cancel-requested", "v1");
 
     private boolean userStoppedGeneration(Invocation invocation) {
@@ -1146,9 +1164,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                     closePendingApproval(invocation, Invocation.State.CANCELLED);
                     save(cancelled);
                     event(cancelled, cancelled.activeAttemptId(), new ExecutionPayload.Terminal(cancelled.state(), null, error));
-                    if (cancelled.conversation() != null) {
-                        admission.releaseConversation(hash(cancelled.conversation().conversationId()), hash(id(cancelled)));
-                    }
+                    releaseConversationIfUnblocked(cancelled);
                     // 原 DISPATCH Outbox 负责恢复预算释放，不在控制事务中调用外部服务。
                 }
             }
@@ -1183,9 +1199,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
             var completed = state(invocation, terminal.state(), attempt.attemptId(), null, error);
             save(completed);
             event(completed, attempt.attemptId(), terminal);
-            if (completed.conversation() != null && (!uncertain || cancelled && completed.userStoppedGeneration())) {
-                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
-            }
+            releaseConversationIfUnblocked(completed);
             return StoreOutcome.applied(completed);
         });
     }
@@ -1313,8 +1327,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
             var completed = state(invocation, terminal.state(), attempt.attemptId(), null, terminal.error());
             save(completed);
             event(completed, attempt.attemptId(), terminal);
-            if (completed.conversation() != null)
-                admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+            releaseConversationIfUnblocked(completed);
             return StoreOutcome.applied(completed);
         });
     }
@@ -1349,9 +1362,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         save(completed);
         var terminal = event(completed, null, command.terminal());
         execution.insertCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed));
-        if (completed.conversation() != null) {
-            admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
-        }
+        releaseConversationIfUnblocked(completed);
         return StoreOutcome.applied(completed);
     }
 
@@ -1417,9 +1428,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         save(completed);
         var terminal = event(completed, attempt.attemptId(), command.terminal());
         execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, terminal.sequence(), 1, codec.encode(completed), command.evidenceRef());
-        if (completed.conversation() != null && (completed.state() != Invocation.State.UNKNOWN || userStoppedGeneration(completed))) {
-            admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
-        }
+        releaseConversationIfUnblocked(completed);
         if (completed.state() == Invocation.State.SUCCEEDED && completed.replacesInvocationId() != null) {
             selectCompletedCandidate(completed);
         }
@@ -2078,8 +2087,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                 execution.saveNextFence(fence, hash(id(invocation)));
                 save(completed);
                 event(completed, completed.activeAttemptId(), new ExecutionPayload.Terminal(completed.state(), completed.result(), completed.error()));
-                if (completed.conversation() != null)
-                    admission.releaseConversation(hash(completed.conversation().conversationId()), hash(id(completed)));
+                releaseConversationIfUnblocked(completed);
                 invocation = completed;
             }
             var receipt = new Reconciliation.Receipt(command.key(), id(invocation), reservation.reservationId(), reservation.budgetRef(), command.charge(),

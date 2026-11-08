@@ -107,7 +107,7 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
     }
 
     /**
-     * 用户停止接收生成内容，但远端结果仍未知。释放会话前还须核对存储中的耐久取消标记；费用独立对账。
+     * 用户停止接收生成内容，但远端结果仍未知。确认用户命令及费用核对仍须检查耐久取消标记；会话占用按统一资格判定。
      */
     public boolean userStoppedGeneration() {
         return request.kind() == CapabilityDescriptor.Kind.GENERATION && state == State.UNKNOWN

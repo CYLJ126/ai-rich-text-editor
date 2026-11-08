@@ -996,11 +996,15 @@ public class MybatisExecutionPersistenceTest {
     }
 
     private Accept conversationInvocation(String id, long version, String budget, boolean generation) {
+        return conversationInvocation(id, version, budget, generation, "conversation");
+    }
+
+    private Accept conversationInvocation(String id, long version, String budget, boolean generation, String conversationId) {
         var at = Instant.now();
-        if (version == 0) first.createConversation(new Conversation("conversation", OWNER, "chat", 0, null,
+        if (version == 0) first.createConversation(new Conversation(conversationId, OWNER, "chat", 0, null,
                 List.of(), Conversation.State.ACTIVE, at, at)).block();
         var message = new ChatMessage("message-" + id, ChatMessage.Role.USER, List.of(new ChatMessage.Text("hello")), List.of(), null);
-        var candidate = candidate(id, "key-" + id, budget, new Invocation.ConversationLink("conversation", version, "turn-" + id));
+        var candidate = candidate(id, "key-" + id, budget, new Invocation.ConversationLink(conversationId, version, "turn-" + id));
         if (generation) {
             var input = new GenerationRequest(List.of(message), new GenerationOptions(128, null, null, List.of()),
                     List.of(), new GenerationRequest.TextOutput());
@@ -1009,7 +1013,7 @@ public class MybatisExecutionPersistenceTest {
             candidate = new Invocation(request, DIGEST, candidate.conversation(), "snapshot-" + id, null,
                     Invocation.State.ACCEPTED, 0, null, null, null, at, at);
         }
-        var turn = new Turn("turn-" + id, "conversation", version + 1, null, null, message, List.of(id), null, 0, at, at);
+        var turn = new Turn("turn-" + id, conversationId, version + 1, null, null, message, List.of(id), null, 0, at, at);
         return new Accept(candidate, turn);
     }
 
@@ -1030,7 +1034,13 @@ public class MybatisExecutionPersistenceTest {
         var completion = stoppedCompletion("inv");
         assertEquals(APPLIED, first.commitCompletion(completion).block().code());
         assertNull(jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
-        if (legacyGate) jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=?", oldGate);
+        if (legacyGate) {
+            jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=?", oldGate);
+            assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+            assertEquals(oldGate, jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
+            assertEquals(money("10"), second.account(OWNER, "budget").block().held());
+            return;
+        }
         var recovered = new MybatisExecutionPersistence(dataSource, codec, scheduler);
         assertEquals(APPLIED, recovered.accept(conversationInvocation("next", 1, null, true)).block().code());
         // 原完成重放／迟到输出不能解除或改写新调用。
@@ -1048,18 +1058,18 @@ public class MybatisExecutionPersistenceTest {
     }
 
     @Test
-    public void oldStoppedConversationGateIsRecoveredWhenAcceptingANewQuestion() {
+    public void oldStoppedConversationGateIsNotRepairedDuringAcceptance() {
         assertStoppedConversationCanContinue(true);
     }
 
     @Test
-    public void cancellationErrorWithoutDurableUserCommandDoesNotUnlockConversation() {
+    public void ordinaryUnknownDoesNotNeedAFabricatedUserCancellationToReleaseConversation() {
         first.accept(conversationInvocation("inv", 0, null, true)).block();
         create("inv");
         dispatch("inv");
         assertEquals(APPLIED, first.commitCompletion(stoppedCompletion("inv")).block().code());
         assertFalse(second.cancellationRequested(OWNER, "inv").block());
-        assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+        assertEquals(APPLIED, second.accept(conversationInvocation("next", 1, null, true)).block().code());
     }
 
     @Test
@@ -1069,6 +1079,292 @@ public class MybatisExecutionPersistenceTest {
         dispatch("inv");
         first.requestControl(OWNER, cancel("inv", "stop")).block();
         assertEquals(APPLIED, first.commitCompletion(stoppedCompletion("inv")).block().code());
+        assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+    }
+
+    private Complete unknownCompletion(String id) {
+        var error = new ExecutionError("HTTP_500", ExecutionError.Phase.INVOCATION, false,
+                ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "trace");
+        return new Complete(guard(id), "unknown", new ExecutionPayload.Terminal(Invocation.State.UNKNOWN, null, error), Usage.unknown(), null);
+    }
+
+    private Accept regeneration(String sourceId, String replacementId, long version) {
+        var source = first.find(OWNER, sourceId).block();
+        var context = source.request().context();
+        var renewed = new ExecutionContext(replacementId, "trace", context.authorization(), context.deadline(), null,
+                context.budgetRef(), context.releaseRef(), "key-" + replacementId);
+        var request = new InvocationRequest<>(source.request().capability(), source.request().binding(), source.request().kind(),
+                source.request().input(), source.request().options(), renewed);
+        var link = new Invocation.ConversationLink(source.conversation().conversationId(), version, source.conversation().turnId());
+        var replacement = new Invocation(request, DIGEST, link,
+                request.kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION ? "snapshot-" + replacementId : null,
+                sourceId, Invocation.State.ACCEPTED, 0, null, null, null, Instant.now(), Instant.now());
+        var turn = first.findTurn(OWNER, link.conversationId(), link.turnId()).block();
+        var candidates = new ArrayList<>(turn.candidates());
+        candidates.add(com.arte.ainew.pojo.conversation.AnswerCandidate.invocation(replacementId));
+        var updated = Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(), turn.supersedesTurnId(),
+                turn.userMessage(), candidates, turn.effectiveCandidate(), turn.version() + 1, turn.createdAt(), Instant.now());
+        return new Accept(replacement, updated);
+    }
+
+    @Test
+    public void ordinaryUnknownReleasesOwnGateAndKeepsReservationAndOldWorkerFenced() {
+        account("100");
+        first.accept(conversationInvocation("inv", 0, "budget", true)).block();
+        create("inv");
+        var reservation = first.reserve(reserveCommand("inv", "10")).block().value();
+        dispatch("inv");
+        var completion = unknownCompletion("inv");
+        var before = first.account(OWNER, "budget").block();
+        assertEquals(APPLIED, first.commitCompletion(completion).block().code());
+        assertNull(second.conversationExecutionState(OWNER, "conversation").block().activeExecution());
+        assertEquals(1, second.conversationExecutionState(OWNER, "conversation").block().version());
+        assertEquals(before, second.account(OWNER, "budget").block());
+        assertEquals(reservation, second.reservation(OWNER, reservation.reservationId()).block());
+        assertEquals(APPLIED, second.accept(conversationInvocation("next", 1, "budget", true)).block().code());
+        assertEquals(REPLAYED, second.commitCompletion(completion).block().code());
+        assertFalse(first.appendBatch(new Append(completion.guard(), "late", List.of(batch("late")))).block().successful());
+        assertFalse(first.commitCompletion(new Complete(completion.guard(), "late-success", success("inv", "unused").terminal(), Usage.unknown(), null)).block().successful());
+        assertEquals("next", second.conversationExecutionState(OWNER, "conversation").block().activeExecution().executionId());
+        assertEquals(Invocation.State.UNKNOWN, second.find(OWNER, "inv").block().state());
+        assertEquals(money("10"), second.account(OWNER, "budget").block().held());
+        assertEquals(1, count("arte_ai_attempt"));
+    }
+
+    @Test
+    public void acceptanceRejectsGateVersionThatDisagreesWithLockedConversation() {
+        sidebarConversation("conversation", Instant.now());
+        jdbc.update("UPDATE arte_ai_conversation_new SET version_no=1");
+        var next = conversationInvocation("next", 1, null, true);
+        var turn = new Turn(next.turn().turnId(), "conversation", 1, null, null, next.turn().userMessage(), List.of("next"), null,
+                0, next.turn().createdAt(), next.turn().updatedAt());
+        assertEquals(VERSION_CONFLICT, second.accept(new Accept(next.invocation(), turn)).block().code());
+        assertEquals(0, count("arte_ai_invocation"));
+        assertEquals(0, count("arte_ai_turn"));
+        assertEquals(0, first.findConversation(OWNER, "conversation").block().version());
+        assertNull(jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
+    }
+
+    @Test
+    public void ordinaryUnknownAllowsOnlyOneNewEntryAcrossInstances() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        first.commitCompletion(unknownCompletion("inv")).block();
+        var one = conversationInvocation("one", 1, null, true);
+        var two = conversationInvocation("two", 1, null, true);
+        var results = Flux.merge(first.accept(one), second.accept(two)).collectList().block();
+        assertEquals(1, results.stream().filter(StoreOutcome::successful).count());
+        assertEquals(1, results.stream().filter(result -> result.code() == VERSION_CONFLICT || result.code() == CONVERSATION_BUSY).count());
+        assertEquals(2, count("arte_ai_invocation"));
+        assertEquals(2, count("arte_ai_turn"));
+        assertEquals(2, second.conversationExecutionState(OWNER, "conversation").block().version());
+    }
+
+    @Test
+    public void unknownRegenerationIsAtomicAndReplayPrecedesLaterGateAndVersionChecks() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        first.commitCompletion(unknownCompletion("inv")).block();
+        var source = first.find(OWNER, "inv").block();
+        var one = regeneration("inv", "replacement-one", 1);
+        var two = regeneration("inv", "replacement-two", 1);
+        var results = Flux.merge(first.accept(one), second.accept(two)).collectList().block();
+        assertEquals(1, results.stream().filter(StoreOutcome::successful).count());
+        var winner = results.stream().filter(StoreOutcome::successful).findFirst().orElseThrow().value();
+        var command = winner.request().context().executionId().equals("replacement-one") ? one : two;
+        var version = new Version(OWNER, winner.request().context().executionId(), 0);
+        first.commitCompletion(new CompleteBeforeAttempt(version, "cancel", new ExecutionPayload.Terminal(Invocation.State.CANCELLED, null, null))).block();
+        // 原轮仍有后续新问题／新占用，同键重放必须返回原受理，不再检查最新轮次或清理新占用。
+        var next = conversationInvocation("next", 2, null, true);
+        assertEquals(APPLIED, second.accept(new Accept(next.invocation(), new Turn("turn-next", "conversation", 2, null, null,
+                next.turn().userMessage(), List.of("next"), null, 0, next.turn().createdAt(), next.turn().updatedAt()))).block().code());
+        assertEquals(REPLAYED, second.accept(command).block().code());
+        assertEquals("next", second.conversationExecutionState(OWNER, "conversation").block().activeExecution().executionId());
+        assertEquals(source, second.find(OWNER, "inv").block());
+        var originalTurn = second.findTurn(OWNER, "conversation", "turn-inv").block();
+        assertEquals(2, originalTurn.candidates().size());
+        assertEquals("inv", originalTurn.selectedInvocationId());
+        assertEquals(1, originalTurn.sequence());
+    }
+
+    @Test
+    public void unknownRegenerationDoesNotChangeInputModelBudgetOrAllowOldTurns() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        first.commitCompletion(unknownCompletion("inv")).block();
+        var valid = regeneration("inv", "replacement", 1);
+        var original = valid.invocation();
+        var request = original.request();
+        var generation = (GenerationRequest) request.input();
+        var differentInput = new GenerationRequest(generation.messages(), new GenerationOptions(64, null, null, List.of()), List.of(), new GenerationRequest.TextOutput());
+        var context = request.context();
+        var differentBudget = new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(), null,
+                "other-budget", context.releaseRef(), context.idempotencyKey());
+        var child = new ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(), "parent",
+                context.budgetRef(), context.releaseRef(), context.idempotencyKey());
+        for (var changed : List.of(
+                new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), differentInput, request.options(), context),
+                new InvocationRequest<>(request.capability(), new DefinitionRef("binding", "different", "v1"), generation.kind(), generation, request.options(), context),
+                new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), generation, request.options(), differentBudget),
+                new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), generation, request.options(), child))) {
+            var candidate = new Invocation(changed, original.requestDigest(), original.conversation(), original.contextSnapshotId(), "inv",
+                    Invocation.State.ACCEPTED, 0, null, null, null, original.acceptedAt(), original.updatedAt());
+            assertFalse(first.accept(new Accept(candidate, valid.turn())).block().successful());
+        }
+        assertNull(second.conversationExecutionState(OWNER, "conversation").block().activeExecution());
+        assertEquals(1, count("arte_ai_turn"));
+        assertEquals(APPLIED, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+        second.requestControl(OWNER, cancel("next", "cancel-next")).block();
+        assertEquals(INVALID_STATE, first.accept(regeneration("inv", "old-turn", 2)).block().code());
+    }
+
+    @Test
+    public void completionAndGateFailureRollBackTerminalAttemptEventsAndReceipt() {
+        account("100");
+        first.accept(conversationInvocation("inv", 0, "budget", true)).block();
+        create("inv");
+        first.reserve(reserveCommand("inv", "10")).block();
+        dispatch("inv");
+        var invocation = first.find(OWNER, "inv").block();
+        var attempt = first.findAttempt(OWNER, "inv", "attempt-inv").block();
+        var completion = unknownCompletion("inv");
+        var before = first.account(OWNER, "budget").block();
+        long events = count("arte_ai_event"), outbox = count("arte_ai_outbox"), operations = count("arte_ai_operation");
+        var failing = faulty(value -> value instanceof ExecutionEvent<?> event && event.kind() == ExecutionEvent.Kind.TERMINAL);
+        assertThrows(IllegalStateException.class, () -> failing.commitCompletion(completion).block());
+        jdbc.execute("ALTER TABLE arte_ai_conversation_new ADD CONSTRAINT deny_gate_release CHECK(active_invocation IS NOT NULL)");
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> first.commitCompletion(completion).block());
+        assertEquals(invocation, second.find(OWNER, "inv").block());
+        assertEquals(attempt, second.findAttempt(OWNER, "inv", "attempt-inv").block());
+        assertEquals(events, count("arte_ai_event"));
+        assertEquals(outbox, count("arte_ai_outbox"));
+        assertEquals(operations, count("arte_ai_operation"));
+        assertEquals(before, second.account(OWNER, "budget").block());
+        assertEquals("inv", second.conversationExecutionState(OWNER, "conversation").block().activeExecution().executionId());
+        assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+        jdbc.execute("ALTER TABLE arte_ai_conversation_new DROP CONSTRAINT deny_gate_release");
+        assertEquals(APPLIED, second.commitCompletion(completion).block().code());
+        assertNull(first.conversationExecutionState(OWNER, "conversation").block().activeExecution());
+    }
+
+    @Test
+    public void expiredOrdinaryWorkerReleasesGateAndRollsBackFenceWhenGateWriteFails() throws Exception {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        first.createAttempt(new CreateAttempt(new Version(OWNER, "inv", 0), "attempt-inv", "worker", Duration.ofSeconds(1))).block();
+        dispatch("inv");
+        var stale = guard("inv");
+        var attempt = first.findAttempt(OWNER, "inv", "attempt-inv").block();
+        Thread.sleep(1100);
+        jdbc.execute("ALTER TABLE arte_ai_conversation_new ADD CONSTRAINT deny_gate_release CHECK(active_invocation IS NOT NULL)");
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> first.stopExpired(stale.invocation()).block());
+        assertEquals(attempt, second.findAttempt(OWNER, "inv", "attempt-inv").block());
+        assertEquals(Invocation.State.RUNNING, second.find(OWNER, "inv").block().state());
+        jdbc.execute("ALTER TABLE arte_ai_conversation_new DROP CONSTRAINT deny_gate_release");
+        assertEquals(APPLIED, second.stopExpired(stale.invocation()).block().code());
+        assertEquals(Invocation.State.UNKNOWN, first.find(OWNER, "inv").block().state());
+        assertTrue(first.findAttempt(OWNER, "inv", "attempt-inv").block().fencingToken() > stale.fencingToken());
+        assertNull(first.conversationExecutionState(OWNER, "conversation").block().activeExecution());
+        assertEquals(APPLIED, second.accept(conversationInvocation("next", 1, null, true)).block().code());
+        assertFalse(first.appendBatch(new Append(stale, "late", List.of(batch("late")))).block().successful());
+        assertEquals("next", first.conversationExecutionState(OWNER, "conversation").block().activeExecution().executionId());
+    }
+
+    @Test
+    public void releaseIsConditionalOnBothInvocationIdAndExecutionKind() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        var key = com.arte.ainew.serialization.CanonicalJson.key("inv");
+        jdbc.update("UPDATE arte_ai_conversation_new SET active_kind='TOOL_CHAT_RUN'");
+        assertEquals(APPLIED, first.commitCompletion(unknownCompletion("inv")).block().code());
+        assertEquals(key, jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
+        assertEquals("TOOL_CHAT_RUN", jdbc.queryForObject("SELECT active_kind FROM arte_ai_conversation_new", String.class));
+    }
+
+    private Accept nonOrdinaryInvocation(String id, String variant) {
+        var base = conversationInvocation(id, 0, null, !variant.equals("embedding"), "conversation-" + id);
+        var source = base.invocation();
+        var text = base.turn().userMessage();
+        CapabilityInput input;
+        if (variant.equals("embedding")) return base;
+        if (variant.equals("tool")) {
+            input = new ToolInvocation("call", new DefinitionRef("tool", "read", "v1"), new StructuredValue.ObjectValue(Map.of()));
+        } else {
+            var messages = new ArrayList<>(List.of(text));
+            List<GenerationRequest.ToolDefinition> tools = List.of();
+            GenerationRequest.OutputFormat format = new GenerationRequest.TextOutput();
+            if (variant.equals("declared-tools"))
+                tools = List.of(new GenerationRequest.ToolDefinition(new DefinitionRef("tool", "read", "v1"),
+                        "read", new DefinitionRef("schema", "arguments", "v1"), com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY));
+            if (variant.equals("tool-response")) messages.add(new ChatMessage("tool-response", ChatMessage.Role.TOOL,
+                    List.of(new ChatMessage.Text("done")), List.of(), "call"));
+            if (variant.equals("tool-call"))
+                messages.add(new ChatMessage("tool-call", ChatMessage.Role.ASSISTANT, List.of(),
+                        List.of(new com.arte.ainew.pojo.generation.ToolCall("call", new DefinitionRef("tool", "read", "v1"), new StructuredValue.ObjectValue(Map.of()))), null));
+            if (variant.equals("structured"))
+                format = new GenerationRequest.StructuredOutput(new DefinitionRef("schema", "output", "v1"));
+            input = new GenerationRequest(messages, new GenerationOptions(128, null, null, List.of()), tools, format);
+        }
+        var options = new ExecutionOptions(source.request().options().deadline(), 1, 4096, 1, 1);
+        var request = new InvocationRequest<>(source.request().capability(), source.request().binding(), input.kind(), input, options, source.request().context());
+        var candidate = new Invocation(request, DIGEST, source.conversation(), input.kind() == com.arte.ainew.pojo.control.CapabilityDescriptor.Kind.GENERATION ? source.contextSnapshotId() : null,
+                null, Invocation.State.ACCEPTED, 0, null, null, null, source.acceptedAt(), source.updatedAt());
+        return new Accept(candidate, base.turn());
+    }
+
+    @Test
+    public void otherUnknownInputsKeepGateAndCannotBecomeRegenerationSourcesEvenIfGateIsEmpty() {
+        for (var variant : List.of("tool", "embedding", "declared-tools", "tool-response", "tool-call", "structured")) {
+            var command = nonOrdinaryInvocation(variant, variant);
+            assertEquals(APPLIED, first.accept(command).block().code());
+            create(variant);
+            dispatch(variant);
+            assertEquals(APPLIED, first.commitCompletion(unknownCompletion(variant)).block().code());
+            var state = second.conversationExecutionState(OWNER, command.turn().conversationId()).block();
+            assertEquals(variant, state.activeExecution().executionId());
+            // 只在隔离夹具清空 gate，独立验证来源资格；生产受理没有此清理路径。
+            jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=NULL WHERE id_key=?",
+                    com.arte.ainew.serialization.CanonicalJson.key(command.turn().conversationId()));
+            assertEquals(RECONCILIATION_REQUIRED, second.accept(regeneration(variant, "replacement-" + variant, 1)).block().code());
+            assertEquals(Invocation.State.UNKNOWN, second.find(OWNER, variant).block().state());
+        }
+        assertEquals(6, count("arte_ai_invocation"));
+        assertEquals(6, count("arte_ai_turn"));
+    }
+
+    @Test
+    public void failedRegenerationAcceptanceDoesNotLeaveTurnCandidateVersionOrGate() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        first.commitCompletion(unknownCompletion("inv")).block();
+        var turn = first.findTurn(OWNER, "conversation", "turn-inv").block();
+        var conversation = first.findConversation(OWNER, "conversation").block();
+        long events = count("arte_ai_event"), outbox = count("arte_ai_outbox");
+        var command = regeneration("inv", "replacement", 1);
+        var failed = faulty(value -> value instanceof ExecutionEvent<?>);
+        assertThrows(IllegalStateException.class, () -> failed.accept(command).block());
+        assertEquals(conversation, second.findConversation(OWNER, "conversation").block());
+        assertEquals(turn, second.findTurn(OWNER, "conversation", "turn-inv").block());
+        assertNull(second.conversationExecutionState(OWNER, "conversation").block().activeExecution());
+        assertNull(second.find(OWNER, "replacement").block());
+        assertEquals(events, count("arte_ai_event"));
+        assertEquals(outbox, count("arte_ai_outbox"));
+        assertEquals(APPLIED, second.accept(command).block().code());
+        assertEquals(REPLAYED, first.accept(command).block().code());
+    }
+
+    @Test
+    public void missingCandidateDoesNotTurnUnknownIntoAQualifiedTextTerminal() {
+        first.accept(conversationInvocation("inv", 0, null, true)).block();
+        create("inv");
+        dispatch("inv");
+        jdbc.update("DELETE FROM arte_ai_turn");
+        assertEquals(APPLIED, first.commitCompletion(unknownCompletion("inv")).block().code());
+        assertNotNull(jdbc.queryForObject("SELECT active_invocation FROM arte_ai_conversation_new", String.class));
         assertEquals(CONVERSATION_BUSY, second.accept(conversationInvocation("next", 1, null, true)).block().code());
     }
 

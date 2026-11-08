@@ -1,7 +1,7 @@
 # ARTE AI 会话异常恢复需求及设计
 
-> 版本：V1.2；更新日期：2026-11-08。
-> 状态：ER-1 已实施并完成定向验证；ER-2～ER-6 待实施，整体异常恢复尚未交付。
+> 版本：V1.3；更新日期：2026-11-08。
+> 状态：ER-1、ER-2 已实施并完成定向验证；ER-3～ER-6 待实施，整体异常恢复尚未交付。
 > 范围：普通文本会话的异常恢复。不考虑历史数据兼容、已有记录修复、配置迁移或新增配置开关。
 
 本文补充[聊天界面主文档](ARTE%20AI%20聊天界面需求及设计.md)的发送、重新生成、上下文和费用恢复规则。 涉及普通文本 `UNKNOWN`
@@ -218,7 +218,7 @@ ResultContext。 返回结构固定为：
 - 两次一致性读取之间仍可能发生新操作；收到 409 时保留草稿和已应用配置，刷新后由用户再次决定，不能自动换键发送。
 - 新接口复用现有会话表及 gate 数据，不给每个历史 Invocation 加占用修复标记，也不将其嵌入列表每一项造成逐行查询。
 
-### 5.3 终态提交与释放占用
+### 5.3 终态提交与释放占用（ER-2 已实现）
 
 1. 校验原 Invocation／Attempt 的版本、owner、lease 和 fence，确认提交方仍有终态提交资格。
 2. 在原事务内提交执行终态及事件；合格普通文本不论是否 `UNKNOWN`，均按本调用 ID 条件释放占用。
@@ -227,7 +227,7 @@ ResultContext。 返回结构固定为：
 5. 数据库失败整体回滚，不能出现终态或事件未提交而占用已释放的半成功。HTTP 资源释放及订阅清理沿用现有生命周期，不以清理动作证明远端停止。
 6. 预算后续结算或待对账事件独立处理。短暂 `RESERVED` 仍占用资金，但不能仅因此重新占用已经释放的文本会话。
 
-### 5.4 新问题、重新生成与并发
+### 5.4 新问题、重新生成与并发（ER-2 受理事务已实现）
 
 - 保留现有会话行锁、expectedVersion、活动占用和原子受理；两个新操作竞争时最多一个成功，另一项明确返回会话忙或版本冲突。
 - 受理同键同内容重放在新操作状态校验前返回原回执；同键异内容仍拒绝，不能因源调用成为 UNKNOWN 而更换键规避冲突。
@@ -367,12 +367,12 @@ ResultContext。 返回结构固定为：
 
 ## 7. 实施落点与顺序
 
-ER-1 已完成，后续阶段仍为待实施项；本阶段验证证据见第 9.2 节。
+ER-1、ER-2 已完成，后续阶段仍为待实施项；验证证据分别见第 9.2、9.3 节。
 
 | 阶段           | 主要落点                                                                               | 修改内容与退出条件                                                                         |
 |----------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
 | ER-1（已完成） | `Invocation`、会话判定组件、`InvocationStatusResponse`、会话级占用只读接口、前端类型   | 集中资格／占用规则及一致性读取，完成普通文本／工具子调用、同版本占用变化与迟到读取测试     |
-| ER-2           | `MybatisExecutionPersistence.completeLocked/stopExpired/acceptLocked`、会话受理事务    | 所有合格终止路径正常释放，只放宽合法重新生成来源；事务和并发测试通过                       |
+| ER-2（已完成） | `MybatisExecutionPersistence.completeLocked/stopExpired/acceptLocked`、会话受理事务    | 所有合格终止路径正常释放，只放宽合法重新生成来源；事务和并发测试通过                       |
 | ER-3           | `ChatHistoryLoader.completed`、`DefaultChatService.regenerate/regenerationSubmission`  | 跳过无完整候选的失败轮；复用原快照和新候选流程；不因旧费用改变上下文                       |
 | ER-4           | `useChatSession.ts`、`BusinessChatPanel.tsx`、浏览器恢复记录、多语言文案               | 分开三类状态；补充复制草稿、损坏信息分流／隔离、上下文标记及有限自动读取                   |
 | ER-5           | 公共账户资源授权、预算核对应用服务、管理核对接口、`ReconciliationPanel.tsx` 和预算展示 | 补齐责任指派与目标账户核对，不模拟 owner；本人／责任人／治理人权限及证据不可得路径通过验证 |
@@ -430,9 +430,9 @@ ER-1 已完成，后续阶段仍为待实施项；本阶段验证证据见第 9.
 ## 9. 文档交付与实施状态
 
 - V1.1 文档交付：补齐需求、产品决策、状态语义、架构职责、目标接口、实现落点及验收场景。
-- ER-1 已完成集中资格／占用判定、状态投影、会话级一致性只读接口和前端读取基础；ER-2～ER-6 待实施。ER-AC01～ER-AC38 整体验收仍待执行；第
-  6.5 节数值未测，第 6.6 节试用未开展。
-- ER-1 不修改终态释放、受理、历史及预算写入规则，不提前放开页面发送；未新增表、配置开关或历史迁移，未执行真实模型调用、部署或真实费用核对。
+- ER-1 已完成集中资格／占用判定、状态投影、会话级一致性只读接口和前端读取基础；ER-2 已完成终态释放和来源受理事务。ER-3～ER-6
+  待实施。ER-AC01～ER-AC38 整体验收仍待执行；第 6.5 节数值未测，第 6.6 节试用未开展。
+- ER-2 修改终态释放及受理事务，不修改历史加载、页面放行、预算扣费规则；未新增表、配置开关或历史迁移，未执行真实模型调用、部署或真实费用核对。
 - 编码时同步聊天／执行／预算接口说明及前端恢复文档，删除相应“目标、待实施”标识须附新增验证证据，保留历史验收事实。
 
 ### 9.1 V1.1 修订记录（2026-11-08）
@@ -478,5 +478,41 @@ npm test -- src/services/arte-ai src/features/ainew/useConversationExecutionStat
 npm run tsc
 ```
 
-以上为本地隔离测试及组件测试，不代表真实 MySQL／供应商、浏览器端到端、恢复时延或用户任务试用已通过；ER-2～ER-6 与整体 38
-项验收仍待完成。
+以上为 ER-1 交付时的本地隔离测试及组件测试，不代表真实 MySQL／供应商、浏览器端到端、恢复时延或用户任务试用已通过；ER-2
+的后续实施见第 9.3 节，整体 38 项验收仍待完成。
+
+### 9.3 ER-2 实施记录（V1.3，2026-11-08）
+
+- `MybatisExecutionPersistence.releaseConversationIfUnblocked` 在原物理事务内复用 ER-1 判定；普通完成、Worker
+  租约失效、取消、Attempt 前终止、排队终止／过期及旧费用核对收尾共用本入口。合格普通文本 UNKNOWN 正常释放，状态、部分结果及预留仍保留。
+- UNKNOWN 的会话／owner／类型化候选缺失或不匹配时保守保留占用；工具声明、工具调用／响应、结构化输出、非生成能力及编排子调用不取得本期放开资格。子调用不释放父
+  Run。
+- 条件 SQL 继续同时比较会话 ID、原 Invocation ID 和 `active_kind=INVOCATION`。终态、Attempt、fencing、事件、Outbox、完成回执和
+  gate 更新的事务失败整体回滚，不形成半成功。
+- `acceptLocked` 锁定会话后使用 gate 当前读取，同时比较会话快照及 gate 的业务版本；只对合格普通文本 UNKNOWN 放宽重新生成来源，保留最新
+  Turn、owner、原输入／参数、能力／绑定精确版本、预算来源及会话版本检查；新调用仍需当前授权及 Worker
+  独立原子预留。幂等重放先于新操作的版本／占用／最新轮次检查返回原受理。
+- 删除受理时修复旧停止门闩的兼容分支。非空 gate 一律冲突，本期只验证新建数据由终态事务正常释放，不通过新受理、同键重放或历史迁移修复旧记录。
+- 事务测试覆盖双实例不同操作竞争、同键重新生成、旧完成／迟到输出、旧账单与新执行隔离、gate／终态／事件故障回滚、Worker 失效
+  fencing，以及非普通文本来源的拒绝。隔离夹具中的直接 gate 修改仅用于故障和资格边界验证。
+- ER-3 的 `ChatHistoryLoader` 尚未修改，普通 UNKNOWN 即使已释放 gate，普通新问题仍可能被历史加载拒绝；ER-4 页面仍未接入普通
+  UNKNOWN 放行。ER-2 不能作为整体验收或用户已可继续聊天的声明。
+
+验证结果：
+
+| 检查 | ER-2 本轮结果 |
+|---|---|
+| 后端 15 组定向回归 | 323 项：320 通过、3 跳过、0 失败、0 错误；跳过项均要求隔离 Redis 端点，新增 ER-2 测试无跳过 |
+| 事务与并发 | 正常终态／Worker 失效释放、条件 gate 更新、完成及受理回滚、版本一致性、双实例竞争、同键重放、旧核对与新执行隔离通过 |
+| 范围排除 | 工具、Embedding、工具声明、工具调用／响应、结构化输出仍保持 UNKNOWN 限制；工具聊天和子调用链路回归通过 |
+| 本机模拟 HTTP/SSE | 36 项通过，仅使用 127.0.0.1 隔离模拟供应商；沙箱端口限制下的初次环境失败已在允许本机绑定后复测通过 |
+| 差异检查 | `git diff --check` 通过 |
+
+使用 JDK 21，在仓库根目录执行：
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest=MybatisExecutionPersistenceTest,RegenerationReconciliationIntegrationTest,ConversationExecutionPolicyTest,ConversationHttpIntegrationTest,InvocationHttpIntegrationTest,DispatchIntegrationTest,DispatchWorkerIntegrationTest,DispatchPreparationIntegrationTest,FreeDispatchPreparationIntegrationTest,ToolChatHistoryStoreTest,ToolChatLoopTest,ToolChatBudgetStoreTest,ToolInvocationIntegrationTest,ToolSubmissionExecutionTest,ToolSchedulingIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+本轮为隔离 H2、同库双实例和本机模拟供应商验证；未使用真实供应商、用户数据库或真实账单，未执行数据迁移、部署或浏览器端到端验收。前端业务代码及历史加载未修改，ER-1
+的前端／TypeScript 记录保留为历史证据，不作为 ER-2 新增验证。ER-3～ER-6 和整体 38 项验收仍待完成。
