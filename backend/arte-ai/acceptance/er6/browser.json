@@ -1,0 +1,411 @@
+{
+  "recordedAt": "2026-11-08T09:49:43.970Z",
+  "baseRevision": "3fcd4e3dc385927c2e0720a3bbf7433a03a9ed0f",
+  "viewport": {
+    "width": 1365,
+    "height": 1000
+  },
+  "status": "PASS",
+  "failures": [],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+  "visibility": "visible",
+  "clock": "performance.now, real timers",
+  "scope": "Real Chrome + production React/services; isolated simulated HTTP/SSE; no live provider or database",
+  "samples": [
+    {
+      "index": 1,
+      "mode": "HTTP_500",
+      "eventReceived": 521.9000000953674,
+      "readStarted": 580.4000000953674,
+      "readCompleted": 620.2000000476837,
+      "uiUsable": 629.9000000953674,
+      "refreshStartMs": 58.5,
+      "uiRecoveryMs": 9.700000047683716,
+      "totalMs": 108,
+      "automaticWrites": 0
+    },
+    {
+      "index": 2,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 981.5,
+      "readStarted": 1039.7000000476837,
+      "readCompleted": 1076.7000000476837,
+      "uiUsable": 1085.5999999046326,
+      "refreshStartMs": 58.200000047683716,
+      "uiRecoveryMs": 8.899999856948853,
+      "totalMs": 104.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 3,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 1413.7999999523163,
+      "readStarted": 1471.2000000476837,
+      "readCompleted": 1505.2000000476837,
+      "uiUsable": 1513.0999999046326,
+      "refreshStartMs": 57.40000009536743,
+      "uiRecoveryMs": 7.8999998569488525,
+      "totalMs": 99.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 4,
+      "mode": "HTTP_500",
+      "eventReceived": 1831.5,
+      "readStarted": 1889,
+      "readCompleted": 1919.2999999523163,
+      "uiUsable": 1923.7999999523163,
+      "refreshStartMs": 57.5,
+      "uiRecoveryMs": 4.5,
+      "totalMs": 92.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 5,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 2258.7000000476837,
+      "readStarted": 2315.7000000476837,
+      "readCompleted": 2351.5,
+      "uiUsable": 2359.2999999523163,
+      "refreshStartMs": 57,
+      "uiRecoveryMs": 7.799999952316284,
+      "totalMs": 100.59999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 6,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 2683.0999999046326,
+      "readStarted": 2740.7000000476837,
+      "readCompleted": 2772.4000000953674,
+      "uiUsable": 2780.2000000476837,
+      "refreshStartMs": 57.60000014305115,
+      "uiRecoveryMs": 7.799999952316284,
+      "totalMs": 97.10000014305115,
+      "automaticWrites": 0
+    },
+    {
+      "index": 7,
+      "mode": "HTTP_500",
+      "eventReceived": 3080.2000000476837,
+      "readStarted": 3137,
+      "readCompleted": 3153.0999999046326,
+      "uiUsable": 3157,
+      "refreshStartMs": 56.799999952316284,
+      "uiRecoveryMs": 3.9000000953674316,
+      "totalMs": 76.79999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 8,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 3489.5999999046326,
+      "readStarted": 3546.9000000953674,
+      "readCompleted": 3578.9000000953674,
+      "uiUsable": 3586.5999999046326,
+      "refreshStartMs": 57.30000019073486,
+      "uiRecoveryMs": 7.699999809265137,
+      "totalMs": 97,
+      "automaticWrites": 0
+    },
+    {
+      "index": 9,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 3910,
+      "readStarted": 3966.7999999523163,
+      "readCompleted": 3997.2000000476837,
+      "uiUsable": 4005.2999999523163,
+      "refreshStartMs": 56.799999952316284,
+      "uiRecoveryMs": 8.099999904632568,
+      "totalMs": 95.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 10,
+      "mode": "HTTP_500",
+      "eventReceived": 4315.299999952316,
+      "readStarted": 4373.099999904633,
+      "readCompleted": 4399.799999952316,
+      "uiUsable": 4406.400000095367,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 6.6000001430511475,
+      "totalMs": 91.10000014305115,
+      "automaticWrites": 0
+    },
+    {
+      "index": 11,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 4732.099999904633,
+      "readStarted": 4789.900000095367,
+      "readCompleted": 4816.599999904633,
+      "uiUsable": 4823.200000047684,
+      "refreshStartMs": 57.80000019073486,
+      "uiRecoveryMs": 6.6000001430511475,
+      "totalMs": 91.10000014305115,
+      "automaticWrites": 0
+    },
+    {
+      "index": 12,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 5128.799999952316,
+      "readStarted": 5185.700000047684,
+      "readCompleted": 5201.5,
+      "uiUsable": 5205.5,
+      "refreshStartMs": 56.90000009536743,
+      "uiRecoveryMs": 4,
+      "totalMs": 76.70000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 13,
+      "mode": "HTTP_500",
+      "eventReceived": 5528.700000047684,
+      "readStarted": 5586.5,
+      "readCompleted": 5617.700000047684,
+      "uiUsable": 5625.099999904633,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 7.3999998569488525,
+      "totalMs": 96.39999985694885,
+      "automaticWrites": 0
+    },
+    {
+      "index": 14,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 5960,
+      "readStarted": 6017.099999904633,
+      "readCompleted": 6056.900000095367,
+      "uiUsable": 6064.299999952316,
+      "refreshStartMs": 57.09999990463257,
+      "uiRecoveryMs": 7.3999998569488525,
+      "totalMs": 104.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 15,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 6389.5,
+      "readStarted": 6447,
+      "readCompleted": 6478.599999904633,
+      "uiUsable": 6486.299999952316,
+      "refreshStartMs": 57.5,
+      "uiRecoveryMs": 7.700000047683716,
+      "totalMs": 96.79999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 16,
+      "mode": "HTTP_500",
+      "eventReceived": 6806.299999952316,
+      "readStarted": 6864.299999952316,
+      "readCompleted": 6895.5,
+      "uiUsable": 6902.700000047684,
+      "refreshStartMs": 58,
+      "uiRecoveryMs": 7.200000047683716,
+      "totalMs": 96.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 17,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 7223,
+      "readStarted": 7280.400000095367,
+      "readCompleted": 7303.700000047684,
+      "uiUsable": 7307.400000095367,
+      "refreshStartMs": 57.40000009536743,
+      "uiRecoveryMs": 3.700000047683716,
+      "totalMs": 84.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 18,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 7634.900000095367,
+      "readStarted": 7692.700000047684,
+      "readCompleted": 7723,
+      "uiUsable": 7729.799999952316,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 6.799999952316284,
+      "totalMs": 94.89999985694885,
+      "automaticWrites": 0
+    },
+    {
+      "index": 19,
+      "mode": "HTTP_500",
+      "eventReceived": 8054.700000047684,
+      "readStarted": 8112.5,
+      "readCompleted": 8142.799999952316,
+      "uiUsable": 8149.599999904633,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 6.799999952316284,
+      "totalMs": 94.89999985694885,
+      "automaticWrites": 0
+    },
+    {
+      "index": 20,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 8489.799999952316,
+      "readStarted": 8547.5,
+      "readCompleted": 8578.900000095367,
+      "uiUsable": 8586.5,
+      "refreshStartMs": 57.700000047683716,
+      "uiRecoveryMs": 7.599999904632568,
+      "totalMs": 96.70000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 21,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 8908.099999904633,
+      "readStarted": 8965.700000047684,
+      "readCompleted": 8994.099999904633,
+      "uiUsable": 9001.5,
+      "refreshStartMs": 57.60000014305115,
+      "uiRecoveryMs": 7.400000095367432,
+      "totalMs": 93.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 22,
+      "mode": "HTTP_500",
+      "eventReceived": 9296.400000095367,
+      "readStarted": 9353.299999952316,
+      "readCompleted": 9367.5,
+      "uiUsable": 9370.900000095367,
+      "refreshStartMs": 56.89999985694885,
+      "uiRecoveryMs": 3.4000000953674316,
+      "totalMs": 74.5,
+      "automaticWrites": 0
+    },
+    {
+      "index": 23,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 9703,
+      "readStarted": 9760.200000047684,
+      "readCompleted": 9789.5,
+      "uiUsable": 9796.400000095367,
+      "refreshStartMs": 57.200000047683716,
+      "uiRecoveryMs": 6.900000095367432,
+      "totalMs": 93.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 24,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 10115.700000047684,
+      "readStarted": 10173.5,
+      "readCompleted": 10209,
+      "uiUsable": 10217.299999952316,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 8.299999952316284,
+      "totalMs": 101.59999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 25,
+      "mode": "HTTP_500",
+      "eventReceived": 10536.099999904633,
+      "readStarted": 10593.400000095367,
+      "readCompleted": 10622,
+      "uiUsable": 10628.5,
+      "refreshStartMs": 57.30000019073486,
+      "uiRecoveryMs": 6.5,
+      "totalMs": 92.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 26,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 10954.900000095367,
+      "readStarted": 11012.700000047684,
+      "readCompleted": 11044.200000047684,
+      "uiUsable": 11051,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 6.799999952316284,
+      "totalMs": 96.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 27,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 11350.900000095367,
+      "readStarted": 11408.099999904633,
+      "readCompleted": 11424.5,
+      "uiUsable": 11428,
+      "refreshStartMs": 57.19999980926514,
+      "uiRecoveryMs": 3.5,
+      "totalMs": 77.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 28,
+      "mode": "HTTP_500",
+      "eventReceived": 11745.5,
+      "readStarted": 11802.900000095367,
+      "readCompleted": 11840.700000047684,
+      "uiUsable": 11849.900000095367,
+      "refreshStartMs": 57.40000009536743,
+      "uiRecoveryMs": 9.200000047683716,
+      "totalMs": 104.40000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 29,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 12173.599999904633,
+      "readStarted": 12231.700000047684,
+      "readCompleted": 12263,
+      "uiUsable": 12270.299999952316,
+      "refreshStartMs": 58.10000014305115,
+      "uiRecoveryMs": 7.299999952316284,
+      "totalMs": 96.70000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 30,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 12603.5,
+      "readStarted": 12661.200000047684,
+      "readCompleted": 12704.5,
+      "uiUsable": 12711.599999904633,
+      "refreshStartMs": 57.700000047683716,
+      "uiRecoveryMs": 7.099999904632568,
+      "totalMs": 108.09999990463257,
+      "automaticWrites": 0
+    }
+  ],
+  "fallbackMs": 10040.5,
+  "copy": {
+    "preserved": true,
+    "defaultFocus": true,
+    "returnedFocus": true,
+    "writes": 0
+  },
+  "keyboard": {
+    "shiftEnterWrites": 0,
+    "composingEnterWrites": 0,
+    "costsReturnedFocus": true
+  },
+  "counters": {
+    "writes": 0,
+    "forbiddenReads": 0,
+    "streams": 0
+  },
+  "summary": {
+    "sampleCount": 30,
+    "refreshStartMs": {
+      "p50": 57.5,
+      "p95": 58.200000047683716,
+      "max": 58.5
+    },
+    "uiRecoveryMs": {
+      "p50": 7.200000047683716,
+      "p95": 9.200000047683716,
+      "max": 9.700000047683716
+    },
+    "totalMs": {
+      "p50": 96.09999990463257,
+      "p95": 108,
+      "max": 108.09999990463257
+    }
+  }
+}

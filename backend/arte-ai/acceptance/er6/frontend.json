@@ -1,0 +1,2125 @@
+{
+  "recordedAt": "2026-11-08T09:54:04.325055+00:00",
+  "fileCount": 40,
+  "tests": 467,
+  "passed": 467,
+  "failed": 0,
+  "skipped": 0,
+  "scope": "Vitest happy-dom; simulated APIs; relevant recovery suites; existing layout baseline excluded explicitly",
+  "priorAttempt": {
+    "tests": 467,
+    "passed": 466,
+    "failed": 1,
+    "reason": "15-second timeout in existing search-navigation test; isolated recheck and final complete rerun passed"
+  },
+  "files": [
+    {
+      "file": "src/features/ainew/AssistantWorkspace.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "隔离账号与空间，重新挂载后以原请求及原键恢复待确认试用",
+          "status": "passed"
+        },
+        {
+          "name": "只有当前修订的成功试用能解锁发布",
+          "status": "passed"
+        },
+        {
+          "name": "确认选用传出目录的固定引用，停用时聊天仍可读且屏蔽新执行入口",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/BudgetReconciliationManager.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "reads only the target financial records without inferring permission, model content, zero cost or automatic settlement",
+          "status": "passed"
+        },
+        {
+          "name": "requires explicit attributable evidence, amount and remote-end confirmation and retains the original managed key after uncertainty",
+          "status": "passed"
+        },
+        {
+          "name": "clears formerly readable target records when account permission is revoked",
+          "status": "passed"
+        },
+        {
+          "name": "assignment requires a separate explicit account governance read and uncertain writes retain their target and key",
+          "status": "passed"
+        },
+        {
+          "name": "restores assignment without automatically granting or pretending a workspace role is authorized",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ChatConfigurationForm.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "keeps a newly published single model unapplied when refreshing an initially empty directory",
+          "status": "passed"
+        },
+        {
+          "name": "requires explicit application even for a single newly prepared model on fresh chat entry",
+          "status": "passed"
+        },
+        {
+          "name": "refreshes and preselects the exact prepared resource and binding without applying it",
+          "status": "passed"
+        },
+        {
+          "name": "does not substitute another candidate when the prepared wrong-version is unavailable",
+          "status": "passed"
+        },
+        {
+          "name": "does not substitute another candidate when the prepared wrong-resource is unavailable",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ConnectionManager.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "creates the first connection with explicit CAS fields and no credentials",
+          "status": "passed"
+        },
+        {
+          "name": "restores an uncertain original operation without resubmitting and retries the same key",
+          "status": "passed"
+        },
+        {
+          "name": "blocks a new mutation when session recovery storage fails",
+          "status": "passed"
+        },
+        {
+          "name": "shows permission denial without offering a writable form",
+          "status": "passed"
+        },
+        {
+          "name": "reports a version conflict and reloads before creating a fresh operation",
+          "status": "passed"
+        },
+        {
+          "name": "does not restore another account’s pending connection mutation",
+          "status": "passed"
+        },
+        {
+          "name": "selects a published connection in the right form and protects edits until cancellation",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ConversationDirectoryList.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "respects composition, Esc followed by blur, and Enter/blur request coalescing",
+          "status": "passed"
+        },
+        {
+          "name": "edits a different title without opening it and opens only non-operation regions",
+          "status": "passed"
+        },
+        {
+          "name": "keeps focus/draft and blocks other editors or selection after an uncertain save",
+          "status": "passed"
+        },
+        {
+          "name": "shows a style-only search and server date/message counts without filtering or querying",
+          "status": "passed"
+        },
+        {
+          "name": "compensates the exact removed height and only a user scroll to the recycled top reloads database page one",
+          "status": "passed"
+        },
+        {
+          "name": "keeps an out-of-window recovered operation visible without adding another real conversation row",
+          "status": "passed"
+        },
+        {
+          "name": "disables title mutation in a read-only workspace but keeps conversation reading available",
+          "status": "passed"
+        },
+        {
+          "name": "uses blur submission for a recovered draft outside the current window",
+          "status": "passed"
+        },
+        {
+          "name": "does not page a hidden Splitter region when collapse resets its scroll position",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/DefaultAiTemplateEditor.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "exposes explicit initial import to a platform administrator without requiring a public space",
+          "status": "passed"
+        },
+        {
+          "name": "publishes only default switch and rate caps and retries an uncertain operation with the same request and key",
+          "status": "passed"
+        },
+        {
+          "name": "does not publish when the original command cannot be stored",
+          "status": "passed"
+        },
+        {
+          "name": "after confirmed policy success and a failed reread, remount confirmation only rereads",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/MarkdownText.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "流式首段直接进入 DOM，Markdown 不再等待或重排绘制帧",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ModelPlanManager.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "publishes a new remote model and exact prices independently of existing models",
+          "status": "passed"
+        },
+        {
+          "name": "restores and retries only the original command and key without automatic submission",
+          "status": "passed"
+        },
+        {
+          "name": "requires an explicit fresh read after a version conflict and keeps all draft fields",
+          "status": "passed"
+        },
+        {
+          "name": "blocks new writes before transport when recovery storage fails",
+          "status": "passed"
+        },
+        {
+          "name": "does not offer editing on permission denial or a mixed catalog snapshot",
+          "status": "passed"
+        },
+        {
+          "name": "does not allow publishing with an empty or disabled connection catalog",
+          "status": "passed"
+        },
+        {
+          "name": "does not resubmit an acknowledged save when only the subsequent read fails",
+          "status": "passed"
+        },
+        {
+          "name": "isolates account recovery and blocks malformed records rather than dropping them",
+          "status": "passed"
+        },
+        {
+          "name": "ignores late read responses from an account that has been unmounted",
+          "status": "passed"
+        },
+        {
+          "name": "keeps a restored operation as an unsafe draft after a definite version conflict",
+          "status": "passed"
+        },
+        {
+          "name": "edits a historical plan into a fresh revision without modifying its connection or other prices",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ModelSharingManager.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "keeps creation in the unified manager and recovers an old create with its original key",
+          "status": "passed"
+        },
+        {
+          "name": "saves allowed spaces without implicitly approving model actions or credential consumers",
+          "status": "passed"
+        },
+        {
+          "name": "approves consumers only against the displayed current tenant credential version",
+          "status": "passed"
+        },
+        {
+          "name": "keeps a conflicted scope draft and requires an explicit fresh read before another save",
+          "status": "passed"
+        },
+        {
+          "name": "restores exact original requests and keys without submitting on mount",
+          "status": "passed"
+        },
+        {
+          "name": "blocks writes before transport when recovery storage fails",
+          "status": "passed"
+        },
+        {
+          "name": "does not treat personal credential ownership as permission to share its use",
+          "status": "passed"
+        },
+        {
+          "name": "keeps responsible-subject credential controls separate from denied ACL management",
+          "status": "passed"
+        },
+        {
+          "name": "does not reapply an acknowledged operation when only the post-save read failed",
+          "status": "passed"
+        },
+        {
+          "name": "loads tenant scope and consumer settings immediately from the embedded selected resource",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ModelUsagePreparationPanel.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "only reads on entry, then explicitly prepares and rereads before handing off to chat",
+          "status": "passed"
+        },
+        {
+          "name": "restores an uncertain write without automatically resending and retries the exact original key",
+          "status": "passed"
+        },
+        {
+          "name": "persists known success when the reread fails and refresh only reads, without repeating the write",
+          "status": "passed"
+        },
+        {
+          "name": "does not submit if storage fails and keeps one original operation for retry",
+          "status": "passed"
+        },
+        {
+          "name": "explains missing approved rules and does not offer a funded fallback",
+          "status": "passed"
+        },
+        {
+          "name": "rechecks before returning to chat and refuses revoked conditions after an earlier READY",
+          "status": "passed"
+        },
+        {
+          "name": "rejects forbidden writes definitively and clears the original pending operation",
+          "status": "passed"
+        },
+        {
+          "name": "ignores late preparation results after account replacement, preserving only the original account recovery",
+          "status": "passed"
+        },
+        {
+          "name": "surfaces corrupted recovery even with no selected model and never resends a confirmed request",
+          "status": "passed"
+        },
+        {
+          "name": "keeps authorized space checks readable when preparation is denied for the current person",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/PersonalModelManager.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "saves only an ordinary model draft before a guarded target change",
+          "status": "passed"
+        },
+        {
+          "name": "clears temporary secret input only after explicit discard, without submitting credentials",
+          "status": "passed"
+        },
+        {
+          "name": "lists readable models without filtering by creator and creates using current scope only",
+          "status": "passed"
+        },
+        {
+          "name": "keeps model read permission and personal credential responsibility separate",
+          "status": "passed"
+        },
+        {
+          "name": "disables each write when server action checks deny it",
+          "status": "passed"
+        },
+        {
+          "name": "saves against the draft version instead of the management or credential version",
+          "status": "passed"
+        },
+        {
+          "name": "does not overwrite after a draft CAS conflict and requires an explicit reread",
+          "status": "passed"
+        },
+        {
+          "name": "requires confirmation before disabling all versions and submits the management version",
+          "status": "passed"
+        },
+        {
+          "name": "validates once then publishes exact dependencies and never applies a chat selection",
+          "status": "passed"
+        },
+        {
+          "name": "stops publication if the original validation has become stale since the detail loaded",
+          "status": "passed"
+        },
+        {
+          "name": "guides a saved draft without a credential to the key section",
+          "status": "passed"
+        },
+        {
+          "name": "recovers an uncertain save with its original request and key after remount without auto-submit",
+          "status": "passed"
+        },
+        {
+          "name": "never persists or replays a credential from storage; asks for the same input after remount",
+          "status": "passed"
+        },
+        {
+          "name": "retains the credential recovery record on idempotency mismatch",
+          "status": "passed"
+        },
+        {
+          "name": "retains the temporary credential when the same account and scope receive a new context object",
+          "status": "passed"
+        },
+        {
+          "name": "separates valid publication dependencies from workspace enablement and personal budget",
+          "status": "passed"
+        },
+        {
+          "name": "supports empty filtered pages with a continuation cursor",
+          "status": "passed"
+        },
+        {
+          "name": "resets pagination when search changes without losing an open model draft",
+          "status": "passed"
+        },
+        {
+          "name": "applies ownership and status filters immediately after selection",
+          "status": "passed"
+        },
+        {
+          "name": "restores all filters in the first list request after a remount, including a pending search",
+          "status": "passed"
+        },
+        {
+          "name": "discards late reads after scope changes and never shows another scope response",
+          "status": "passed"
+        },
+        {
+          "name": "reports disabled deployment without granting optimistic creation",
+          "status": "passed"
+        },
+        {
+          "name": "guards unsaved fields and clears secret input and detail on logout",
+          "status": "passed"
+        },
+        {
+          "name": "never sends a write when recovery storage fails",
+          "status": "passed"
+        },
+        {
+          "name": "creates tenant resources in the same detail flow without a second tab or refresh",
+          "status": "passed"
+        },
+        {
+          "name": "reads and refreshes returned execution B while preserving management M and making no budget write",
+          "status": "passed"
+        },
+        {
+          "name": "does not expose executable tenant creation when the server only allows personal models",
+          "status": "passed"
+        },
+        {
+          "name": "opens a separate initial creation form and cancels without changing the selected model",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ToolChatRunPanel.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "shows authoritative final text and exact per-currency remaining and held amounts",
+          "status": "passed"
+        },
+        {
+          "name": "rewriting explicitly confirms a historical final-answer snapshot and only prepares a draft",
+          "status": "passed"
+        },
+        {
+          "name": "refresh and write reexecution are separate actions and writes go through a new preview flow",
+          "status": "passed"
+        },
+        {
+          "name": "unknown outcomes never expose regeneration and route reconciliation to the actual child",
+          "status": "passed"
+        },
+        {
+          "name": "waiting approval and durable stop remain visible and use the original child identity",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/ToolChatSettings.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "default text chat performs no tool discovery and cannot enable a server-disabled feature",
+          "status": "passed"
+        },
+        {
+          "name": "a disabled or revoked service still lets the user turn off an existing tool selection",
+          "status": "passed"
+        },
+        {
+          "name": "does not enable tools for a text-only model even when the service is open",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the model limit and adds a separate currency limit and fixed account for a paid tool",
+          "status": "passed"
+        },
+        {
+          "name": "aborts directory requests when the tab is hidden and checks again when reopened",
+          "status": "passed"
+        },
+        {
+          "name": "keeps all editable settings disabled while the current conversation is busy or read-only",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/WorkspaceAiUsagePanel.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "lets an ordinary user explicitly prepare own budget without menu or governance forms",
+          "status": "passed"
+        },
+        {
+          "name": "distinguishes missing menu from governance denial and allows qualified scoped jump",
+          "status": "passed"
+        },
+        {
+          "name": "reacts only to current account and full scope notifications with reads, never writes",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/aiNavigation.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "round-trips exact model and distinct management, target and chat scopes",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?tenantId=T",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?workspaceId=B",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?resourceId=r",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?resourceId=r&bindingId=b",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?returnTo=https://evil.example",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?account=bob",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?tenantId=T&workspaceId=B&management-tenantId=X&management-workspaceId=M",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?tenantId=T&tenantId=X&workspaceId=B",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?tenantId=%0A&workspaceId=B",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?view=unknown",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?focus=budget",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?focus=other",
+          "status": "passed"
+        },
+        {
+          "name": "rejects invalid or cross-account intent ?tenantId=T&workspaceId=M&execution-tenantId=X&execution-workspaceId=B",
+          "status": "passed"
+        },
+        {
+          "name": "missing target stays missing and never borrows a current space",
+          "status": "passed"
+        },
+        {
+          "name": "verifies a precise readable model across an authorization-filtered empty page",
+          "status": "passed"
+        },
+        {
+          "name": "does not substitute a new version or another resource and detects repeated cursors",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/modelSharingRecovery.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "isolates users and exact management scopes",
+          "status": "passed"
+        },
+        {
+          "name": "permits explicit tenant ACL targets while rejecting another tenant",
+          "status": "passed"
+        },
+        {
+          "name": "retains malformed records and rejects injected credential data",
+          "status": "passed"
+        },
+        {
+          "name": "does not allow a caller to submit when storage fails",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/recovery.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "browser recovery uses original operations clears an unavailable restored conversation without automatically creating another",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations restores an uncertain message across unmount and keeps the original config and key",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations preserves a separately edited draft after confirming an earlier submission",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations does not release the original snapshot on an idempotency conflict",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations restores regenerate with its exact source and expected version",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations restores stop with its original invocation and key",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations restores create with exact title and key instead of accepting edited parameters",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations blocks new operations when recovery storage is corrupt",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations blocks a present recovery envelope containing invalid value null",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations blocks a present recovery envelope containing invalid value false",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations blocks a present recovery envelope containing invalid value 0",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations blocks a present recovery envelope containing invalid value ",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations isolates storage by account, workspace and conversation and clears account session on logout",
+          "status": "passed"
+        },
+        {
+          "name": "browser recovery uses original operations reads history without a model and does not query a pretend budget or submit",
+          "status": "passed"
+        },
+        {
+          "name": "renders GFM tables and code while rejecting raw HTML and unsafe links",
+          "status": "passed"
+        },
+        {
+          "name": "keeps Shift+Enter and composing Enter from sending, then allows ordinary Enter",
+          "status": "passed"
+        },
+        {
+          "name": "shares sidebar tool settings with the composer and submission, then resets them for another conversation",
+          "status": "passed"
+        },
+        {
+          "name": "restores a reconciliation and queries the receipt without issuing a new charge",
+          "status": "passed"
+        },
+        {
+          "name": "progressive history and asynchronous notification refresh shows questions while snapshots are pending and prevents submitting with unverified history",
+          "status": "passed"
+        },
+        {
+          "name": "progressive history and asynchronous notification refresh returns from a burst of SSE callbacks before slow HTTP completes and coalesces the refresh",
+          "status": "passed"
+        },
+        {
+          "name": "progressive history and asynchronous notification refresh bounds terminal read retries after the notification cursor is recorded and leaves manual refresh",
+          "status": "passed"
+        },
+        {
+          "name": "progressive history and asynchronous notification refresh stops HTTP fallback after an expired SSE cursor exhausts its bounded reads",
+          "status": "passed"
+        },
+        {
+          "name": "external Run acceptance invalidates a concurrent history read before its old version can be published",
+          "status": "passed"
+        },
+        {
+          "name": "typed Run history does not read its final model child as a standalone conversation candidate",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions recovers by a known ID with an invalid request/key, preserves damaged record and never confirms a write",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions requires authorized conversation ownership for a recovered ID",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions isolates an unrecoverable record locally, keeps the original read only, and permits another conversation",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions an old nonblocking UNKNOWN cannot override a current INVOCATION occupant",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions an old nonblocking UNKNOWN cannot override a current RUN occupant",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions accepts same-version occupancy release while pending fees remain",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions clears stale readable data when current authorization is revoked, without automatic retry or write",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions refreshes occupancy without repeatedly scanning unchanged full history, pauses hidden and refreshes visible",
+          "status": "passed"
+        },
+        {
+          "name": "ER-4 authority, damaged recovery and explicit draft actions keeps draft and configuration after a version conflict and never retries the write",
+          "status": "passed"
+        },
+        {
+          "name": "copies only a question into the draft, defaults to keep a nonempty draft, and never submits automatically",
+          "status": "passed"
+        },
+        {
+          "name": "regenerates from the original source without requiring a current model or budget selection",
+          "status": "passed"
+        },
+        {
+          "name": "marks only a failed viewed candidate when a complete successful answer remains selected for context",
+          "status": "passed"
+        },
+        {
+          "name": "uses the newly applied configuration when resuming from focus after initially reading without a model",
+          "status": "passed"
+        },
+        {
+          "name": "lets the user isolate corrupt recovery through the page and release only the navigation guard",
+          "status": "passed"
+        },
+        {
+          "name": "explains insufficient available funds as held money while leaving the record lookup in the costs view",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/recoveryRead.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "bounded recovery reads retries transient 408 only twice at one and three seconds",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads retries transient 429 only twice at one and three seconds",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads retries transient 500 only twice at one and three seconds",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads retries transient 503 only twice at one and three seconds",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads retries transient 0 only twice at one and three seconds",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 200",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 400",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 401",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 403",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 404",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not retry contract / permanent HTTP 409",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads times out even a transport ignoring abort and cancels each timed out attempt",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads cancels an in flight read and retry delay without accepting late output",
+          "status": "passed"
+        },
+        {
+          "name": "bounded recovery reads does not start reads in a hidden page",
+          "status": "passed"
+        },
+        {
+          "name": "pauses a pending transport immediately on page hide and ignores its late resolution",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/searchNavigation.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "retries one authoritative version conflict and never searches for an alternative message",
+          "status": "passed"
+        },
+        {
+          "name": "uses actual message identity, rejects missing candidates and mismatched snapshot ownership",
+          "status": "passed"
+        },
+        {
+          "name": "maps a missing or archived parent to conversation invalidation and does not disguise a network error",
+          "status": "passed"
+        },
+        {
+          "name": "keeps located history independent of ordinary history, bounds both directions and rebuilds around the visible anchor after a version change",
+          "status": "passed"
+        },
+        {
+          "name": "does not replay cached location after dismissal and clears the view on explicit denial",
+          "status": "passed"
+        },
+        {
+          "name": "locates a typed Run answer without validating its final model child as an ordinary Turn invocation",
+          "status": "passed"
+        },
+        {
+          "name": "rejects a Run search hit whose claimed final child differs from the authorized Run answer",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/useConversationDirectory.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "isolates directory from selection, full detail updates, title feedback and window focus",
+          "status": "passed"
+        },
+        {
+          "name": "keeps at most 100 rows including seven pins through 1000 rows and returns to database page one",
+          "status": "passed"
+        },
+        {
+          "name": "coalesces continuation and preserves the original cursor on failure until explicit retry",
+          "status": "passed"
+        },
+        {
+          "name": "discards a late continuation after a fresh generation even when abort is ignored",
+          "status": "passed"
+        },
+        {
+          "name": "retains the old window and current chat if the database first-page refresh fails",
+          "status": "passed"
+        },
+        {
+          "name": "preserves typing while a fresh target metadata read is in flight",
+          "status": "passed"
+        },
+        {
+          "name": "shares Enter/blur writes and edits another title without selecting it",
+          "status": "passed"
+        },
+        {
+          "name": "keeps invalid drafts and prevents refresh/switch; Esc followed by blur never saves",
+          "status": "passed"
+        },
+        {
+          "name": "keeps a conflict draft and retries with fresh metadata and a new key only after an explicit save",
+          "status": "passed"
+        },
+        {
+          "name": "restores an uncertain rename and explicitly replays the original request only after checking its receipt",
+          "status": "passed"
+        },
+        {
+          "name": "confirms an original rejection without creating another write",
+          "status": "passed"
+        },
+        {
+          "name": "pauses before an edited row could be recycled and resumes after editing is resolved",
+          "status": "passed"
+        },
+        {
+          "name": "checks the edited victim again if editing begins while continuation is already in flight",
+          "status": "passed"
+        },
+        {
+          "name": "refreshes once after pinning and seeks the next visible normal anchor within the 100-row capacity",
+          "status": "passed"
+        },
+        {
+          "name": "does not let an older refresh or a full execution snapshot overwrite a newer title acknowledgement",
+          "status": "passed"
+        },
+        {
+          "name": "does not confuse the retention limit or malformed empty continuation with the true end",
+          "status": "passed"
+        },
+        {
+          "name": "creates a date-named conversation without a form, restores its timeout key, and refreshes only on success",
+          "status": "passed"
+        },
+        {
+          "name": "restores the original assistant profile and title after a lost creation response",
+          "status": "passed"
+        },
+        {
+          "name": "captures the click date before waiting for an existing title save across midnight",
+          "status": "passed"
+        },
+        {
+          "name": "replays legacy pending default creation without adding a date or changing its key",
+          "status": "passed"
+        },
+        {
+          "name": "starts a new generation after creation even if an older initial read is still pending",
+          "status": "passed"
+        },
+        {
+          "name": "discards responses from unmounted scopes and blocks new writes when recovery is corrupt",
+          "status": "passed"
+        },
+        {
+          "name": "leaves an unchanged long Unicode auto-title untouched when editing is opened and blurred",
+          "status": "passed"
+        },
+        {
+          "name": "rejects a mismatched target read without retargeting the draft or issuing a write",
+          "status": "passed"
+        },
+        {
+          "name": "releases ordinary row caches for search and resumes once after a successful new conversation",
+          "status": "passed"
+        },
+        {
+          "name": "inserts only a real target beside the default window and deduplicates it when its ordinary page arrives",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/useConversationExecutionState.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "accepts same-version release and coalesces concurrent refreshes",
+          "status": "passed"
+        },
+        {
+          "name": "rejects a late busy result after switching and returning to the same conversation",
+          "status": "passed"
+        },
+        {
+          "name": "scope changes invalidate existing state and errors keep occupancy unconfirmed without automatic retries",
+          "status": "passed"
+        },
+        {
+          "name": "unmount cancels the active read and ignores its completion",
+          "status": "passed"
+        },
+        {
+          "name": "changing credentials hides the old projection before a new account read finishes",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/useConversationSearch.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "debounces valid changes, preserves emoji, pauses IME, merges in-flight Enter and renews only on explicit Enter",
+          "status": "passed"
+        },
+        {
+          "name": "removes A immediately, closes late A, and never restores A on B failure",
+          "status": "passed"
+        },
+        {
+          "name": "retains the creating request for cleanup and starts only the latest query after the old session closes",
+          "status": "passed"
+        },
+        {
+          "name": "waits for known-session release and retries failed release before allocating another slot",
+          "status": "passed"
+        },
+        {
+          "name": "replaces searches without hitting the three-session cap when two other searches are active",
+          "status": "passed"
+        },
+        {
+          "name": "closes a late initial response after exit without restoring results",
+          "status": "passed"
+        },
+        {
+          "name": "closes a late initial response after unmount without restoring results",
+          "status": "passed"
+        },
+        {
+          "name": "closes a late initial response after scope without restoring results",
+          "status": "passed"
+        },
+        {
+          "name": "exits on invisible Enter or explicit clear, never persists query or fragments",
+          "status": "passed"
+        },
+        {
+          "name": "keeps a bounded five-page window with reverse and same-PIT first boundaries; failures preserve the cursor",
+          "status": "passed"
+        },
+        {
+          "name": "keeps empty budget pages explicit, marks expiry without removing valid rows, and still allows location",
+          "status": "passed"
+        },
+        {
+          "name": "scrubs every row of a known invalid conversation and rejects an in-flight page that could restore it",
+          "status": "passed"
+        },
+        {
+          "name": "does not clear search on failed navigation, scrubs only a missing entry, and clears on successful lower action",
+          "status": "passed"
+        },
+        {
+          "name": "clears all scope content on explicit denial and closes the known session on unmount",
+          "status": "passed"
+        },
+        {
+          "name": "crops a snippet around its actual UTF-16 hit without splitting a grapheme",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the ordinary editor reachable when entering search is rejected",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/ainew/useToolChat.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "persists before submission and repeated clicks submit once",
+          "status": "passed"
+        },
+        {
+          "name": "uncertain submission restores exactly the original request key and read-only intent",
+          "status": "passed"
+        },
+        {
+          "name": "accepted refresh never resubmits and current scope does not read another workspace record",
+          "status": "passed"
+        },
+        {
+          "name": "corrupt recovery and unavailable storage prevent new submissions",
+          "status": "passed"
+        },
+        {
+          "name": "keeps idempotency conflicts pending and permits correcting an explicit rejection",
+          "status": "passed"
+        },
+        {
+          "name": "durable stop retry keeps the same key until authoritative observation",
+          "status": "passed"
+        },
+        {
+          "name": "reads Run final results through the Run API without sending its ID to Invocation",
+          "status": "passed"
+        },
+        {
+          "name": "streams only the current model child and merges same-version durable stop state",
+          "status": "passed"
+        },
+        {
+          "name": "independent event gaps pause without silently advancing the durable cursor",
+          "status": "passed"
+        },
+        {
+          "name": "permission revocation clears cached answer, stops observation and does not retry execution",
+          "status": "passed"
+        },
+        {
+          "name": "unmount aborts reads and SSE but never sends a business cancel",
+          "status": "passed"
+        },
+        {
+          "name": "storage recheck clears an already observed terminal receipt without requiring another execution",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/platform/budgetAccount.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "uses public account governance commands with explicit target, CAS and original key",
+          "status": "passed"
+        },
+        {
+          "name": "checks authorized account facts and rejects mismatched financial responsibility records",
+          "status": "passed"
+        },
+        {
+          "name": "requires the current owner budget response to carry a matching account reference and honest handling state",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the managed route, account and key explicit without substituting an owner or starting a model",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/api.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "新 AI 接口封装 停止请求携带幂等键和取消信号，保留受理回执",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'configuration/discoverChatOptions'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'conversation/createConversation'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'conversation/listConversations'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'conversation/getConversation'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'conversation/queryTurnsOfConversation'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'chat/turnsForChat'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'invocation/getInvocationStatus'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'invocation/getInvocationResult'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'invocation/invocationEvent'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 POST 'budget/getBudget'，保留原始参数及按需幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 创建返回会话以及 HTTP/业务元数据",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 HTTP 202 只保留受理回执，不补造轮次或会话版本",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 分页保留顶层 records、页码、总数及空页",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 生成结果保留空白、部分输出与未知 Token 用量",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 事件空页保留原游标，状态 UNKNOWN 保持未知",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 预算金额保持十进制字符串，包括负余额",
+          "status": "passed"
+        },
+        {
+          "name": "新 AI 接口封装 网络取消原样抛出且不重试，共享读取使用独立传输 signal",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 200 及业务 code=205024",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 400 及业务 code=205025",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 401 及业务 code=000001",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 403 及业务 code=000001",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 404 及业务 code=205029",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 409 及业务 code=205030",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 409 及业务 code=205041",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 410 及业务 code=205037",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 保留 HTTP 500 及业务 code=000001",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 HTTP 错误没有标准 JSON 时也保留状态及原始响应",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 拒绝缺失/不合法成功响应 0",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 拒绝缺失/不合法成功响应 1",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 拒绝缺失/不合法成功响应 2",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 拒绝缺失/不合法成功响应 3",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 分页不误读 data 中的 records，也不默认制造空页",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 网络异常原样抛出，不伪造 HTTP 或业务错误码",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 非法幂等键不发请求 0",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 非法幂等键不发请求 1",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 非法幂等键不发请求 2",
+          "status": "passed"
+        },
+        {
+          "name": "失败处理 非法幂等键不发请求 3",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成和费用核对请求契约 重新生成携带新操作键和固定来源，不转发角色或历史",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成和费用核对请求契约 核对金额保持十进制字符串，要求幂等键且列表读取不需要键",
+          "status": "passed"
+        },
+        {
+          "name": "会话目录游标与元数据契约 uses ResultContext cursor/window reads with the original opaque cursor and abort signal",
+          "status": "passed"
+        },
+        {
+          "name": "会话目录游标与元数据契约 sends explicit pin/name targets with a stable key and excludes the local command discriminator",
+          "status": "passed"
+        },
+        {
+          "name": "会话目录游标与元数据契约 rejects malformed metadata/end-of-page responses instead of displaying fake completion or success",
+          "status": "passed"
+        },
+        {
+          "name": "会话目录游标与元数据契约 creates default date names with only scope while keeping the caller original key",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/conversation-search.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "accepts a successful close with null data and still rejects permission errors",
+          "status": "passed"
+        },
+        {
+          "name": "keeps repeated new searches separate and forwards signed cursors and cancellation",
+          "status": "passed"
+        },
+        {
+          "name": "reads history independently and preserves structured HTTP failures",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/conversationExecutionState.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "reads a typed invocation or run, including same-version occupancy changes without caching",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":3,\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":-1,\"activeExecution\":null,\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":0.5,\"activeExecution\":null,\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":3,\"activeExecution\":{\"kind\":\"TOOL_CHAT_RUN\",\"executionId\":\"run\"},\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":3,\"activeExecution\":{\"kind\":\"INVOCATION\"},\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"other\",\"version\":3,\"activeExecution\":null,\"observedAt\":\"2026-11-08T00:00:00Z\"}",
+          "status": "passed"
+        },
+        {
+          "name": "rejects incomplete or mismatched occupancy instead of assuming idle: {\"conversationId\":\"conversation\",\"version\":3,\"activeExecution\":null,\"observedAt\":\"invalid\"}",
+          "status": "passed"
+        },
+        {
+          "name": "shares in-flight reads and forwards cancellation while preserving HTTP errors",
+          "status": "passed"
+        },
+        {
+          "name": "requires the server blocking fact on both single and batch invocation projections",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/invocationStream.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "带认证的 Invocation SSE 实时文字帧保留 UTF-8 与空白、不携带耐久游标，不干扰事件去重",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法实时文字帧",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 跨字节/CRLF 分块解析、多行 data 和注释心跳，重复序号只通知一次",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 解析文字增量并保持换行空白，重复序号不再追加",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法或超出服务端总文字上限的增量",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法或超出服务端总文字上限的增量",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝非法或超出服务端总文字上限的增量",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 支持单独 CR 的最终帧且忽略恢复游标之前的通知",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE HTTP 401 保留错误，流错误也保留状态",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE HTTP 403 保留错误，流错误也保留状态",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE HTTP 410 保留错误，流错误也保留状态",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE HTTP 503 保留错误，流错误也保留状态",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 拒绝错调用、序号不一致及超大事件帧，释放流读取器",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 取消连接会取消底层 reader，不触发业务通知",
+          "status": "passed"
+        },
+        {
+          "name": "带认证的 Invocation SSE 45 秒无心跳主动结束连接以便低频恢复查询",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/latency.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "只在显式诊断模式记录阶段时间，连续片段不覆盖首段时间",
+          "status": "passed"
+        },
+        {
+          "name": "普通模式不打印诊断，未受理的历史回复不安排额外帧",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/request-config.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "复用全局请求配置 Token=undefined 时保留 JSON/幂等请求头并增加当前语言",
+          "status": "passed"
+        },
+        {
+          "name": "复用全局请求配置 Token=test-token 时保留 JSON/幂等请求头并增加当前语言",
+          "status": "passed"
+        },
+        {
+          "name": "复用全局请求配置 skipErrorHandler=false 控制全局业务错误弹窗",
+          "status": "passed"
+        },
+        {
+          "name": "复用全局请求配置 skipErrorHandler=true 控制全局业务错误弹窗",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/sharedReads.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "shares equal reads; one cancellation preserves the other; fulfilled data is not cached",
+          "status": "passed"
+        },
+        {
+          "name": "cancels transport when the last consumer leaves and removes failed entries for retry",
+          "status": "passed"
+        },
+        {
+          "name": "isolates credentials and workspaces, and never merges mutations",
+          "status": "passed"
+        },
+        {
+          "name": "batches distinct invocation resources with a 20 item limit and shares identical reads",
+          "status": "passed"
+        },
+        {
+          "name": "a cancelled item cannot cancel the other invocation items in its batch",
+          "status": "passed"
+        },
+        {
+          "name": "returns result bytes if any consumer of a shared invocation lacks that result version",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/tool.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "TOOL 请求沿用统一传输 写入发送原始 JSON 和原幂等键，不进行 double 往返",
+          "status": "passed"
+        },
+        {
+          "name": "TOOL 请求沿用统一传输 回读对象的旧 configuration 和未知字段不进入新写请求，不产生重复键",
+          "status": "passed"
+        },
+        {
+          "name": "TOOL 请求沿用统一传输 目录传递服务器筛选与游标，保留业务错误",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/toolInvocation.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "调用请求的精确参数与白名单 保留大整数和小数原文，支持合法的参数 token 字段",
+          "status": "passed"
+        },
+        {
+          "name": "调用请求的精确参数与白名单 拒绝重复键、无效摘要及期限",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/toolJson.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "工具配置精确数字 编辑其他字段不改变数字、null、数组",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":1,\"a\":2}",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":01}",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":1,}",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":NaN}",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":\"\\q\"}",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON []",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 拒绝无效或含糊 JSON {\"a\":1} junk",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 限制深度、字节、元素和凭据字段",
+          "status": "passed"
+        },
+        {
+          "name": "工具配置精确数字 请求嵌入配置原文，其他字段安全转义，版本保持字符串",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/services/arte-ai/toolObservation.test.ts",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "uses bounded paging with the exact committed window and cursor",
+          "status": "passed"
+        },
+        {
+          "name": "does not send a page limit, subject override or execution intent to statistics",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/AI/Chat/chatSession.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "按 UTF-8 字节阻止新的超限消息，参数变化不改写尚未确认的重试",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 发送固定配置和最新版本，SSE 完成后查询结果并使用新版本发送第二轮",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 并发点击只能发送一次，网络结果不明时复用完全相同的请求和幂等键",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 409 冲突刷新版本，保留草稿并要求用户手动重新发送",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 读取最新历史页，关联已提交回复；翻页后仍观察最新页中未完成的调用",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 快照读取瞬时失败时按原调用状态恢复，不再次提交消息",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 状态请求挂起时达到观察期限会暂停，继续查询仍使用原调用",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 正常 SSE 连接不循环查状态，完成通知只读取结果并刷新历史预算",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 首段立即发布，后续高频增量共享一帧而不取消重排",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 实时片段短暂乱序时有界暂存，缺口补齐后立即显示，不等待落库或轮询",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 首次状态查询挂起仍建立 SSE 并显示模型文字",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 模型预览立即显示，Redis 回送与落库重放不重复，缺口由落库补齐，终态校准",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 实时文字保持空白、重复序号不重复追加，历史刷新和重连保留文字，终态使用完整结果",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 后台状态查询挂起不会阻塞文字通知，离开会话后旧增量不再修改页面",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 页面显示未完成的回复并按普通文字转义 HTML，失败后仍保留部分输出",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 发送后历史查询挂起时仍立即显示当前回复",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 终态先显示回答，继续观察预算；结算事件刷新余额且不重复读取结果或重连",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 SSE 断开后低频 HTTP 也能恢复终态后的预算结算",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 UNKNOWN 待对账停止执行观察，保留费用且会话空闲可显式提交",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 断线 10 秒后恢复查询并用已处理序号重连，卸载取消连接",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 SSE 不可用使用 10 秒兜底；401/403 停止自动请求，过期游标只恢复权威快照",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 LENGTH 显示输出额度不足的原因和操作提示，并保留部分结果，不自动续写",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 UNKNOWN 展示部分结果和错误，不自动重发或重新生成",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 预算查询失败或余额为零时禁止新消息，刷新预算后可发送",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 回复按文本渲染，金额保留原精度，未应用配置禁止发送",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 离开会话时取消请求，迟到响应不能更新已选会话",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 0 不足",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 0.0000 不足",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 -0.01 不足",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 -1 不足",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 NaN 不足",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 0.00000000000000000001 保留十进制精度并允许服务端校验额度",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 9007199254740993.01 保留十进制精度并允许服务端校验额度",
+          "status": "passed"
+        },
+        {
+          "name": "消息、历史和预算 余额 1 保留十进制精度并允许服务端校验额度",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 十轮已完成历史只读取一次，发送及结束刷新仅查询新调用",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 复用 SUCCEEDED / SETTLED 的确定终态",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 复用 FAILED / RELEASED 的确定终态",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 复用 CANCELLED / NOT_RESERVED 的确定终态",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 RUNNING / RESERVED 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 SUCCEEDED / RESERVED 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 SUCCEEDED / PENDING_RECONCILIATION 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 SUCCEEDED / undefined 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 UNKNOWN / SETTLED 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 UNKNOWN / PENDING_RECONCILIATION 在历史刷新时继续查询",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 结果读取失败不能缓存为空回复，重试后恢复完整回答",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 历史、停止及 SSE 共享进行中的状态查询，通知到来后补查终态",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 翻页取消旧历史时不取消 SSE 正在共享的状态请求",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 终态使正在读取的旧历史失效，合并刷新仍拿到最新会话版本",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 历史先于 SSE 发现终态时也刷新会话版本，不缓存旧快照",
+          "status": "passed"
+        },
+        {
+          "name": "状态缓存与请求合并 合并期间旧历史版本冲突时补查新快照，不丢失终态刷新",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 受理停止后仍观察原调用，重复点击不重复提交",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 网络失败重试保留停止幂等键，不重新提交聊天",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 切换或卸载取消前端请求，不向其他会话应用迟到回执",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 页面停止按钮等待权威终态，费用待对账仍允许用户发送新问题",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 刷新页面恢复已停止的历史时可继续输入，保留 PENDING_RECONCILIATION 预留",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 刷新页面恢复已停止的历史时可继续输入，保留 RESERVED 预留",
+          "status": "passed"
+        },
+        {
+          "name": "停止生成 已完成调用不提交取消请求",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成及核对后的恢复 固定原调用和版本创建新调用，保留草稿并观察新回复",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成及核对后的恢复 网络不确定时冻结重新生成请求，配置和历史刷新不会改变重试键或参数",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成及核对后的恢复 只在最新一轮提供入口，并保留旧候选和新候选的结果",
+          "status": "passed"
+        },
+        {
+          "name": "重新生成及核对后的恢复 核对旧页上的 UNKNOWN 更新费用状态，不改变已经空闲的会话",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/AI/Chat/configurationSelection.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "配置与预算请求隔离 从 HTTP modelOptions 读取'空目录'，并保留内部 options 视图",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 从 HTTP modelOptions 读取'模型目录'，并保留内部 options 视图",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 清除或卸载时取消配置发现，不采纳迟到失败或结果",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 连续刷新同一空间时只采纳最后一次发现，迟到失败不覆盖空列表",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 切换预算马上隐藏旧余额，迟到的旧结果不覆盖新账户",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 相同预算引用在不同空间分别读取，失败不沿用旧余额，可显式刷新",
+          "status": "passed"
+        },
+        {
+          "name": "配置与预算请求隔离 共享余额通知不发起新请求，迟到旧版本不能覆盖较新余额",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/AI/Chat/reconciliation.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "费用核对 按权限提供只读列表，普通用户不能确认费用",
+          "status": "passed"
+        },
+        {
+          "name": "费用核对 不预填估算费用，需要真实金额、凭据、说明和执行结束确认",
+          "status": "passed"
+        },
+        {
+          "name": "费用核对 网络不确定后沿用原表单和幂等键，高精度金额以字符串提交",
+          "status": "passed"
+        },
+        {
+          "name": "费用核对 版本冲突重新读取列表并要求重新选择，不能沿用失效预留版本扣费",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/AI/ChatNew/index.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "locates an old partial candidate and each output anchor while preserving search, scroll and draft across layout changes",
+          "status": "passed"
+        },
+        {
+          "name": "the lower action clears same-conversation location and adds a real temporary target without pinning or counting it",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the current chat and results when lower preparation fails, and scrubs all matching rows for a confirmed missing conversation",
+          "status": "passed"
+        },
+        {
+          "name": "keeps dirty configuration protection for search navigation and releases its pending action on cancel",
+          "status": "passed"
+        },
+        {
+          "name": "disables top refresh during search, previews without requests, and exits invisible Enter to database page one",
+          "status": "passed"
+        },
+        {
+          "name": "registers a business view with one chat session and one shared configuration form",
+          "status": "passed"
+        },
+        {
+          "name": "opens personal management inside the existing right tab and refreshes without changing the applied chat",
+          "status": "passed"
+        },
+        {
+          "name": "restores a full pending operation after refresh and never sends automatically",
+          "status": "passed"
+        },
+        {
+          "name": "keeps history readable when the workspace has no executable model",
+          "status": "passed"
+        },
+        {
+          "name": "blocks writes in an archived workspace while preserving history access",
+          "status": "passed"
+        },
+        {
+          "name": "shows one access state for generic 403 and offers guidance instead of failed loading",
+          "status": "passed"
+        },
+        {
+          "name": "rechecks both reads after access is granted without creating or sending automatically",
+          "status": "passed"
+        },
+        {
+          "name": "offers login for 401 without suggesting configuration changes",
+          "status": "passed"
+        },
+        {
+          "name": "keeps retry available for network failure without mislabelling it as access denial",
+          "status": "passed"
+        },
+        {
+          "name": "distinguishes an authorized empty space from denied access",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the chat draft and single configuration form when collapsing regions and changing right-side tabs",
+          "status": "passed"
+        },
+        {
+          "name": "checks newly edited configuration again after a search target has been read and before committing navigation",
+          "status": "passed"
+        },
+        {
+          "name": "returns from model preparation without auto-applying a unique model, then explicitly selects and applies the exact version",
+          "status": "passed"
+        },
+        {
+          "name": "protects current workspace details when switching chat spaces and follows the supplied scope",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/AI/ChatNew/workspaceIntegration.test.tsx",
+      "status": "passed",
+      "cases": [
+        {
+          "name": "reuses the workspace model directory when switching conversations",
+          "status": "passed"
+        },
+        {
+          "name": "protects unapplied chat configuration when selecting a space from the global header",
+          "status": "passed"
+        },
+        {
+          "name": "isolates scope, drafts and uncertain writes when switching away and back through the header",
+          "status": "passed"
+        },
+        {
+          "name": "uses the unified scope for discovery, conversations, history, budgets and submissions",
+          "status": "passed"
+        },
+        {
+          "name": "keeps the explicit FIXED connection after a failed public selection and clears it only after a successful selection",
+          "status": "passed"
+        },
+        {
+          "name": "restores the current space, original pending request and independent draft without resubmitting on remount",
+          "status": "passed"
+        },
+        {
+          "name": "returns to chat with the space selected in another module and keeps the old chat draft isolated",
+          "status": "passed"
+        },
+        {
+          "name": "ignores another tab changing startup, recent scope or cached configuration",
+          "status": "passed"
+        },
+        {
+          "name": "never sends AI requests to an inaccessible startup preference before falling back to the default space",
+          "status": "passed"
+        },
+        {
+          "name": "shows FIXED authorization denial without borrowing models or budgets from the previous space",
+          "status": "passed"
+        },
+        {
+          "name": "aborts old model and conversation reads and ignores their late resolve after switching",
+          "status": "passed"
+        },
+        {
+          "name": "aborts old model and conversation reads and ignores their late reject after switching",
+          "status": "passed"
+        },
+        {
+          "name": "aborts the old history and budget reads even when the target space has the same conversation ID",
+          "status": "passed"
+        },
+        {
+          "name": "cancels the old invocation observer on switching and resumes only the original scope on returning",
+          "status": "passed"
+        },
+        {
+          "name": "opens the real workspace picker from a denied AI state and recovers in another authorized space",
+          "status": "passed"
+        },
+        {
+          "name": "keeps workspace details separate from the quick selector and offers no management menu",
+          "status": "passed"
+        },
+        {
+          "name": "reveals a failed quick workspace selection beside the selector while retaining the current chat",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}

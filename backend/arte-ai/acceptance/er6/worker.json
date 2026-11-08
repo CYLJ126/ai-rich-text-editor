@@ -1,0 +1,10 @@
+{
+  "attemptLeaseMs": 3000,
+  "outboxLeaseMs": 3000,
+  "pollIntervalMs": 100,
+  "discoveryMs": 5.062,
+  "handlerMs": 22.195916,
+  "afterEligibleMs": 27.257916,
+  "providerRequests": 0,
+  "status": "PASS"
+}

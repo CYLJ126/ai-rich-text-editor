@@ -1,0 +1,35 @@
+{
+  "recordedAt": "2026-11-08T09:55:24.333062+00:00",
+  "baseRevision": "3fcd4e3dc385927c2e0720a3bbf7433a03a9ed0f",
+  "note": "Acceptance additions are workspace changes; base revision is not a commit of these artifacts. Hashes bind checked sources and recorded artifacts.",
+  "sha256": {
+    "frontend/tests/er6/run.mjs": "add1cd4946e2ec1758b96a5caecc6be1e65d5d32113205f66203b6a59261188f",
+    "frontend/tests/er6/server.mjs": "b78f43cd92e6d79ad7ea3b6dfbd4818e2dbea64a73719e0a6cebbb221655d7e7",
+    "frontend/tests/er6/umi.ts": "028dadc17fb500cff1051de9a963721b78f94cb2cb1ce8171a438f87f0c1f91b",
+    "frontend/tests/er6/browser.tsx": "7932a3900302b48545432174834bfe6d7556e433b2439f230295bcd63f44712c",
+    "frontend/tests/er6/index.html": "1c131757d250ed30e1ae68845beaff348ae7f3865a35cd4804dd04d4c64bc4db",
+    "backend/arte-ai/src/test/java/com/arte/ainew/admission/DispatchIntegrationTest.java": "c54ed946c822774f1407e6575bbf01f36f63f796dc8cc05a032230644d5b0b89",
+    "frontend/src/features/ainew/useChatSession.ts": "b42a97c86d9e9e9e33dec74a0080f0b7af57f768331dfc6420f0fbf91c08f9a3",
+    "frontend/src/features/ainew/BusinessChatPanel.tsx": "ebcbdd550090fbcbeeb3bf52ab19bf4c9e3a7fcdacf6126d772790867ba6fd15",
+    "backend/arte-ai/acceptance/er6/frontend.json": "f8a89f25d8807990099a8902628a6849e807e8bed8d875daf9490ca0c93ac7a4",
+    "backend/arte-ai/acceptance/er6/worker.json": "58a67fe0b7abda4047bf36795a0daa700442db17a91d52c3c44fa1dfa62d34dc",
+    "backend/arte-ai/acceptance/er6/backend.json": "9bb141758de2d74fc31102fc7a6621d36d301bcc56ed68cc6a433b6ac615098e",
+    "backend/arte-ai/acceptance/er6/browser.json": "2edd5a156f6ab34c9a98b493163cc2d38a030a784dfbf33c89071451d46ee4f5",
+    "backend/arte-ai/acceptance/er6/browser.png": "662c268553f513a196046594b33217aee01705f37709f11b8384548b9864ad96"
+  },
+  "typescript": {
+    "baselineErrors": 107,
+    "currentErrors": 107,
+    "newDiagnostics": 0,
+    "removedDiagnostics": 0
+  },
+  "layoutBaseline": {
+    "passed": 5,
+    "failed": 3,
+    "modified": false
+  },
+  "userTrial": {
+    "participants": 0,
+    "status": "NOT_RUN"
+  }
+}

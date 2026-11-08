@@ -53,6 +53,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -635,6 +636,83 @@ public class DispatchIntegrationTest {
     @Test
     public void expiredPossiblySentAttemptIsUnknownAndNeverResent() throws Exception {
         expiredRecovery(true);
+    }
+
+    /**
+     * ER-6 使用真实租约、自动扫描及单调计时，不通过改写过期时间模拟收尾时延。
+     */
+    @Test
+    public void er6AutomaticLeaseRecoveryIsMeasuredWithoutAnotherProviderRequest() throws Exception {
+        var settings = retrySettings(null);
+        try (var rig = new Rig(false, settings)) {
+            var conversation = rig.conversation();
+            var accepted = rig.submit(conversation, "er6-worker-recovery");
+            var owner = AdmissionFixture.owner("alice-id");
+            var invocation = rig.invocation(accepted);
+            var attempt = rig.fixture.executions.createAttempt(new ExecutionCommands.CreateAttempt(
+                    new ExecutionCommands.Version(owner, accepted.executionId(), invocation.version()),
+                    "er6-abandoned", "crashed-worker", settings.attemptLease())).block(WAIT).value();
+            rig.fixture.executions.reserve(new BudgetCommands.Reserve(ExecutionCommands.Guard.from(owner, rig.invocation(accepted), attempt),
+                    "er6-held", AdmissionFixture.money("1"), AdmissionFixture.RATE, Duration.ofDays(1))).block(WAIT);
+            attempt = rig.fixture.executions.markDispatch(new ExecutionCommands.Dispatch(
+                    ExecutionCommands.Guard.from(owner, rig.invocation(accepted), rig.attempt(rig.invocation(accepted))), "original-operation")).block(WAIT).value();
+            var stale = ExecutionCommands.Guard.from(owner, rig.invocation(accepted), attempt);
+            var abandoned = rig.fixture.executions.claim(OutboxMessage.Kind.DISPATCH, "crashed-worker", settings.outboxLease(), 1).block(WAIT).getFirst();
+            Instant eligible = attempt.leaseExpiresAt().isAfter(abandoned.leaseExpiresAt()) ? attempt.leaseExpiresAt() : abandoned.leaseExpiresAt();
+            var entered = new java.util.concurrent.atomic.AtomicReference<Instant>();
+            var elapsed = new java.util.concurrent.atomic.AtomicLong();
+            var done = new java.util.concurrent.CountDownLatch(1);
+            var measured = new com.arte.ainew.api.execution.InvocationCoordinator() {
+                public Mono<AcceptedExecution> submit(InvocationSubmission<?> value) {
+                    return rig.coordinator.submit(value);
+                }
+
+                public Mono<Void> dispatch(OutboxMessage message, ExecutionRuntimeContext runtime) {
+                    return Mono.defer(() -> {
+                        entered.compareAndSet(null, Instant.now());
+                        long started = System.nanoTime();
+                        return rig.coordinator.dispatch(message, runtime).doOnSuccess(ignored -> {
+                            elapsed.set(System.nanoTime() - started);
+                            done.countDown();
+                        });
+                    });
+                }
+
+                public Mono<Invocation> reconcile(ExecutionCommands.Version target, ExecutionRuntimeContext runtime) {
+                    return rig.coordinator.reconcile(target, runtime);
+                }
+
+                public Mono<ControlReceipt> control(ExecutionControlRequest request, ExecutionContext context) {
+                    return rig.coordinator.control(request, context);
+                }
+            };
+            var replacement = new InvocationDispatchWorker(rig.fixture.executions, rig.fixture.executions, measured, settings, rig.timer);
+            replacement.start();
+            try {
+                assertTrue("automatic recovery must complete", done.await(10, java.util.concurrent.TimeUnit.SECONDS));
+                long discovered = Duration.between(eligible, entered.get()).toNanos();
+                assertTrue("must not recover before both leases expire", discovered >= 0);
+                assertTrue("discovery must fit one configured recovery scan", discovered <= settings.pollInterval().toNanos());
+                assertEquals(Invocation.State.UNKNOWN, rig.invocation(accepted).state());
+                assertNull(rig.fixture.executions.conversationExecutionState(owner, conversation.conversationId()).block(WAIT).activeExecution());
+                assertEquals(BudgetReservation.State.PENDING_RECONCILIATION, rig.fixture.executions.reservation(owner, "er6-held").block(WAIT).state());
+                assertEquals(AdmissionFixture.money("1"), rig.account().held());
+                assertEquals(0, rig.requests.get());
+                assertFalse(rig.fixture.executions.commitCompletion(new ExecutionCommands.Complete(stale, "stale-worker",
+                        new ExecutionPayload.Terminal(Invocation.State.UNKNOWN, null, new ExecutionError("STALE_WORKER", ExecutionError.Phase.INVOCATION,
+                                false, ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "isolated-trace")), Usage.unknown(), null)).block(WAIT).successful());
+                String report = "{\"attemptLeaseMs\":" + settings.attemptLease().toMillis()
+                        + ",\"outboxLeaseMs\":" + settings.outboxLease().toMillis() + ",\"pollIntervalMs\":" + settings.pollInterval().toMillis()
+                        + ",\"discoveryMs\":" + discovered / 1_000_000.0 + ",\"handlerMs\":" + elapsed.get() / 1_000_000.0
+                        + ",\"afterEligibleMs\":" + (discovered + elapsed.get()) / 1_000_000.0 + ",\"providerRequests\":0,\"status\":\"PASS\"}";
+                System.out.println("ER6_WORKER_RECOVERY " + report);
+                String destination = System.getProperty("arte.ai-new.test.er6-report");
+                if (destination != null)
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(destination), report + "\n");
+            } finally {
+                replacement.stop();
+            }
+        }
     }
 
     @Test

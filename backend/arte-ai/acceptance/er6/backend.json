@@ -1,0 +1,1956 @@
+{
+  "recordedAt": "2026-11-08T09:48:01.839554+00:00",
+  "baseRevision": "3fcd4e3dc385927c2e0720a3bbf7433a03a9ed0f",
+  "scope": "Isolated H2 + localhost HTTP/SSE + dedicated ephemeral Redis container; no business database or live provider",
+  "suiteCount": 21,
+  "totals": {
+    "tests": 433,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "name": "com.arte.ainew.persistence.MybatisExecutionPersistenceTest",
+      "tests": 64,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "11.421",
+      "cases": [
+        {
+          "name": "metadataDoesNotAdvanceExecutionVersionOrLoseManualTitleDuringActiveChat",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationBeforeDispatchReleasesConversationGateAndRegenerationPreservesOriginalTurn",
+          "status": "PASS"
+        },
+        {
+          "name": "rateCurrencyAndDispatchBudgetAreCheckedAtTheTransactionBoundary",
+          "status": "PASS"
+        },
+        {
+          "name": "simultaneousAcceptanceReturnsOneDurableIdentityAndDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "completionAndGateFailureRollBackTerminalAttemptEventsAndReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "outboxValidationAndRenewalCheckIdentityAndDoNotReviveExpiredClaims",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptanceRollsBackInvocationTurnAndOutboxTogether",
+          "status": "PASS"
+        },
+        {
+          "name": "releaseIsConditionalOnBothInvocationIdAndExecutionKind",
+          "status": "PASS"
+        },
+        {
+          "name": "onlyProvenSafeFailureMayCreateTheNextUniqueAttempt",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownAllowsOnlyOneNewEntryAcrossInstances",
+          "status": "PASS"
+        },
+        {
+          "name": "possibleDispatchRequiresReconciliationAndCannotBeResent",
+          "status": "PASS"
+        },
+        {
+          "name": "failedAppendAndCompletionLeaveNoPartialStateOrPublication",
+          "status": "PASS"
+        },
+        {
+          "name": "reservationAndSettlementFaultsRollbackTheEntireLedger",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredWorkerIsFencedAndUndispatchedAttemptCanBeRecovered",
+          "status": "PASS"
+        },
+        {
+          "name": "budgetEventFailureRollsBackLedgerAndOutboxAndReplaysDoNotDuplicateEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredPermitsRecoverAndStaleWorkerCannotReleaseNewPermit",
+          "status": "PASS"
+        },
+        {
+          "name": "noResultIsPersistedIfCompletionUsesALostLease",
+          "status": "PASS"
+        },
+        {
+          "name": "pruningRejectsExpiredCursorsAndCannotDropUnpublishedEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentWorkersCannotExceedSharedGlobalDispatchLimit",
+          "status": "PASS"
+        },
+        {
+          "name": "failedRegenerationAcceptanceDoesNotLeaveTurnCandidateVersionOrGate",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownReleasesOwnGateAndKeepsReservationAndOldWorkerFenced",
+          "status": "PASS"
+        },
+        {
+          "name": "dispatchedCancellationDoesNotFabricateRemoteOutcomeAndSurvivesReconstruction",
+          "status": "PASS"
+        },
+        {
+          "name": "stoppedGenerationReleasesConversationWithoutSettlingUnknownCost",
+          "status": "PASS"
+        },
+        {
+          "name": "executionStateUsesOneSnapshotWhileAnotherInstanceAdvancesConversation",
+          "status": "PASS"
+        },
+        {
+          "name": "cursorIsStableScopedAndWindowSeeksAnchorWithoutOldPageReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "wrongOwnerCannotReadOrMutateAnExecution",
+          "status": "PASS"
+        },
+        {
+          "name": "missingCandidateDoesNotTurnUnknownIntoAQualifiedTextTerminal",
+          "status": "PASS"
+        },
+        {
+          "name": "automaticTitleAndPreviewUseGraphemesAndOnlyActualTruncationAddsEllipsis",
+          "status": "PASS"
+        },
+        {
+          "name": "eachDispatchRateScopeIsSharedAndDeniedRequestsConsumeNoQuota",
+          "status": "PASS"
+        },
+        {
+          "name": "retryQueueRejectsUnknownFactsAndCommittedOutput",
+          "status": "PASS"
+        },
+        {
+          "name": "complexEmojiAutoTitleAndTitleFailureRollbackRespectAcceptance",
+          "status": "PASS"
+        },
+        {
+          "name": "outputBudgetRejectsNewDataWithoutAllocatingSequencesOrPublishing",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredStoppedGenerationReleasesConversationAfterWorkerRecovery",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownCostKeepsFundsAndFinalSettlementIsExactlyOnce",
+          "status": "PASS"
+        },
+        {
+          "name": "additiveMetadataMigrationPreservesOldConversation",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentAppendAssignsDurableSequencesAndDeduplicatesWholeBatches",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownDoesNotNeedAFabricatedUserCancellationToReleaseConversation",
+          "status": "PASS"
+        },
+        {
+          "name": "deferredOutboxFencesOldHeartbeatAndAcknowledgement",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationAndMarkDispatchCompeteUnderTheSameDatabaseLock",
+          "status": "PASS"
+        },
+        {
+          "name": "seventhPinIsAtomicAcrossInstancesAndReceiptSurvivesLaterChanges",
+          "status": "PASS"
+        },
+        {
+          "name": "otherUnknownInputsKeepGateAndCannotBecomeRegenerationSourcesEvenIfGateIsEmpty",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredOrdinaryWorkerReleasesGateAndRollsBackFenceWhenGateWriteFails",
+          "status": "PASS"
+        },
+        {
+          "name": "settlementColumnMigrationPreservesFactsAndIdempotentReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelledInvocationReleasesConversationGate",
+          "status": "PASS"
+        },
+        {
+          "name": "coldPublisherWritesOnlyOnSubscriptionAndDoesNotBlockCallerThread",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownRegenerationIsAtomicAndReplayPrecedesLaterGateAndVersionChecks",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentCasUpdatesHaveExactlyOneWinner",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationBeforeAttemptIsDurableIdempotentAndPreventsDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "eachDispatchConcurrencyScopeIsSharedAcrossAdapters",
+          "status": "PASS"
+        },
+        {
+          "name": "reservationExpiryStopsDispatchWithoutAutomaticallyFreeingFunds",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationBeforeSendingFencesWorkerWithoutReleasingMoneyImplicitly",
+          "status": "PASS"
+        },
+        {
+          "name": "metadataFailureRollsBackTitleFlagAndReceiptTogether",
+          "status": "PASS"
+        },
+        {
+          "name": "outboxSurvivesPublisherCrashAndRejectsStaleAcknowledge",
+          "status": "PASS"
+        },
+        {
+          "name": "competingReservationsCannotOverspendTheSharedBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptanceRejectsGateVersionThatDisagreesWithLockedConversation",
+          "status": "PASS"
+        },
+        {
+          "name": "controlReceiptEventAndCancellationRollBackTogether",
+          "status": "PASS"
+        },
+        {
+          "name": "historicalConversationWithoutMetadataCanStillExecuteById",
+          "status": "PASS"
+        },
+        {
+          "name": "nonBlockingSchedulerIsRejectedBeforeStartingDatabaseWork",
+          "status": "PASS"
+        },
+        {
+          "name": "inventedPartialResultEvidenceCannotProveKnownFailureAfterDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "snapshotCodecRoundTripsWhitelistedInputsAndRejectsForeignTypesAndVersions",
+          "status": "PASS"
+        },
+        {
+          "name": "stoppedNonGenerationUnknownStillRequiresReconciliation",
+          "status": "PASS"
+        },
+        {
+          "name": "oldStoppedConversationGateIsNotRepairedDuringAcceptance",
+          "status": "PASS"
+        },
+        {
+          "name": "controlRejectsForeignOwnersAndDoesNotCancelForUnsupportedCommands",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownRegenerationDoesNotChangeInputModelBudgetOrAllowOldTurns",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.RegenerationReconciliationIntegrationTest",
+      "tests": 34,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "3.394",
+      "cases": [
+        {
+          "name": "regeneratedVersionsDoNotChangeTheLastTenTurnsOrSequence",
+          "status": "PASS"
+        },
+        {
+          "name": "candidateLimitStillAllowsIdempotentReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "httpVerifiesAmountsEvidenceAuthorizationAndDurableReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "failedRegenerationWithoutSuccessfulCandidateSkipsTheEntireTurn",
+          "status": "PASS"
+        },
+        {
+          "name": "repeatedUnknownRegenerationUsesOneAcceptanceAcrossInstances",
+          "status": "PASS"
+        },
+        {
+          "name": "financialReadPermitCannotBeUsedForSettlement",
+          "status": "PASS"
+        },
+        {
+          "name": "stoppedPartialCostClosesAtomicallyWithoutReleasingANewerConversationGate",
+          "status": "PASS"
+        },
+        {
+          "name": "everyKnownFailureSkipsBothQuestionAndAnswer",
+          "status": "PASS"
+        },
+        {
+          "name": "failedRegenerationKeepsPriorFullAnswerAndBillDoesNotChangeItsContext",
+          "status": "PASS"
+        },
+        {
+          "name": "finalChargeCannotBeOverwrittenOrAppliedTwiceAcrossInstances",
+          "status": "PASS"
+        },
+        {
+          "name": "foreignReviewerCannotBypassAccountPermitThroughRawStore",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownRoundsDoNotBackfillEarlierTurnsBeyondTheRecentTen",
+          "status": "PASS"
+        },
+        {
+          "name": "regenerationUsesExactModelAndReceiptDoesNotRequireReenabledModel",
+          "status": "PASS"
+        },
+        {
+          "name": "regenerationReceiptSurvivesDeletedSourceSnapshotAndStillRejectsChangedOperation",
+          "status": "PASS"
+        },
+        {
+          "name": "regenerationReceiptRechecksReadPermissionAndDoesNotAcceptASendKey",
+          "status": "PASS"
+        },
+        {
+          "name": "snapshotMismatchDoesNotRebuildARegenerationFromDifferentHistory",
+          "status": "PASS"
+        },
+        {
+          "name": "tinyBillAmountIsReturnedAsPlainDecimalString",
+          "status": "PASS"
+        },
+        {
+          "name": "sameTargetAndKeyReplayAcrossSelfAndManagedEntriesNeverChargesAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "remoteReadOnlyGrantCanListButCannotConfirmAndRegenerationRequiresAKey",
+          "status": "PASS"
+        },
+        {
+          "name": "managedGrantRevokedBeforeSettlementRejectsBothWriteAndReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "auditFailureRollsBackChargeReservationTerminalAndEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "managedAuditFailureRollsBackFeesInvocationAndReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "incompleteSuccessReturnedByResultPortIsAnErrorInsteadOfAnEmptyHistory",
+          "status": "PASS"
+        },
+        {
+          "name": "noOutputUnknownCanContinueWhileReservationIsStillReserved",
+          "status": "PASS"
+        },
+        {
+          "name": "regenerationReusesOriginalInputPreservesCandidatesAndUsesNewFullAnswerInNextTurn",
+          "status": "PASS"
+        },
+        {
+          "name": "privilegeOwnershipVersionsCurrencyAndActiveStateAreCheckedBeforeWriting",
+          "status": "PASS"
+        },
+        {
+          "name": "toolBearingStructuredAndChildUnknownsStillRejectHistoryAssembly",
+          "status": "PASS"
+        },
+        {
+          "name": "managedHttpEndpointsRequireAccountPermissionAndValidateExactBillFields",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownCanContinueBeforeBillAndOldBillCannotChangeAcceptedInput",
+          "status": "PASS"
+        },
+        {
+          "name": "managedFinancialReadAndConfirmationRetainOwnerAndActualActor",
+          "status": "PASS"
+        },
+        {
+          "name": "accountReferenceCannotRedirectAnotherOwnersInvocationOrBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownCanRegenerateWithIndependentFundsAndOldBillCannotClearNewGate",
+          "status": "PASS"
+        },
+        {
+          "name": "stoppingRegenerationKeepsPriorFullReplyAndItsChargesSeparate",
+          "status": "PASS"
+        },
+        {
+          "name": "missingInvocationWrongLinkAndCorruptSuccessAreNotSkippedAsOrdinaryFailures",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.AdmissionIntegrationTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "1.894",
+      "cases": [
+        {
+          "name": "currentGrantRevocationRejectsPreviouslyAuthorizedContext",
+          "status": "PASS"
+        },
+        {
+          "name": "failureInsideAcceptanceRollsBackTurnVersionEventsAndOutbox",
+          "status": "PASS"
+        },
+        {
+          "name": "replayIgnoresNewServerIdsDeadlinesAndAlreadyAdvancedConversationVersion",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentInstancesAcceptSameRequestOnceAndRejectCompetingNewTurn",
+          "status": "PASS"
+        },
+        {
+          "name": "oldSnapshotWithoutRequestedTimeoutRemainsReadableAndFixedVersionCannotBeSubstituted",
+          "status": "PASS"
+        },
+        {
+          "name": "unsupportedSelectionsAndMissingBudgetCannotProduceAcceptedRecords",
+          "status": "PASS"
+        },
+        {
+          "name": "currentAuthorizationAndOwnerIsolationProtectConversationSnapshotAndBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "conversationCreationIsDurablyIdempotentAcrossInstancesAndLaterVersionChanges",
+          "status": "PASS"
+        },
+        {
+          "name": "storedContextAndResultSurviveReassemblyAndRejectCorruptionOrConflictingKeys",
+          "status": "PASS"
+        },
+        {
+          "name": "budgetInitializationPreservesExistingLedgerAndRequiresSeparatePrivilege",
+          "status": "PASS"
+        },
+        {
+          "name": "callerConstructedSnapshotCannotForgeCounterDigestOrOutputReservation",
+          "status": "PASS"
+        },
+        {
+          "name": "reliableAcceptancePersistsInputTurnAndDispatchWithoutCreatingAttemptOrCallingModel",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.ChatHttpIntegrationTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "2.393",
+      "cases": [
+        {
+          "name": "concurrentDuplicateHttpSubmissionsCreateOnlyOneInvocation",
+          "status": "PASS"
+        },
+        {
+          "name": "discoveryIsNotAnAuthorizationSnapshotForLaterChatSubmission",
+          "status": "PASS"
+        },
+        {
+          "name": "missingInvokeOrConversationGrantIsForbidden",
+          "status": "PASS"
+        },
+        {
+          "name": "foreignConversationsAndBudgetsAreNotUsable",
+          "status": "PASS"
+        },
+        {
+          "name": "deadlineCoversSubmissionAfterAuthorizationAndReturns504",
+          "status": "PASS"
+        },
+        {
+          "name": "loginIsCapturedBeforeAsyncExecutionAndEndpointDeclaresSecurityAndFeatureFlag",
+          "status": "PASS"
+        },
+        {
+          "name": "serverCapacityTimeoutAndOutputLimitsAreEnforced",
+          "status": "PASS"
+        },
+        {
+          "name": "missingHeadersNullFieldsAndInvalidValuesAreBadRequests",
+          "status": "PASS"
+        },
+        {
+          "name": "newRequestsRejectStaleVersionsAndBusyConversations",
+          "status": "PASS"
+        },
+        {
+          "name": "anonymousAndUnauthorizedSpaceAreRejectedWithoutAccepting",
+          "status": "PASS"
+        },
+        {
+          "name": "replayReturnsOriginalReceiptAfterVersionAdvanceAndRejectsChangedSemantics",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptedResponseCorrespondsToCommittedInvocationTurnAndOutboxWithoutDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "oversizedInputAndOutputReturnSpecificCodesWithoutAcceptance",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.conversation.ConversationExecutionPolicyTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.001",
+      "cases": [
+        {
+          "name": "projectionReadsDurableLinksAndDoesNotSwallowStorageFailure",
+          "status": "PASS"
+        },
+        {
+          "name": "directToolUnknownAndApprovalRemainBlocking",
+          "status": "PASS"
+        },
+        {
+          "name": "toolsStructuredOutputAndToolMessagesCannotQualify",
+          "status": "PASS"
+        },
+        {
+          "name": "everyActiveStateBlocksAndEveryPlainTextTerminalDoesNotBlock",
+          "status": "PASS"
+        },
+        {
+          "name": "missingWrongOwnerAndWrongCandidateFailClosed",
+          "status": "PASS"
+        },
+        {
+          "name": "childrenAndStandaloneCallsNeverReleaseOrDescribeParentOccupancy",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.ConversationHttpIntegrationTest",
+      "tests": 19,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "1.169",
+      "cases": [
+        {
+          "name": "diagnosticsPreserveSuccessfulEmptyListPagination",
+          "status": "PASS"
+        },
+        {
+          "name": "sidebarCursorAndWindowHaveLightweightScopedShapesAndValidateBounds",
+          "status": "PASS"
+        },
+        {
+          "name": "diagnosticsIdentifySnapshotColumnFailureAfterCountSucceeds",
+          "status": "PASS"
+        },
+        {
+          "name": "diagnosticsIncludeMissingColumnCauseWithoutLoggingBoundValues",
+          "status": "PASS"
+        },
+        {
+          "name": "defaultCreationBindsClientDateAndRejectsChangedOrInvalidDates",
+          "status": "PASS"
+        },
+        {
+          "name": "allHttpEndpointsDeclareAuthentication",
+          "status": "PASS"
+        },
+        {
+          "name": "defaultCreationReplayedAcrossMidnightKeepsFirstDateAndIdentity",
+          "status": "PASS"
+        },
+        {
+          "name": "executionStateReadsTypedOccupancyAndSameVersionReleaseWithoutWriting",
+          "status": "PASS"
+        },
+        {
+          "name": "diagnosticsIncludeMissingTableCauseSqlAndAsyncRequestContext",
+          "status": "PASS"
+        },
+        {
+          "name": "detailAndTurnsHideForeignAndMissingConversationsIdentically",
+          "status": "PASS"
+        },
+        {
+          "name": "validationRejectsMissingHeadersBlankTitleNullAndInvalidPagination",
+          "status": "PASS"
+        },
+        {
+          "name": "paginationUsesDatabaseScopeAndPreservesEmptyPageMetadata",
+          "status": "PASS"
+        },
+        {
+          "name": "turnsReturnPersistedUserMessageAndInvocationReferencesAndRejectStaleVersion",
+          "status": "PASS"
+        },
+        {
+          "name": "authenticationAndScopeAreCheckedAndCapturedBeforeAsyncExecution",
+          "status": "PASS"
+        },
+        {
+          "name": "serviceRejectsInvalidPagesWithoutHttpAndDoesNotMutateRequest",
+          "status": "PASS"
+        },
+        {
+          "name": "createIsDurablyIdempotentAndReturnsPublicMetadata",
+          "status": "PASS"
+        },
+        {
+          "name": "orderedTurnPagesAreBoundedAndAlwaysBelongToTheTargetConversation",
+          "status": "PASS"
+        },
+        {
+          "name": "corruptActiveReferenceDoesNotBecomeAnIdleResponse",
+          "status": "PASS"
+        },
+        {
+          "name": "sidebarCommandsUseIndependentVersionsAndDurableReceipts",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.InvocationHttpIntegrationTest",
+      "tests": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "21.912",
+      "cases": [
+        {
+          "name": "foreignAndMissingInvocationsHaveTheSameNotFoundResponseAcrossAllReads",
+          "status": "PASS"
+        },
+        {
+          "name": "sseReplaysCommittedTextAndKeepsOtherPayloadsPrivate",
+          "status": "PASS"
+        },
+        {
+          "name": "sseShowsFirstAndSparseTextBeforeModelFinishesAndReplaysBySequence",
+          "status": "PASS"
+        },
+        {
+          "name": "alreadyDeliveredTerminalCursorClosesWithoutWaitingForLease",
+          "status": "PASS"
+        },
+        {
+          "name": "fullEventBatchesDrainImmediatelyWithoutWaitingForRecoveryScan",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredCursorReturnsGoneRatherThanSkippingDiscardedEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "readingNeedsOnlyReadPermissionRatherThanInvokeOrConversationPermission",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownOutcomePreservesPartialOutputAndUnknownUsage",
+          "status": "PASS"
+        },
+        {
+          "name": "anonymousWrongSpaceAndMissingReadGrantAreRejected",
+          "status": "PASS"
+        },
+        {
+          "name": "preparedWatchReusesImmediateQualificationAndRejectsASecondSubscription",
+          "status": "PASS"
+        },
+        {
+          "name": "activeSseFlushesAcceptedAndThenPushesLiveTerminal",
+          "status": "PASS"
+        },
+        {
+          "name": "failedBroadcastDoesNotAcknowledgeAndLeaseRecoveryPublishesIt",
+          "status": "PASS"
+        },
+        {
+          "name": "delayedPreparedWatchChecksQualificationAgainBeforeTextSubscription",
+          "status": "PASS"
+        },
+        {
+          "name": "eventPublisherWakesAfterCommitAndLiveWatchHasNoReplaySubscriptionGap",
+          "status": "PASS"
+        },
+        {
+          "name": "controllerIsAbsentUnlessBothAdmissionAndExecutionAreEnabled",
+          "status": "PASS"
+        },
+        {
+          "name": "redisHintsAreOwnerIsolatedAndInvalidHintsAreSafe",
+          "status": "PASS"
+        },
+        {
+          "name": "batchSnapshotsReturnStatusAndCommittedResultWithBoundedOwnerScopedReads",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelHttpChecksIdentityAndRequiresIdempotencyKey",
+          "status": "PASS"
+        },
+        {
+          "name": "nullFieldsMalformedJsonAndCursorBoundsAreBadRequests",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptedThenCompletedInvocationIsQueriedWithoutExposingStoredRequestOrRedispatching",
+          "status": "PASS"
+        },
+        {
+          "name": "slowWatchReceivesBudgetSettlementBeforeStreamCompletes",
+          "status": "PASS"
+        },
+        {
+          "name": "redisBroadcastReachesAnotherInstanceAndReconnectReplaysAcknowledgedEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "terminalDoesNotCloseWatchBeforeBudgetSettlementCommits",
+          "status": "PASS"
+        },
+        {
+          "name": "identityIsCapturedBeforeAsyncReadAndControllerDeclaresAuthentication",
+          "status": "PASS"
+        },
+        {
+          "name": "liveTextReachesBrowserWhileOutputTransactionAndEventPublisherAreBlocked",
+          "status": "PASS"
+        },
+        {
+          "name": "redisLiveTextReachesAuthorizedRemoteWatcherWithoutEventOutbox",
+          "status": "PASS"
+        },
+        {
+          "name": "commitAfterEmptyReplayBeforeStatusReadStillDeliversTerminal",
+          "status": "PASS"
+        },
+        {
+          "name": "publisherRunsFromCommitWakeupWithoutWaitingForRecoveryTimer",
+          "status": "PASS"
+        },
+        {
+          "name": "incompleteOutputIsReadableAndNotReportedAsSuccess",
+          "status": "PASS"
+        },
+        {
+          "name": "committedButMissingResultBytesRemainAnInfrastructureError",
+          "status": "PASS"
+        },
+        {
+          "name": "currentReadContextWorksAfterOriginalInvocationDeadline",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelHttpPersistsCommandAndReplaysTheOriginalReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "ssePreflightReturnsHttpErrorsForForeignAndExpiredCursors",
+          "status": "PASS"
+        },
+        {
+          "name": "eventPagesHaveExclusiveCursorsAndEmptyPageDoesNotEndInvocation",
+          "status": "PASS"
+        },
+        {
+          "name": "idleWatchReauthorizesAndRevocationEndsItWithoutPeriodicEventQueries",
+          "status": "PASS"
+        },
+        {
+          "name": "unavailableResultIsConflictAndOrphanBytesAreNotReturned",
+          "status": "PASS"
+        },
+        {
+          "name": "eventTransactionRollbackDoesNotWakePublisherOrExposeRunningState",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.DispatchIntegrationTest",
+      "tests": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "23.432",
+      "cases": [
+        {
+          "name": "insufficientBudgetFailsBeforeModelDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "automaticWorkerLoopCompletesAndCanBeStopped",
+          "status": "PASS"
+        },
+        {
+          "name": "regenerationStreamsAsAnIndependentCallAndBillsBothReplies",
+          "status": "PASS"
+        },
+        {
+          "name": "historyIsBoundedToTenRecentTurnsAndCapacityOverflowIsExplicit",
+          "status": "PASS"
+        },
+        {
+          "name": "chatWorkerAndQueriesProduceDurableResultAndReportedCharge",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredPossiblySentAttemptIsUnknownAndNeverResent",
+          "status": "PASS"
+        },
+        {
+          "name": "queuedRetryRecoversBudgetReleaseFailureOnAnotherWorker",
+          "status": "PASS"
+        },
+        {
+          "name": "committedWakeupCompletesAtomicDispatchAndSettlementBeforeRecoveryScan",
+          "status": "PASS"
+        },
+        {
+          "name": "atomicPreparationWithInsufficientBudgetNeverSendsHttp",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelRunningHttpStreamAcrossInstancesPreservesPartialResultAndUnknownCost",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptedExecutionThatExpiresInQueueEndsWithoutCreatingAnAttempt",
+          "status": "PASS"
+        },
+        {
+          "name": "successfulOutputWithoutUsageDoesNotInventAFreeCall",
+          "status": "PASS"
+        },
+        {
+          "name": "queuedRetryDeadlineExpiresWithoutAnotherProviderRequest",
+          "status": "PASS"
+        },
+        {
+          "name": "retryExhaustionEndsOnceAndDoesNotHoldBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "interruptedProviderKeepsPartialResultUnknownOutcomeAndHeldBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "leaseHeartbeatsCoverSlowModelAndWorkerAcknowledgesAfterCompletion",
+          "status": "PASS"
+        },
+        {
+          "name": "repeatedSubmissionAndRedeliveryPreserveIdentityAndCallModelOnce",
+          "status": "PASS"
+        },
+        {
+          "name": "nextRoundUsesOwnedCommittedHistoryAndReplayKeepsOriginalContext",
+          "status": "PASS"
+        },
+        {
+          "name": "knownFailedPartialOutputIsExcludedFromNextRoundContext",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredUndispatchedAttemptIsStoppedAndReleased",
+          "status": "PASS"
+        },
+        {
+          "name": "settlementFailureIsRecoveredFromTerminalWithoutAnotherModelRequest",
+          "status": "PASS"
+        },
+        {
+          "name": "rateLimitedInvocationStaysQueuedWithoutAttemptOrReservation",
+          "status": "PASS"
+        },
+        {
+          "name": "partialOutputFailureNeverRetriesWithAttemptsAvailable",
+          "status": "PASS"
+        },
+        {
+          "name": "outboxReclaimCannotSkipDurableRetryBackoff",
+          "status": "PASS"
+        },
+        {
+          "name": "permanentRejectionNeverRetriesAndReleasesReservation",
+          "status": "PASS"
+        },
+        {
+          "name": "er6AutomaticLeaseRecoveryIsMeasuredWithoutAnotherProviderRequest",
+          "status": "PASS"
+        },
+        {
+          "name": "rejected429RetriesWithIndependentAttemptsAndReleasedBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "knownTruncatedResponseFailsWithPartialBytesAndKnownCharge",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredUndispatchedAttemptRetriesWithoutResendingUnknownExecution",
+          "status": "PASS"
+        },
+        {
+          "name": "atomicPreparationSendsHttpOnceAndSettlesTheReservation",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelBeforeDispatchNeverCallsProviderAndWorkerCanRecover",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelReservedButUndispatchedAttemptRecoversBudgetRelease",
+          "status": "PASS"
+        },
+        {
+          "name": "twoWorkerInstancesClaimTheSameDatabaseWithoutDuplicateModelCalls",
+          "status": "PASS"
+        },
+        {
+          "name": "queriesReauthorizeAndRejectCrossOwnerOrMissingReadScope",
+          "status": "PASS"
+        },
+        {
+          "name": "uncertainServerFailureNeverRetriesEvenWithAttemptsAvailable",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryUnknownCanSubmitAnIndependentQuestionWithoutResendingTheOriginal",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationDuringRetryBackoffPreventsAnotherRequest",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.DispatchWorkerIntegrationTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "1.681",
+      "cases": [
+        {
+          "name": "committedSubmissionWakesIdleWorkerBeforeRecoveryInterval",
+          "status": "PASS"
+        },
+        {
+          "name": "deferredTaskKeepsDurableDelayAndFreesSlotForEligibleWork",
+          "status": "PASS"
+        },
+        {
+          "name": "completesOneSlotAndRefillsWhileAnotherTaskStaysOpen",
+          "status": "PASS"
+        },
+        {
+          "name": "competingAutomaticWorkersClaimDifferentMessages",
+          "status": "PASS"
+        },
+        {
+          "name": "stoppingCancelsEachTaskAndRestartKeepsIndependentSlots",
+          "status": "PASS"
+        },
+        {
+          "name": "rollbackDoesNotWakeAndSuccessfulReplayDoesNotWakeAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "automaticStartWaitsForExistingManualBatch",
+          "status": "PASS"
+        },
+        {
+          "name": "claimFailureKeepsWorkerAliveForNextCommit",
+          "status": "PASS"
+        },
+        {
+          "name": "failedTaskFreesSlotWithoutAcknowledgingFailedMessage",
+          "status": "PASS"
+        },
+        {
+          "name": "recoveryScanFindsCommittedWorkWhenHintFails",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.DispatchPreparationIntegrationTest",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.707",
+      "cases": [
+        {
+          "name": "attemptExpiringBeforeDispatchRollsBackTheWholePreparation",
+          "status": "PASS"
+        },
+        {
+          "name": "competingInstancesCannotReserveOrPrepareTheSameInvocationTwice",
+          "status": "PASS"
+        },
+        {
+          "name": "preparesOnceAndRejectsReplayRatherThanGrantingAnotherSend",
+          "status": "PASS"
+        },
+        {
+          "name": "freePlanCannotBypassModelBudgetReservation",
+          "status": "PASS"
+        },
+        {
+          "name": "differentInvocationsSharingOneBudgetCannotOverReserve",
+          "status": "PASS"
+        },
+        {
+          "name": "insufficientBudgetKeepsAnUndispatchedAttemptWithoutHoldingFunds",
+          "status": "PASS"
+        },
+        {
+          "name": "reservationExpiringBeforeDispatchRollsBackTheWholePreparation",
+          "status": "PASS"
+        },
+        {
+          "name": "failureWritingDispatchRollsBackAttemptBudgetCountersAndEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "staleClaimAndCancelledInvocationCannotCreateAttempts",
+          "status": "PASS"
+        },
+        {
+          "name": "claimExpiringAfterReservationRollsBackTheWholePreparation",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.persistence.FreeDispatchPreparationIntegrationTest",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.788",
+      "cases": [
+        {
+          "name": "freePlanCannotBypassABudgetBoundTool",
+          "status": "PASS"
+        },
+        {
+          "name": "claimExpiringDuringPreparationRollsBackEverything",
+          "status": "PASS"
+        },
+        {
+          "name": "executionDeadlineExpiringDuringPreparationRollsBackEverything",
+          "status": "PASS"
+        },
+        {
+          "name": "modelWithoutBudgetCannotUseFreePlanEither",
+          "status": "PASS"
+        },
+        {
+          "name": "dispatchWriteFailureRollsBackAttemptCountersAndEventsAndCanRetry",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelledInvocationCannotPrepareFreeDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "attemptExpiringDuringPreparationRollsBackEverything",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredClaimCannotCreateAttempt",
+          "status": "PASS"
+        },
+        {
+          "name": "chargeStillRequiresBudgetInsteadOfFallingBackToFree",
+          "status": "PASS"
+        },
+        {
+          "name": "freeResultCannotMasqueradeAsChargedOrInsufficientBudget",
+          "status": "PASS"
+        },
+        {
+          "name": "staleClaimCannotCreateAttempt",
+          "status": "PASS"
+        },
+        {
+          "name": "freeDispatchIsDurableWithoutAnyBudgetAccountAndRejectsReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "competingInstancesCannotGrantTwoFreeSends",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.chat.ToolChatHistoryStoreTest",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.989",
+      "cases": [
+        {
+          "name": "onlyVerifiedFinalModelAnswerEntersHistorySearchAndQueryAndArchiveApplies",
+          "status": "PASS"
+        },
+        {
+          "name": "toolProposalCannotMasqueradeAsFinalAnswerAndDoesNotReleaseGate",
+          "status": "PASS"
+        },
+        {
+          "name": "renamePreservesRunGateAndFinalAnswerAddsOneMessageFact",
+          "status": "PASS"
+        },
+        {
+          "name": "runOutboxHasTypedTargetIndependentCursorAndSafeGenericLeaseLifecycle",
+          "status": "PASS"
+        },
+        {
+          "name": "executionStateKeepsParentRunAndRejectsArchivedOrCorruptReferences",
+          "status": "PASS"
+        },
+        {
+          "name": "activeRunBlocksAnotherRootAndOrdinaryInvocationAcceptance",
+          "status": "PASS"
+        },
+        {
+          "name": "wrongResultOwnerOrParentAndMissingBytesCannotCompleteRun",
+          "status": "PASS"
+        },
+        {
+          "name": "finalTransactionFailureDoesNotLeakSelectedAnswerAndRetrySucceeds",
+          "status": "PASS"
+        },
+        {
+          "name": "failedRunReleasesGateAndIsNotAddedToHistory",
+          "status": "PASS"
+        },
+        {
+          "name": "failedRegenerationKeepsPreviousRunAnswerAndDoesNotDuplicateUserFact",
+          "status": "PASS"
+        },
+        {
+          "name": "outboxFailureRollsBackRootTurnGateMetadataAndEventsTogether",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptanceAtomicallyAssociatesTypedTurnGateEventsAndOriginalReplay",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.execution.ToolChatLoopTest",
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "4.847",
+      "cases": [
+        {
+          "name": "multipleReadProposalsRespectRunConcurrencyAndDoNotRepeatCalls",
+          "status": "PASS"
+        },
+        {
+          "name": "replayAfterCompletionAndChangedIntent",
+          "status": "PASS"
+        },
+        {
+          "name": "permissionRevokedWhileWaitingCancelsAcceptedChild",
+          "status": "PASS"
+        },
+        {
+          "name": "differentActualModelDoesNotAuthorizeADifferentProvider",
+          "status": "PASS"
+        },
+        {
+          "name": "confirmationWaitSurvivesRestartAndApprovalResumesSameTool",
+          "status": "PASS"
+        },
+        {
+          "name": "durableCancelBlocksNewChildAndPreservesUnknownHold",
+          "status": "PASS"
+        },
+        {
+          "name": "expiryStopsWithoutNewModelAndFinalAnswerSurvivesBillingOverrun",
+          "status": "PASS"
+        },
+        {
+          "name": "completeLoopRecoversOriginalIdentitiesAndProjectsOnlyFinalAnswer",
+          "status": "PASS"
+        },
+        {
+          "name": "partialAndRepeatedToolProposalsNeverCreateAnotherBusinessOperation",
+          "status": "PASS"
+        },
+        {
+          "name": "actualProviderModelMayDifferFromRequestNameAcrossToolLoopAndRecovery",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelGateBlocksAlreadyAcceptedModelBeforeDispatchAndToolSnapshotUsesV4",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownToolOnlyQueriesOriginalOperationAndResumesAfterTrustedReconciliation",
+          "status": "PASS"
+        },
+        {
+          "name": "runBudgetAndCallLimitsBlockFurtherWork",
+          "status": "PASS"
+        },
+        {
+          "name": "rejectedApprovalDoesNotExecuteOrAskModelAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "unknownModelStopsAllFurtherDispatchAndSurvivesRestart",
+          "status": "PASS"
+        },
+        {
+          "name": "lostLeaseCannotPlanAndWaitingDoesNotCreateEmptyProgressEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentSameIntentAndRestartAfterChildAcceptanceDoNotDuplicateWork",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.chat.ToolChatBudgetStoreTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.722",
+      "cases": [
+        {
+          "name": "dispatchFailureRollsBackAccountRunAllocationAttemptAndOutboxTogether",
+          "status": "PASS"
+        },
+        {
+          "name": "oversizedRealBillIsRetainedAndPermanentlyBlocksNewDispatch",
+          "status": "PASS"
+        },
+        {
+          "name": "heldUnknownCostPreventsNextModelFromOversubscribingRunEvenWhenAccountHasMoney",
+          "status": "PASS"
+        },
+        {
+          "name": "retryAttemptHasItsOwnAllocationAndOnlyProvenNoExecutionCanReleasePriorHold",
+          "status": "PASS"
+        },
+        {
+          "name": "legacyRunCannotDispatchWithoutExplicitBudgetPlan",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentDuplicateDispatchCannotReserveOrTransmitTwice",
+          "status": "PASS"
+        },
+        {
+          "name": "freeToolDoesNotReserveEitherLedgerAndCurrencyLimitsCannotBeBorrowed",
+          "status": "PASS"
+        },
+        {
+          "name": "insufficientAccountLeavesNeitherRunHoldNorAllocation",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentFinalSettlementsHaveExactlyOneEffect",
+          "status": "PASS"
+        },
+        {
+          "name": "rootTerminalAndReservationExpiryDoNotReleaseUnknownFeesButLateBillCanClose",
+          "status": "PASS"
+        },
+        {
+          "name": "settlementFailureRollsBackRunAndAccountAndCanBeRetried",
+          "status": "PASS"
+        },
+        {
+          "name": "settlementMovesHoldToActualChargeAndSameCommandDoesNotSettleTwice",
+          "status": "PASS"
+        },
+        {
+          "name": "chargedDispatchOccupiesRunAndAccountInOneTransactionAndIsNotASecondCharge",
+          "status": "PASS"
+        },
+        {
+          "name": "standaloneReserveAndAttemptApisCannotBypassRunDispatchChecks",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.execution.ToolInvocationIntegrationTest",
+      "tests": 30,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "3.172",
+      "cases": [
+        {
+          "name": "statusResultEventsAndBatchUseOriginalIdentityWithoutNewExecution",
+          "status": "PASS"
+        },
+        {
+          "name": "revokedToolReadCannotBypassThroughGenericStatusResultReplayBatchOrWatch",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelPermissionIsSeparateFromToolReadPermission",
+          "status": "PASS"
+        },
+        {
+          "name": "stopExpiredCannotDiscardAlreadyStoredToolEvidence",
+          "status": "PASS"
+        },
+        {
+          "name": "runningCancellationStopsSubscriptionAndKeepsUnknownWhenExecutionWasEntered",
+          "status": "PASS"
+        },
+        {
+          "name": "hostPermitCannotExpandScopesOrReplaceTheStableOwner",
+          "status": "PASS"
+        },
+        {
+          "name": "completedSuccessIsNotOverwrittenByLateCancellation",
+          "status": "PASS"
+        },
+        {
+          "name": "cancelRechecksPermissionInsideOriginalTransactionIncludingReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "queuedCancellationIsAtomicAndSameKeyReplaysWithoutToolCall",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationStoreFailureAfterPreparationDoesNotProduceFalseTerminal",
+          "status": "PASS"
+        },
+        {
+          "name": "toolCancelRejectsForgedIdentityAndUnknownScopeFields",
+          "status": "PASS"
+        },
+        {
+          "name": "recoveryNeedsNoNewInvocationEligibilityAndKeepsOriginalDeadline",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredAttemptCannotAppendNewResultBytes",
+          "status": "PASS"
+        },
+        {
+          "name": "undispatchedExpiredAttemptHasKnownInterruptedFact",
+          "status": "PASS"
+        },
+        {
+          "name": "httpQueriesAndToolCancelUseGenericEnvelopeAndDurableReceipt",
+          "status": "PASS"
+        },
+        {
+          "name": "possibleDispatchWithoutSavedResultBecomesUnknownAndIsNeverRetried",
+          "status": "PASS"
+        },
+        {
+          "name": "recoveryTransactionFailureRollsBackFenceStateAndEventsThenCanResume",
+          "status": "PASS"
+        },
+        {
+          "name": "corruptSavedBytesCannotBecomeSuccessOrBeSilentlyDiscarded",
+          "status": "PASS"
+        },
+        {
+          "name": "savedSuccessRemainsSuccessDespiteLaterCancellationIntent",
+          "status": "PASS"
+        },
+        {
+          "name": "crashesAfterResultSaveRecoverWithoutCallingBusinessAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "acceptedButUnpreparedCrashReclaimsOriginalOperationAndExecutesOnce",
+          "status": "PASS"
+        },
+        {
+          "name": "recoveryPreservesStoredFailedUnknownTimeoutAndCancellationFacts",
+          "status": "PASS"
+        },
+        {
+          "name": "wrongCallOrOutputSchemaCannotBeRecovered",
+          "status": "PASS"
+        },
+        {
+          "name": "identicalStoredResultCanReplayAfterLeaseExpiryWithoutAddingBytes",
+          "status": "PASS"
+        },
+        {
+          "name": "httpRevocationAndMissingKeyDoNotCancelOrReturnToolDetails",
+          "status": "PASS"
+        },
+        {
+          "name": "queryOwnershipDoesNotExposeAnotherWorkspaceOrSubject",
+          "status": "PASS"
+        },
+        {
+          "name": "missingToolAccessIsDeniedRatherThanInheritingGenericRead",
+          "status": "PASS"
+        },
+        {
+          "name": "stagedBytesStayInvisibleUntilTerminalReferenceCommits",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationRecordedAfterPreparationPreventsBusinessEntry",
+          "status": "PASS"
+        },
+        {
+          "name": "savedResultCanBeClosedOutAfterOriginalDeadlineWithoutExtendingIt",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.execution.ToolSubmissionExecutionTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "0.139",
+      "cases": [
+        {
+          "name": "publicPreviewSubmitWorkerResultAndReplayStayOnOneInvocation",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.tool.execution.ToolSchedulingIntegrationTest",
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "6.113",
+      "cases": [
+        {
+          "name": "failedOutboxWriteDoesNotLeaveCapacityOrPartialAdmission",
+          "status": "PASS"
+        },
+        {
+          "name": "strictNestedSchedulingConfigurationBindsAndRejectsTypos",
+          "status": "PASS"
+        },
+        {
+          "name": "staleAckAndRenewCannotReleaseOrExtendNewOwnersPermit",
+          "status": "PASS"
+        },
+        {
+          "name": "realToolWorkerCommitsAndReleasesQueueAndExecutionCapacity",
+          "status": "PASS"
+        },
+        {
+          "name": "incrementalMigrationMatchesCleanSchemaAfterDraining",
+          "status": "PASS"
+        },
+        {
+          "name": "missingCapacityPermitCannotBeRenewedIntoAnUnmeteredClaim",
+          "status": "PASS"
+        },
+        {
+          "name": "productionToolAdmissionRequiresExplicitSchedulingActivation",
+          "status": "PASS"
+        },
+        {
+          "name": "duplicateAckDoesNotReleaseAnotherMessagesPermit",
+          "status": "PASS"
+        },
+        {
+          "name": "workspaceAndSubjectQueueLimitsAreIndependentOfGlobalLimit",
+          "status": "PASS"
+        },
+        {
+          "name": "wrongNodeManifestCannotClaimOrAdvanceToken",
+          "status": "PASS"
+        },
+        {
+          "name": "renewalExtendsSameCapacityPermitWithoutAllocatingAnother",
+          "status": "PASS"
+        },
+        {
+          "name": "globalQueueLimitRollsBackAndSameKeyReplayDoesNotConsumeAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "saturatedProviderDoesNotBlockAnotherProviderInSameSpace",
+          "status": "PASS"
+        },
+        {
+          "name": "queueTimeoutIsCollectedWithoutExecutionCapacityAndOnlyOnce",
+          "status": "PASS"
+        },
+        {
+          "name": "queueDeadlineIsRecheckedInAtomicPreparationBeforeBusinessEntry",
+          "status": "PASS"
+        },
+        {
+          "name": "forgedClassCannotPassClaimValidation",
+          "status": "PASS"
+        },
+        {
+          "name": "initialToolEventAndOutboxKeepSequenceAndCommitWakeupsOnReplay",
+          "status": "PASS"
+        },
+        {
+          "name": "expiredUndispatchedGenerationRetryCanFinishWithoutWaitingForExecutionCapacity",
+          "status": "PASS"
+        },
+        {
+          "name": "automaticWorkerKeepsLongToolFromOccupyingShortAndGenerationSlots",
+          "status": "PASS"
+        },
+        {
+          "name": "deferReleasesCapacityWithoutResettingQueueDeadline",
+          "status": "PASS"
+        },
+        {
+          "name": "saturatedSpaceIsSkippedForAnotherSpace",
+          "status": "PASS"
+        },
+        {
+          "name": "missingQueueCounterRollsBackCancellationInsteadOfLosingCapacityFacts",
+          "status": "PASS"
+        },
+        {
+          "name": "roundRobinCursorPersistsAcrossStoreInstances",
+          "status": "PASS"
+        },
+        {
+          "name": "inconsistentPoolPolicyFailsClosed",
+          "status": "PASS"
+        },
+        {
+          "name": "queueCapacityIsArbitratedAcrossTwoConcurrentAdmissions",
+          "status": "PASS"
+        },
+        {
+          "name": "providerQuotaIsSharedAcrossClassesAndNodes",
+          "status": "PASS"
+        },
+        {
+          "name": "localSlotTotalMustMatchExistingConcurrency",
+          "status": "PASS"
+        },
+        {
+          "name": "zeroCounterRollsBackAllReleaseAndTerminalWrites",
+          "status": "PASS"
+        },
+        {
+          "name": "outcomeCheckHasReservedSlotButNoFabricatedS2Work",
+          "status": "PASS"
+        },
+        {
+          "name": "fullClassDoesNotClaimAnotherMessageOrConsumeOtherClasses",
+          "status": "PASS"
+        },
+        {
+          "name": "replayedCancellationCannotUnderflowDurableQueueCounters",
+          "status": "PASS"
+        },
+        {
+          "name": "incrementalMigrationRejectsUndrainedOldDispatchWork",
+          "status": "PASS"
+        },
+        {
+          "name": "fullQueueMapsTo429WithRetryAfterAndUnavailableMapsTo503",
+          "status": "PASS"
+        },
+        {
+          "name": "failedBatchReservationRollsBackInitialEventsAndSuppressesWakeups",
+          "status": "PASS"
+        },
+        {
+          "name": "readinessLossSkipsToolClaimsWhileGenerationCanContinue",
+          "status": "PASS"
+        },
+        {
+          "name": "classifiedClaimNeverFallsBackToUnfilteredLegacyClaim",
+          "status": "PASS"
+        },
+        {
+          "name": "realPreparationReleasesQueueCountersAndAllowsNextAdmission",
+          "status": "PASS"
+        },
+        {
+          "name": "unavailableQueueAuthorityFailsClosedWithoutPartialAdmission",
+          "status": "PASS"
+        },
+        {
+          "name": "admissionFixesClassProviderAndQueueDeadlineFromTrustedProductPolicy",
+          "status": "PASS"
+        },
+        {
+          "name": "cancellationAtomicallyReleasesQueueReservation",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.ainew.admission.BudgetHttpIntegrationTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "3.477",
+      "cases": [
+        {
+          "name": "authenticationSpaceAndCurrentBudgetQualificationAreRequired",
+          "status": "PASS"
+        },
+        {
+          "name": "ledgerConfigurationConflictIsReportedWithoutRepairingTheAccount",
+          "status": "PASS"
+        },
+        {
+          "name": "pendingReconciliationKeepsHeldAndDoesNotInventCharges",
+          "status": "PASS"
+        },
+        {
+          "name": "onlyReadScopeIsRequiredAndBudgetAdminAloneDoesNotGrantRead",
+          "status": "PASS"
+        },
+        {
+          "name": "actualChargesBeyondLimitKeepNegativeAvailableBalance",
+          "status": "PASS"
+        },
+        {
+          "name": "foreignAndUnknownBudgetsReturnIdenticalNotFoundResponses",
+          "status": "PASS"
+        },
+        {
+          "name": "initialAccountResponseIsPreciseAndRepeatedReadsDoNotWriteOrExposeOwner",
+          "status": "PASS"
+        },
+        {
+          "name": "reservationAndSettlementAreReadFromOneAccountSnapshotWithoutRounding",
+          "status": "PASS"
+        },
+        {
+          "name": "identityIsCapturedBeforeAsyncQueryAndControllerDeclaresAuthentication",
+          "status": "PASS"
+        },
+        {
+          "name": "databaseFailureIsNotTreatedAsMissingAccountAndDoesNotLeakSql",
+          "status": "PASS"
+        },
+        {
+          "name": "disabledFeatureRequiresNoDependencies",
+          "status": "PASS"
+        },
+        {
+          "name": "authorizedButUninitializedBudgetIsNotCreatedByReading",
+          "status": "PASS"
+        },
+        {
+          "name": "invalidParametersAndMalformedJsonAreBadRequests",
+          "status": "PASS"
+        },
+        {
+          "name": "provenReleaseRestoresAvailableBalance",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.app.platform.persistence.BudgetAccountAccessIntegrationTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "1.336",
+      "cases": [
+        {
+          "name": "generatedBootstrapUsesTheActualPublicPayloadAndDigestContracts",
+          "status": "PASS"
+        },
+        {
+          "name": "permitRechecksGrantAndIndependentOperationInLedgerTransaction",
+          "status": "PASS"
+        },
+        {
+          "name": "roleAndGlobalOperationAloneGrantNoAccountAuthority",
+          "status": "PASS"
+        },
+        {
+          "name": "responsibilityBecomesUnassignedWhenThePrimaryLeaves",
+          "status": "PASS"
+        },
+        {
+          "name": "governorCanAssignWithoutReconciliationRightAndReassignmentRevokesOldPrimary",
+          "status": "PASS"
+        },
+        {
+          "name": "selfServiceRequiresConcreteAccountGrantAndMissingEvidenceDoesNotMutateFunds",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.app.platform.persistence.ResourceAclIntegrationTest",
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "2.166",
+      "cases": [
+        {
+          "name": "finalGuardUsesCurrentDomainStateWhenOrdinaryDescriptorIsStale",
+          "status": "PASS"
+        },
+        {
+          "name": "policyDenialWinsOverSubjectGrant",
+          "status": "PASS"
+        },
+        {
+          "name": "staleAclVersionCannotOverwriteAndCrossSpaceAccessFails",
+          "status": "PASS"
+        },
+        {
+          "name": "visibilityChangeOnlyRevokesModeManagedSources",
+          "status": "PASS"
+        },
+        {
+          "name": "rejectedVisibilityRequestRollsBackItsIntermediateWrites",
+          "status": "PASS"
+        },
+        {
+          "name": "reentrantGuardDoesNotCacheAllowAcrossDomainWrites",
+          "status": "PASS"
+        },
+        {
+          "name": "expiryDomainAndArchivedStateAreCheckedAgain",
+          "status": "PASS"
+        },
+        {
+          "name": "registerRequiresOriginalTransactionAndTrustedDescriptor",
+          "status": "PASS"
+        },
+        {
+          "name": "missingOrConflictingProvidersFailClosed",
+          "status": "PASS"
+        },
+        {
+          "name": "roleSharingAndNewMembershipUseCurrentRoleWithoutImplyingManagement",
+          "status": "PASS"
+        },
+        {
+          "name": "grantsAreIndependentAndRevokeReceiptsRoundTripVoid",
+          "status": "PASS"
+        },
+        {
+          "name": "registrationCreatesExplicitInitialGrantsAndNoAdministratorOverride",
+          "status": "PASS"
+        },
+        {
+          "name": "replayDoesNotRestoreRevokedAuthorityAndBatchUsesSameRules",
+          "status": "PASS"
+        },
+        {
+          "name": "spaceGrantCannotBypassExplicitModeAndKeepsIndependentHistory",
+          "status": "PASS"
+        },
+        {
+          "name": "subjectGenerationAndMembershipStateOverrideDirectGrant",
+          "status": "PASS"
+        },
+        {
+          "name": "corruptedIdentityOrAclOwnershipCannotAuthorize",
+          "status": "PASS"
+        },
+        {
+          "name": "grantReplayNormalizesActionSetAndRejectsDifferentPayload",
+          "status": "PASS"
+        },
+        {
+          "name": "auditFailureRollsBackAclDomainEpochReceiptAndEvents",
+          "status": "PASS"
+        },
+        {
+          "name": "tenantOwnedResourceUsesTenantGenerationAndCannotBeSelfRegistered",
+          "status": "PASS"
+        },
+        {
+          "name": "registrationReplayPreservesInitialGrantCountAndEpoch",
+          "status": "PASS"
+        },
+        {
+          "name": "sharingCannotDelegateGovernanceOrActionsNotHeld",
+          "status": "PASS"
+        },
+        {
+          "name": "ordinaryReadCanUseReadOnlySnapshotButWriteGateCannot",
+          "status": "PASS"
+        },
+        {
+          "name": "concurrentCasAllowsOneGrantAndLoserLeavesNoExtraSource",
+          "status": "PASS"
+        },
+        {
+          "name": "finalGuardUsesCurrentGrantsInsteadOfOuterSnapshot",
+          "status": "PASS"
+        },
+        {
+          "name": "workspaceGovernorCanRevokeWithoutGainingPrivateReadOrGrantPower",
+          "status": "PASS"
+        },
+        {
+          "name": "duplicateGrantSourceCannotBeInsertedUnderAnotherId",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "name": "com.arte.app.platform.persistence.DatabaseAiControlIntegrationTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "time": "12.714",
+      "cases": [
+        {
+          "name": "bareDatabaseModelIsRejectedBeforeAnyChatExecutionWrites",
+          "status": "PASS"
+        },
+        {
+          "name": "reviewedDefinitionsAndApprovedBudgetCannotProduceAnExecutableModel",
+          "status": "PASS"
+        },
+        {
+          "name": "revokedMemberCannotUseARemovedBareDatabaseBinding",
+          "status": "PASS"
+        },
+        {
+          "name": "accountAccessAssemblyRegistersEmptyRootsWithoutGrantingWorkspaceOwner",
+          "status": "PASS"
+        },
+        {
+          "name": "modelEntitlementDiscoveryDoesNotAuthorizeLaterResolutionAfterMemberRevocation",
+          "status": "PASS"
+        },
+        {
+          "name": "sendRevalidationChecksCurrentQualificationAndReusesOnlyUnchangedVersions",
+          "status": "PASS"
+        },
+        {
+          "name": "httpCatalogIsReadOnlySafeAndRejectsTheFormerFullCatalogWriteRoute",
+          "status": "PASS"
+        },
+        {
+          "name": "spacesPrepareAiOnDemandAndHaveIndependentBudgetsAndHistory",
+          "status": "PASS"
+        },
+        {
+          "name": "replacingEntitlementPortControlsDiscoveryAndActualChatAdmission",
+          "status": "PASS"
+        },
+        {
+          "name": "publicWorkspaceCommandsWorkWithoutAiControlTables",
+          "status": "PASS"
+        },
+        {
+          "name": "catalogResolutionReadsOneAuthorizedSnapshotAndNextReadSeesRevocation",
+          "status": "PASS"
+        },
+        {
+          "name": "readOperationsUseOneFreshSnapshotNoWriteLocksAndOnlyLoadRequestedConfiguration",
+          "status": "PASS"
+        },
+        {
+          "name": "missingAiTemplateDoesNotBlockSpaceCreationAndDeniedMembersCannotBorrowLegacyAuthority",
+          "status": "PASS"
+        },
+        {
+          "name": "independentRulesCasAndReplayPreserveLedgerAndTemplatePublicationDoesNotRebaseExistingSpaces",
+          "status": "PASS"
+        },
+        {
+          "name": "httpEnforcesPlatformPermissionOwnerScopeVersionsAndIdempotency",
+          "status": "PASS"
+        },
+        {
+          "name": "readPortsUsePublishedDatabaseAuthorityAndKeepHistoricalRatesAfterRevocation",
+          "status": "PASS"
+        },
+        {
+          "name": "aiAuditFailureRollsBackExplicitPreparationAndLeavesPublicSpaceUsable",
+          "status": "PASS"
+        },
+        {
+          "name": "capabilityUpgradeAppendsImmutableVersionsAndRequiresExplicitWorkspaceSelection",
+          "status": "PASS"
+        }
+      ]
+    }
+  ]
+}
