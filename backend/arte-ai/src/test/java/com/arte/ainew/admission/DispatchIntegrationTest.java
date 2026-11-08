@@ -404,7 +404,7 @@ public class DispatchIntegrationTest {
     }
 
     @Test
-    public void unknownOutcomeKeepsConversationBusyWithoutResubmission() throws Exception {
+    public void ordinaryUnknownCanSubmitAnIndependentQuestionWithoutResendingTheOriginal() throws Exception {
         try (var rig = new Rig()) {
             rig.body = chunk("partial", null, "null");
             var conversation = rig.conversation();
@@ -412,11 +412,15 @@ public class DispatchIntegrationTest {
             rig.worker.pollOnce().block(WAIT);
             assertEquals(Invocation.State.UNKNOWN, rig.invocation(first).state());
             var current = rig.fixture.context("alice", "second");
-            var error = assertThrows(AdmissionException.class, () -> rig.chat.submit(
-                    rig.fixture.chatRequest(conversation.conversationId(), 1, "next", current), current).block(WAIT));
-            assertEquals(ResultCodeEnum.AI_CONVERSATION_BUSY, error.getResultCode());
-            assertEquals(1, rig.requests.get());
-            assertEquals(1, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Long.class).longValue());
+            var next = rig.chat.submit(rig.fixture.chatRequest(conversation.conversationId(), 1, "next", current), current).block(WAIT);
+            var snapshot = rig.fixture.contexts.find(rig.invocation(next).contextSnapshotId(), rig.fixture.context("alice", "read")).block(WAIT);
+            assertNull(snapshot.history());
+            assertEquals(1, snapshot.messages().size());
+            assertEquals("next", ((ChatMessage.Text) snapshot.messages().getFirst().content().getFirst()).text());
+            rig.worker.pollOnce().block(WAIT);
+            assertEquals(Invocation.State.UNKNOWN, rig.invocation(first).state());
+            assertEquals(2, rig.requests.get());
+            assertEquals(2, rig.jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_turn", Long.class).longValue());
         }
     }
 

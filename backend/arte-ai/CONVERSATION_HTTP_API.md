@@ -1,7 +1,7 @@
 # 新 AI 会话 HTTP 接口
 
-> 2026-11-08 待实施设计：[会话异常恢复专项 V1.1](../../ARTE%20AI%20会话异常恢复需求及设计.md)增加会话级占用只读投影，见本文末尾。
-> 新端点尚未实现，不改变下文现有目录、元数据、创建和历史接口的交付状态。
+> 2026-11-08：[会话异常恢复专项 V1.4](../../ARTE%20AI%20会话异常恢复需求及设计.md) ER-1～ER-3 已实现。
+> 会话级占用只读接口见本文末尾；生成历史按当前有效候选筛选，页面恢复交互仍待 ER-4。
 
 入口为 `com.arte.ainew.web.controller.NewAiConversationController`，保留已有 POST 路径。 需开启 `arte.ai-new.enabled=true`
 。2026-10-15 的目录能力增加 4 张表，部署步骤见本文末尾；不初始化预算、不调用模型。
@@ -98,8 +98,9 @@ expectedVersion 必填、非负，来自最新会话详情。存储在同一事�
 
 records 包含固定 userMessage、turnId、sequence、parentTurnId、supersedesTurnId、version、时间戳、
 invocationIds 和 selectedInvocationId。回答文本、执行状态与用量需通过调用查询接口取得；轮次不复制第二份执行终态。
-当前未自动选择回答候选，selectedInvocationId 可为 null，客户端应保留 invocationIds 用于后续查询。
-本接口用于页面展示历史；生成时的 `ConversationService.history`、多轮上下文、编辑／重新生成仍为后续工作。
+当前未自动选择回答候选，selectedInvocationId 可为 null，客户端应保留 invocationIds 用于后续查询。 本接口用于页面展示轮次；生成时由
+`ChatHistoryLoader` 按固定业务版本和当前有效候选加载最近最多十轮。ER-3 已实现合格失败轮整轮跳过及快照固定，任意旧轮编辑／历史分支仍不支持；
+`ConversationService.history` 的显式选择接口仍不支持。
 
 ## 错误与验证
 
@@ -395,3 +396,6 @@ ER-1 实现使用同一只读 REPEATABLE_READ 事务读取会话快照与 gate�
 沿用 `ai:conversation` 读取权限与归档可见性；未认证 401，无权 403，不存在／跨主体／归档不可见 404。 前端 API 校验
 conversationId、业务版本、必填 activeExecution、引用类型和 observedAt；独立 hook 按请求序号拒绝迟到响应并接受同版本变化，尚未接入页面动作放开。验证证据见专项
 §9.2。
+
+ER-3 已将普通文本失败轮的历史采用与页面展示分开：原 Turn、候选、部分结果和费用仍保留；生成只采用经核验的完整成功问答，当前有效候选为合格
+UNKNOWN 时整轮跳过。刷新历史不会触发模型、自动选用部分答案或重算已受理的输入。详见异常恢复专项 §4、§9.4。

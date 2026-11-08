@@ -7,7 +7,9 @@ import com.arte.ainew.api.entry.ChatService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
 import com.arte.ainew.application.context.ChatHistoryLoader;
+import com.arte.ainew.application.conversation.ConversationExecutionPolicy;
 import com.arte.ainew.application.support.AdmissionException;
+import com.arte.ainew.application.support.TextInputs;
 import com.arte.ainew.common.execution.AcceptedExecution;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
@@ -31,6 +33,7 @@ import reactor.core.publisher.Mono;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -115,54 +118,98 @@ public final class DefaultChatService implements ChatService {
     @Override
     public Mono<AcceptedExecution> regenerate(EntryRequests.Regenerate request, ExecutionContext context) {
         return authorization.requireWrite(context, AdmissionAuthorization.INVOKE).flatMap(current ->
-                // 查找原调用（invocationId 对应的记录）
                 executionStore.find(ExecutionOwners.from(current), request.originalInvocationId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                         .flatMap(original -> {
-                            // 校验对应的会话是否为空，或是否为 GenerationRequest 请求
-                            if (original.conversation() == null || !(original.request().input() instanceof GenerationRequest)) {
+                            if (original.conversation() == null || !(original.request().input() instanceof GenerationRequest))
                                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
-                            }
                             var link = original.conversation();
-                            // 预算和生成参数继承原调用；当前主体必须仍有使用该预算及绑定的权限。
+                            // 新操作继承原预算、发布及精确模型版本；当前身份不继承旧授权。
                             var renewed = new ExecutionContext(current.executionId(), current.traceId(), current.authorization(),
                                     current.deadline(), null, original.request().context().budgetRef(),
                                     original.request().context().releaseRef(), current.idempotencyKey());
-                            // 查找对应轮次（Turn）
-                            return conversationsService.turn(link.conversationId(), link.turnId(), renewed).flatMap(turn ->
-                                    // 查找轮次的调用记录（Invocation）
-                                    executionStore.findAccepted(ExecutionOwners.from(renewed), original.request().capability().id(), renewed.idempotencyKey())
-                                            .map(accepted -> true).defaultIfEmpty(false).flatMap(replay ->
-                                                    // 查找对应上下文快照（ContextSnapshot）
-                                                    contextService.find(original.contextSnapshotId(), renewed)
-                                                            // 新的提交
-                                                            .flatMap(saved -> invocationCoordinator.submit(regenerationSubmission(request, renewed, original, turn, saved, replay)))));
+                            var owner = ExecutionOwners.from(renewed);
+                            return conversationsService.find(link.conversationId(), renewed).flatMap(conversation ->
+                                    conversationsService.turn(link.conversationId(), link.turnId(), renewed).flatMap(turn ->
+                                            authorization.require(renewed, AdmissionAuthorization.READ).flatMap(read ->
+                                                    executionStore.findAccepted(owner, original.request().capability().id(), renewed.idempotencyKey())
+                                                            // 已受理同键先确认原操作，不因后来新增问题、源快照到期／删除或模型停用重建调用。
+                                                            .map(accepted -> regenerationReceipt(request, original, accepted))
+                                                            .switchIfEmpty(Mono.defer(() -> regenerateNew(request, read, original, conversation, turn))))));
                         }));
     }
 
     /**
-     * 生成轮次重放提交
+     * 新操作的读取预检；会话版本、最新轮次及当前资格仍由最终受理事务复核。
+     */
+    private Mono<AcceptedExecution> regenerateNew(EntryRequests.Regenerate request, ExecutionContext current,
+                                                  Invocation original, Conversation conversation, Turn turn) {
+        if (!ConversationExecutionPolicy.ordinaryText(original, conversation, turn))
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
+        if (!original.state().terminal())
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY));
+        if (conversation.version() != request.expectedConversationVersion())
+            return Mono.error(new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT));
+        return admissionCatalogStore.nextTurnSequence(ExecutionOwners.from(current), conversation.conversationId())
+                .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
+                .flatMap(next -> {
+                    if (turn.sequence() != next - 1)
+                        return Mono.error(new AdmissionException(ResultCodeEnum.AI_INVALID_STATE));
+                    return contextService.find(original.contextSnapshotId(), current).flatMap(saved -> {
+                        TextInputs.requireActualSnapshot(original, saved);
+                        if (!saved.messages().getLast().equals(turn.userMessage()))
+                            throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+                        return invocationCoordinator.submit(regenerationSubmission(request, current, original, turn, saved));
+                    });
+                });
+    }
+
+    /**
+     * 核对原重新生成操作的完整可变请求语义；只返回已授权的原回执，不读取结果正文或重新派发。
+     */
+    private AcceptedExecution regenerationReceipt(EntryRequests.Regenerate request, Invocation source, Invocation accepted) {
+        var link = accepted.conversation();
+        var expected = accepted.request().options();
+        var actual = request.options();
+        if (!ExecutionOwners.from(source.request().context()).equals(ExecutionOwners.from(accepted.request().context()))
+                || !accepted.request().capability().equals(source.request().capability())
+                || !accepted.request().binding().equals(source.request().binding())
+                || !accepted.request().input().equals(source.request().input())
+                || !Objects.equals(accepted.request().context().budgetRef(), source.request().context().budgetRef())
+                || !request.originalInvocationId().equals(accepted.replacesInvocationId()) || link == null
+                || !link.conversationId().equals(source.conversation().conversationId())
+                || !link.turnId().equals(source.conversation().turnId())
+                || link.conversationVersion() != request.expectedConversationVersion()
+                || expected.maxAttempts() != actual.maxAttempts() || expected.maxOutputBytes() != actual.maxOutputBytes()
+                || expected.maxToolSteps() != actual.maxToolSteps() || expected.maxConcurrentTools() != actual.maxConcurrentTools()
+                || !Objects.equals(expected.requestedTimeout(), actual.requestedTimeout())
+                || expected.requestedTimeout() == null && !expected.deadline().equals(actual.deadline()))
+            throw new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+        return new AcceptedExecution(accepted.request().context().executionId(), AcceptedExecution.Kind.INVOCATION, accepted.acceptedAt());
+    }
+
+    /**
+     * 沿用原实际输入创建独立重新生成候选
      *
-     * @param request  重放请求
+     * @param request  新的重新生成请求
      * @param context  当前执行上下文
      * @param original 原调用记录
      * @param turn     轮次记录
      * @param saved    上下文快照
-     * @param replay   是否为重放提交
-     * @return 生成的轮次重放提交记录（即本次重新提交生成对应的调用记录）
+     * @return 原轮次新增候选及独立调用的受理参数
      */
     private InvocationSubmission<GenerationRequest> regenerationSubmission(EntryRequests.Regenerate request, ExecutionContext context,
-                                                                           Invocation original, Turn turn, ContextSnapshot saved, boolean replay) {
+                                                                           Invocation original, Turn turn, ContextSnapshot saved) {
         var at = clock.instant();
         var snapshot = new ContextSnapshot(UUID.randomUUID().toString(), saved.history(), saved.modelBinding(),
                 saved.messages(), saved.fragments(), saved.budget(), saved.inputTokens(), saved.estimatedTokens(),
                 saved.tokenizerVersion(), saved.truncations(), saved.contentDigest(), at,
                 at.plus(properties.limits().snapshotRetention()), saved.assistant());
         var candidates = new ArrayList<>(turn.candidates());
-        if (!replay) candidates.add(AnswerCandidate.invocation(context.executionId()));
-        // 重放不追加候选（包括候选已达到上限时）；协调器仍核对完整语义摘要。
+        candidates.add(AnswerCandidate.invocation(context.executionId()));
+        // 重放已在上层返回原回执；只有新操作沿用原实际输入并追加候选。
         var turnUpdatedAt = at.isBefore(turn.updatedAt()) ? turn.updatedAt() : at;
-        var updated = replay ? turn : Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
+        var updated = Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), candidates,
                 turn.effectiveCandidate(),
                 turn.version() + 1, turn.createdAt(), turnUpdatedAt);

@@ -3,7 +3,9 @@ package com.arte.ainew.application.support;
 import com.arte.ainew.config.NewAiProperties;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.ResolvedBinding;
+import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.generation.ChatMessage;
+import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.serialization.CanonicalJson;
 import com.arte.core.enums.ResultCodeEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,25 @@ public final class TextInputs {
     private static final long ESTIMATED_MESSAGE_OVERHEAD = 64L;
 
     private TextInputs() {
+    }
+
+    /**
+     * 核验耐久调用引用的实际输入，禁止在重放或重新生成时用另一份历史、绑定或消息替代原快照。
+     * 保留时间到期不等于字节已删除；新调用的当前资格和容量仍由协调器检查。
+     */
+    public static void requireActualSnapshot(Invocation invocation, ContextSnapshot snapshot) {
+        if (!(invocation.request().input() instanceof GenerationRequest generation)
+                || !snapshot.snapshotId().equals(invocation.contextSnapshotId())
+                || !snapshot.modelBinding().equals(invocation.request().binding())
+                || !snapshot.messages().equals(generation.messages())
+                || !snapshot.contentDigest().equals(contentDigest(snapshot.messages())))
+            throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+        var link = invocation.conversation();
+        // 重新生成沿用原问题位置的历史，历史版本可早于这次新调用的受理版本。
+        var history = snapshot.history();
+        if (link != null && history != null && (!history.conversationId().equals(link.conversationId())
+                || history.conversationVersion() > link.conversationVersion()))
+            throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
     }
 
     public static void validate(List<ChatMessage> messages, NewAiProperties.Limits limits) {

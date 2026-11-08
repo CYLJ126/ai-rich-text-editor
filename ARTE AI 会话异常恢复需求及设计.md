@@ -1,7 +1,7 @@
 # ARTE AI 会话异常恢复需求及设计
 
-> 版本：V1.3；更新日期：2026-11-08。
-> 状态：ER-1、ER-2 已实施并完成定向验证；ER-3～ER-6 待实施，整体异常恢复尚未交付。
+> 版本：V1.4；更新日期：2026-11-08。
+> 状态：ER-1～ER-3 已实施并完成定向验证；ER-4～ER-6 待实施，整体异常恢复尚未交付。
 > 范围：普通文本会话的异常恢复。不考虑历史数据兼容、已有记录修复、配置迁移或新增配置开关。
 
 本文补充[聊天界面主文档](ARTE%20AI%20聊天界面需求及设计.md)的发送、重新生成、上下文和费用恢复规则。 涉及普通文本 `UNKNOWN`
@@ -367,13 +367,13 @@ ResultContext。 返回结构固定为：
 
 ## 7. 实施落点与顺序
 
-ER-1、ER-2 已完成，后续阶段仍为待实施项；验证证据分别见第 9.2、9.3 节。
+ER-1～ER-3 已完成，后续阶段仍为待实施项；验证证据见第 9.2～9.4 节。
 
 | 阶段           | 主要落点                                                                               | 修改内容与退出条件                                                                         |
 |----------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
 | ER-1（已完成） | `Invocation`、会话判定组件、`InvocationStatusResponse`、会话级占用只读接口、前端类型   | 集中资格／占用规则及一致性读取，完成普通文本／工具子调用、同版本占用变化与迟到读取测试     |
 | ER-2（已完成） | `MybatisExecutionPersistence.completeLocked/stopExpired/acceptLocked`、会话受理事务    | 所有合格终止路径正常释放，只放宽合法重新生成来源；事务和并发测试通过                       |
-| ER-3           | `ChatHistoryLoader.completed`、`DefaultChatService.regenerate/regenerationSubmission`  | 跳过无完整候选的失败轮；复用原快照和新候选流程；不因旧费用改变上下文                       |
+| ER-3（已完成） | `ChatHistoryLoader.completed`、`DefaultChatService.regenerate/regenerationSubmission`  | 跳过无完整候选的失败轮；复用原快照和新候选流程；不因旧费用改变上下文                       |
 | ER-4           | `useChatSession.ts`、`BusinessChatPanel.tsx`、浏览器恢复记录、多语言文案               | 分开三类状态；补充复制草稿、损坏信息分流／隔离、上下文标记及有限自动读取                   |
 | ER-5           | 公共账户资源授权、预算核对应用服务、管理核对接口、`ReconciliationPanel.tsx` 和预算展示 | 补齐责任指派与目标账户核对，不模拟 owner；本人／责任人／治理人权限及证据不可得路径通过验证 |
 | ER-6           | 现有会话／生成／核对集成测试、前端恢复测试及浏览器验收                                 | 覆盖第 8 节及恢复时延／用户任务试用，补齐证据后才能宣布交付                                |
@@ -430,9 +430,10 @@ ER-1、ER-2 已完成，后续阶段仍为待实施项；验证证据分别见�
 ## 9. 文档交付与实施状态
 
 - V1.1 文档交付：补齐需求、产品决策、状态语义、架构职责、目标接口、实现落点及验收场景。
-- ER-1 已完成集中资格／占用判定、状态投影、会话级一致性只读接口和前端读取基础；ER-2 已完成终态释放和来源受理事务。ER-3～ER-6
-  待实施。ER-AC01～ER-AC38 整体验收仍待执行；第 6.5 节数值未测，第 6.6 节试用未开展。
-- ER-2 修改终态释放及受理事务，不修改历史加载、页面放行、预算扣费规则；未新增表、配置开关或历史迁移，未执行真实模型调用、部署或真实费用核对。
+- ER-1 已完成集中资格／占用判定、状态投影、会话级一致性只读接口和前端读取基础；ER-2 已完成终态释放和来源受理事务；ER-3
+  已完成历史跳过、实际快照核验及重新生成／回执分流。ER-4～ER-6 待实施。ER-AC01～ER-AC38 整体验收仍待执行；第 6.5 节数值未测，第
+  6.6 节试用未开展。
+- ER-3 修改历史加载及重新生成应用服务，不修改页面放行及预算扣费规则；未新增表、配置开关或历史迁移，未执行真实模型调用、部署或真实费用核对。
 - 编码时同步聊天／执行／预算接口说明及前端恢复文档，删除相应“目标、待实施”标识须附新增验证证据，保留历史验收事实。
 
 ### 9.1 V1.1 修订记录（2026-11-08）
@@ -495,7 +496,8 @@ npm run tsc
 - 删除受理时修复旧停止门闩的兼容分支。非空 gate 一律冲突，本期只验证新建数据由终态事务正常释放，不通过新受理、同键重放或历史迁移修复旧记录。
 - 事务测试覆盖双实例不同操作竞争、同键重新生成、旧完成／迟到输出、旧账单与新执行隔离、gate／终态／事件故障回滚、Worker 失效
   fencing，以及非普通文本来源的拒绝。隔离夹具中的直接 gate 修改仅用于故障和资格边界验证。
-- ER-3 的 `ChatHistoryLoader` 尚未修改，普通 UNKNOWN 即使已释放 gate，普通新问题仍可能被历史加载拒绝；ER-4 页面仍未接入普通
+- ER-2 交付时，ER-3 的 `ChatHistoryLoader` 尚未修改，普通 UNKNOWN 即使已释放 gate，普通新问题仍可能被历史加载拒绝；ER-4
+  页面仍未接入普通
   UNKNOWN 放行。ER-2 不能作为整体验收或用户已可继续聊天的声明。
 
 验证结果：
@@ -514,5 +516,42 @@ npm run tsc
 mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest=MybatisExecutionPersistenceTest,RegenerationReconciliationIntegrationTest,ConversationExecutionPolicyTest,ConversationHttpIntegrationTest,InvocationHttpIntegrationTest,DispatchIntegrationTest,DispatchWorkerIntegrationTest,DispatchPreparationIntegrationTest,FreeDispatchPreparationIntegrationTest,ToolChatHistoryStoreTest,ToolChatLoopTest,ToolChatBudgetStoreTest,ToolInvocationIntegrationTest,ToolSubmissionExecutionTest,ToolSchedulingIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-本轮为隔离 H2、同库双实例和本机模拟供应商验证；未使用真实供应商、用户数据库或真实账单，未执行数据迁移、部署或浏览器端到端验收。前端业务代码及历史加载未修改，ER-1
-的前端／TypeScript 记录保留为历史证据，不作为 ER-2 新增验证。ER-3～ER-6 和整体 38 项验收仍待完成。
+ER-2 本轮为隔离 H2、同库双实例和本机模拟供应商验证；未使用真实供应商、用户数据库或真实账单，未执行数据迁移、部署或浏览器端到端验收。当时未修改前端业务代码及历史加载，ER-1
+的前端／TypeScript 记录保留为历史证据。ER-3 后续实施见第 9.4 节，整体 38 项验收仍待完成。
+
+### 9.4 ER-3 实施记录（V1.4，2026-11-08）
+
+- `ChatHistoryLoader.completed` 只依据当前有效候选核验直接关联、owner、执行状态及结果。合格普通文本
+  UNKNOWN、已知失败及部分输出整轮跳过，不把失败问题单独塞回历史；此前完整成功候选仍被采用时继续保留该完整问答。
+- 活跃、不合格 UNKNOWN、工具声明／工具消息、编排子调用不能借普通文本规则跳过。权威调用缺失、归属／关联错误、成功结果缺失／损坏／类型或完整性不一致明确报错，不作为可跳过失败吞掉。工具聊天仍按
+  Run 的最终子模型结果契约读取。
+- 继续先取最近最多十个 Turn 再筛选，跳过后不向更早历史补足；最终快照记录实际采用的 Turn ID。没有可用完整问答时
+  history=null，不写空历史选择，也不删除原轮次、部分输出或费用。
+- `TextInputs.requireActualSnapshot` 统一核验调用引用的快照 ID、精确绑定、有序消息、内容摘要和历史归属；重新生成沿用原问题位置的历史版本，允许它早于新
+  Invocation 的受理版本。新操作缺失或不匹配快照明确拒绝，不重组另一份历史。
+- `DefaultChatService.regenerate` 分开新操作和原回执：新操作检查普通文本资格、本地终态、当前会话版本及最新
+  Turn，再沿用原实际输入、生成参数、能力／绑定精确版本、预算和发布引用创建独立候选；协调器及最终受理事务继续检查当前权限、版本可用性、容量和预算资格。
+- 已受理同键操作核对来源、会话、原版本及执行选项（含相对超时）后，在当前会话／读取权限下返回原 ID
+  和时间；后续新增消息、源快照删除或模型停用不使它创建第二项操作。新键仍必须读取原快照并重新校验原精确模型可用性，不静默替换模型。
+- 旧费用核对只更新旧调用及其账本证据，不改变新调用的实际输入快照、候选选择或当前占用；费用仍 RESERVED 时也不妨碍合格新问题的历史组装。
+- 后端已可在合格 UNKNOWN 后显式提交独立新问题或重新生成；ER-4 页面动作条件、上下文标记、复制草稿和恢复交互尚未实现，整体异常恢复仍未交付。
+
+验证结果：
+
+| 检查 | ER-3 本轮结果 |
+|---|---|
+| 后端 17 组定向回归 | 360 项：357 通过、3 跳过、0 失败、0 错误；跳过项均要求隔离 Redis 端点，新增 ER-3 测试无跳过 |
+| 历史采用 | UNKNOWN 无输出／部分输出、费用仍 RESERVED、所有已知失败整轮跳过；旧成功候选保留及最近十轮不补足通过 |
+| 快照及回执 | 连续重新生成保留原历史版本；源快照缺失／不一致拒绝新操作；模型停用拒绝新操作，同键原回执仍可确认；变更版本／超时及复用发送键冲突通过 |
+| 完整性及隔离 | 权威记录缺失、错误归属／关联、成功结果缺失／损坏／不完整明确失败；工具消息、声明、结构化输出、子调用及 Run 规则回归通过 |
+| 本机模拟 HTTP/SSE | 36 项通过；显式新问题只新增一次独立模型请求，原 UNKNOWN 不自动重试，旧费用预留保留 |
+| 差异检查 | `git diff --check` 通过 |
+
+使用 JDK 21，在仓库根目录执行：
+
+```sh
+mvn -o -f backend/pom.xml -pl arte-ai -am -Dtest=MybatisExecutionPersistenceTest,RegenerationReconciliationIntegrationTest,AdmissionIntegrationTest,ChatHttpIntegrationTest,ConversationExecutionPolicyTest,ConversationHttpIntegrationTest,InvocationHttpIntegrationTest,DispatchIntegrationTest,DispatchWorkerIntegrationTest,DispatchPreparationIntegrationTest,FreeDispatchPreparationIntegrationTest,ToolChatHistoryStoreTest,ToolChatLoopTest,ToolChatBudgetStoreTest,ToolInvocationIntegrationTest,ToolSubmissionExecutionTest,ToolSchedulingIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+本轮使用新建隔离 H2、同库双实例和仅监听 127.0.0.1 的模拟供应商，未使用真实模型、用户数据库或真实账单。没有新增表、配置开关、历史迁移、部署或浏览器端到端验收；前端代码及
+TypeScript 未在本阶段修改或重测，既有记录不冒充本阶段证据。ER-4～ER-6、恢复时延、用户任务试用和整体 38 项验收仍待完成。

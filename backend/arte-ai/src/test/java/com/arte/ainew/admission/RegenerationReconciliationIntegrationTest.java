@@ -179,24 +179,30 @@ public class RegenerationReconciliationIntegrationTest {
     }
 
     @Test
-    public void ordinaryUnknownReleasesGateWhileHistoryAndBillRemainIndependent() {
+    public void ordinaryUnknownCanContinueBeforeBillAndOldBillCannotChangeAcceptedInput() {
         var conversation = create();
         var id = submit(conversation.conversationId(), "question");
         var reservation = start(id);
         complete(id, "partial", true, false);
         reservation = pending(reservation);
-        assertNull(first.conversations.executionState(conversation.conversationId(), first.context("alice", "execution-state")).block().activeExecution());
-        // 历史跳过仍属 ER-3；此处拒绝来自历史加载，不是会话门闩或费用占用。
-        code(ResultCodeEnum.AI_CONVERSATION_BUSY, () -> submit(conversation.conversationId(), "blocked"));
+        var next = submit(conversation.conversationId(), "can continue before bill");
+        var accepted = find(next);
+        var snapshot = first.payloads.find(owner, accepted.contextSnapshotId()).block();
+        assertNull(snapshot.history());
+        assertEquals(1, snapshot.messages().size());
+        assertEquals("can continue before bill", ((ChatMessage.Text) snapshot.messages().getFirst().content().getFirst()).text());
+        assertEquals(Invocation.State.UNKNOWN, find(id).state());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        var turn = first.executions.findTurn(owner, conversation.conversationId(), find(id).conversation().turnId()).block();
         var confirm = command(id, reservation, "verify", "0");
         assertEquals(APPLIED, first.executions.confirmReconciliation(confirm).block().code());
         assertEquals(Invocation.State.FAILED, find(id).state());
-        assertTrue(find(id).result().partial());
-        assertEquals(AdmissionFixture.money("0"), account().charged());
+        assertEquals(accepted, find(next));
+        assertEquals(snapshot, first.payloads.find(owner, accepted.contextSnapshotId()).block());
+        assertEquals(turn, first.executions.findTurn(owner, conversation.conversationId(), turn.turnId()).block());
+        assertEquals(next, first.conversations.executionState(conversation.conversationId(), first.context("alice", "state")).block().activeExecution().executionId());
         assertEquals(AdmissionFixture.money("0"), account().held());
-        var next = submit(conversation.conversationId(), "can continue");
-        var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
-        assertEquals(1, snapshot.messages().size());
+        assertEquals(AdmissionFixture.money("0"), account().charged());
     }
 
     @Test
@@ -258,6 +264,285 @@ public class RegenerationReconciliationIntegrationTest {
         assertEquals(1, count("arte_ai_reservation"));
         assertEquals(AdmissionFixture.money("1"), account().held());
         assertEquals(2, first.executions.findTurn(owner, conversation.conversationId(), find(id).conversation().turnId()).block().candidates().size());
+    }
+
+    private com.arte.ainew.pojo.context.ContextSnapshot history(String conversationId) {
+        var context = first.context("alice", UUID.randomUUID().toString());
+        var input = first.chatRequest(conversationId, conversation(conversationId).version(), "next", context).context();
+        var selection = new com.arte.ainew.pojo.context.ContextRequest(input.messages(),
+                new com.arte.ainew.pojo.context.ContextRequest.HistorySelection(conversationId, conversation(conversationId).version(), List.of(), 10),
+                List.of(), List.of(), null, input.budget());
+        return first.contexts.assemble(selection, first.catalog.resolve(AdmissionFixture.BINDING, AdmissionFixture.CAP, context).block(), context).block();
+    }
+
+    private void replace(Invocation invocation) {
+        jdbc.update("UPDATE arte_ai_invocation SET workspace_snapshot=? WHERE id_key=?", first.codec.encode(invocation),
+                com.arte.ainew.serialization.CanonicalJson.key(invocation.request().context().executionId()));
+    }
+
+    @Test
+    public void noOutputUnknownCanContinueWhileReservationIsStillReserved() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "failed question");
+        var reservation = start(id);
+        var error = new ExecutionError("HTTP_500", ExecutionError.Phase.INVOCATION, false, ExecutionError.SideEffect.POSSIBLE, ExecutionError.Certainty.UNKNOWN, "trace");
+        assertTrue(first.executions.commitCompletion(new ExecutionCommands.Complete(guard(id), "unknown-no-output",
+                new ExecutionPayload.Terminal(Invocation.State.UNKNOWN, null, error), Usage.unknown(), null)).block().successful());
+        var next = submit(conversation.conversationId(), "independent question");
+        var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
+        assertNull(snapshot.history());
+        assertEquals(1, snapshot.messages().size());
+        assertEquals(reservation, first.executions.reservation(owner, reservation.reservationId()).block());
+        start(next);
+        assertEquals(AdmissionFixture.money("2"), account().held());
+        assertEquals(2, count("arte_ai_reservation"));
+        assertEquals(Invocation.State.UNKNOWN, find(id).state());
+    }
+
+    @Test
+    public void everyKnownFailureSkipsBothQuestionAndAnswer() {
+        for (var state : List.of(Invocation.State.FAILED, Invocation.State.CANCELLED, Invocation.State.TIMED_OUT, Invocation.State.INTERRUPTED)) {
+            var conversation = create();
+            var id = submit(conversation.conversationId(), "failed question");
+            var error = new ExecutionError("KNOWN_FAILURE", ExecutionError.Phase.INVOCATION, false,
+                    ExecutionError.SideEffect.NONE, ExecutionError.Certainty.KNOWN, "trace");
+            assertTrue(first.executions.commitCompletion(new ExecutionCommands.CompleteBeforeAttempt(new ExecutionCommands.Version(owner, id, 0), "known",
+                    new ExecutionPayload.Terminal(state, null, error))).block().successful());
+            var next = submit(conversation.conversationId(), "independent");
+            var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
+            assertNull(snapshot.history());
+            assertEquals(1, snapshot.messages().size());
+        }
+    }
+
+    @Test
+    public void failedRegenerationKeepsPriorFullAnswerAndBillDoesNotChangeItsContext() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "complete original answer", false, false);
+        var regeneration = regenerate(id, 1, "regeneration").executionId();
+        var reservation = start(regeneration);
+        complete(regeneration, "failed replacement", true, false);
+        reservation = pending(reservation);
+        var source = find(id);
+        var turn = first.executions.findTurn(owner, conversation.conversationId(), source.conversation().turnId()).block();
+        assertEquals(id, turn.selectedInvocationId());
+        var next = submit(conversation.conversationId(), "next");
+        var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
+        assertEquals(List.of(turn.turnId()), snapshot.history().turnIds());
+        assertEquals(3, snapshot.messages().size());
+        assertEquals("complete original answer", ((ChatMessage.Text) snapshot.messages().get(1).content().getFirst()).text());
+        assertEquals(APPLIED, first.executions.confirmReconciliation(command(regeneration, reservation, "bill", "0.3")).block().code());
+        assertEquals(snapshot, first.payloads.find(owner, find(next).contextSnapshotId()).block());
+        assertEquals(turn, first.executions.findTurn(owner, conversation.conversationId(), turn.turnId()).block());
+        assertEquals(source, find(id));
+        assertEquals(next, first.conversations.executionState(conversation.conversationId(), first.context("alice", "state")).block().activeExecution().executionId());
+        assertEquals(regeneration, regenerate(id, 1, "regeneration").executionId());
+        code(ResultCodeEnum.AI_INVALID_STATE, () -> regenerate(id, conversation(conversation.conversationId()).version(), "old-turn"));
+    }
+
+    @Test
+    public void failedRegenerationWithoutSuccessfulCandidateSkipsTheEntireTurn() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "unknown original", true, false);
+        var regenerated = regenerate(id, 1, "regenerate").executionId();
+        start(regenerated);
+        complete(regenerated, "unknown replacement", true, false);
+        var next = submit(conversation.conversationId(), "independent");
+        var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
+        assertNull(snapshot.history());
+        assertEquals(1, snapshot.messages().size());
+        assertEquals(2, count("arte_ai_turn"));
+        assertEquals(3, count("arte_ai_invocation"));
+    }
+
+    @Test
+    public void unknownRoundsDoNotBackfillEarlierTurnsBeyondTheRecentTen() {
+        var conversation = create();
+        for (int i = 0; i < 12; i++) {
+            var id = submit(conversation.conversationId(), "question " + i);
+            start(id);
+            complete(id, "answer " + i, i >= 2, false);
+        }
+        var next = submit(conversation.conversationId(), "q13");
+        var snapshot = first.payloads.find(owner, find(next).contextSnapshotId()).block();
+        assertNull(snapshot.history());
+        assertEquals(1, snapshot.messages().size());
+        assertEquals(13, first.executions.findTurn(owner, conversation.conversationId(), find(next).conversation().turnId()).block().sequence());
+    }
+
+    @Test
+    public void regenerationReceiptSurvivesDeletedSourceSnapshotAndStillRejectsChangedOperation() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "answer", false, false);
+        var accepted = regenerate(id, 1, "same-key");
+        first.executions.requestControl(owner, new ExecutionControlRequest("cancel", accepted.executionId(), "cancel", ControlReceipt.Command.CANCEL)).block();
+        var source = find(id);
+        jdbc.update("DELETE FROM arte_ai_context_snapshot WHERE id_key=?", com.arte.ainew.serialization.CanonicalJson.key(
+                com.arte.ainew.serialization.CanonicalJson.key(owner.tenantId(), owner.workspaceId(), owner.subjectId()), source.contextSnapshotId()));
+        assertEquals(accepted, regenerate(id, 1, "same-key"));
+        code(ResultCodeEnum.AI_CONTEXT_NOT_FOUND, () -> regenerate(id, 2, "new-key"));
+        code(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT, () -> regenerate(id, 2, "same-key"));
+        var context = first.context("alice", "same-key");
+        var options = new ExecutionOptions(context.deadline(), 1, 4096, 0, 0, Duration.ofSeconds(30));
+        code(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT, () -> first.chat.regenerate(new EntryRequests.Regenerate(id, 1, options), context).block());
+        assertEquals(2, count("arte_ai_invocation"));
+        assertEquals(1, count("arte_ai_turn"));
+    }
+
+    @Test
+    public void regenerationUsesExactModelAndReceiptDoesNotRequireReenabledModel() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "answer", false, false);
+        var accepted = regenerate(id, 1, "same-key");
+        first.executions.requestControl(owner, new ExecutionControlRequest("cancel", accepted.executionId(), "cancel", ControlReceipt.Command.CANCEL)).block();
+        var old = first.properties;
+        var capability = old.capabilities().getFirst();
+        var disabledCapability = new com.arte.ainew.pojo.control.CapabilityDescriptor(capability.definition(), capability.kind(), capability.inputSchema(),
+                capability.outputSchema(), capability.features(), capability.sideEffect(), com.arte.ainew.pojo.control.CapabilityDescriptor.Availability.DISABLED);
+        var binding = old.bindings().getFirst();
+        var disabledBinding = new com.arte.ainew.pojo.control.ResolvedBinding(binding.definition(), disabledCapability, binding.target(), binding.contextWindowTokens(), binding.rate());
+        var disabled = new com.arte.ainew.testing.TestAiConfiguration(old.enabled(), old.dataSourceBean(), old.releaseRef(), old.persistence(), old.limits(),
+                old.grants(), List.of(disabledCapability), List.of(disabledBinding), old.connections(), old.rates(), old.budgets());
+        var disabledFixture = new AdmissionFixture(dataSource, scheduler, first.codec, disabled);
+        var replay = disabledFixture.context("alice", "same-key");
+        assertEquals(accepted, disabledFixture.chat.regenerate(new EntryRequests.Regenerate(id, 1,
+                disabledFixture.chatRequest("unused", 0, "unused", replay).options()), replay).block());
+        var fresh = disabledFixture.context("alice", "new-key");
+        assertThrows(AdmissionException.class, () -> disabledFixture.chat.regenerate(new EntryRequests.Regenerate(id, 2,
+                disabledFixture.chatRequest("unused", 0, "unused", fresh).options()), fresh).block());
+        assertEquals(2, count("arte_ai_invocation"));
+        assertNull(first.conversations.executionState(conversation.conversationId(), first.context("alice", "state")).block().activeExecution());
+    }
+
+    @Test
+    public void snapshotMismatchDoesNotRebuildARegenerationFromDifferentHistory() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "partial", true, false);
+        var snapshot = first.payloads.find(owner, find(id).contextSnapshotId()).block();
+        var messages = List.of(new ChatMessage("changed", ChatMessage.Role.USER, List.of(new ChatMessage.Text("different question")), List.of(), null));
+        var changed = new com.arte.ainew.pojo.context.ContextSnapshot(snapshot.snapshotId(), snapshot.history(), snapshot.modelBinding(), messages,
+                snapshot.fragments(), snapshot.budget(), snapshot.inputTokens(), snapshot.estimatedTokens(), snapshot.tokenizerVersion(), snapshot.truncations(),
+                com.arte.ainew.application.support.TextInputs.contentDigest(messages), snapshot.createdAt(), snapshot.expiresAt(), snapshot.assistant());
+        var bytes = first.codec.encode(changed);
+        jdbc.update("UPDATE arte_ai_context_snapshot SET workspace_snapshot=?,payload_digest=?", bytes, com.arte.ainew.serialization.CanonicalJson.sha256(bytes));
+        code(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT, () -> regenerate(id, 1, "regenerate"));
+        assertEquals(1, count("arte_ai_invocation"));
+        assertEquals(1, count("arte_ai_turn"));
+        assertNull(first.conversations.executionState(conversation.conversationId(), first.context("alice", "state")).block().activeExecution());
+    }
+
+    @Test
+    public void missingInvocationWrongLinkAndCorruptSuccessAreNotSkippedAsOrdinaryFailures() {
+        for (var problem : List.of("missing", "wrong-link", "wrong-owner", "missing-result", "corrupt-result")) {
+            var conversation = create();
+            var id = submit(conversation.conversationId(), "question");
+            start(id);
+            complete(id, "answer", false, false);
+            var original = find(id);
+            if (problem.equals("missing"))
+                jdbc.update("DELETE FROM arte_ai_invocation WHERE id_key=?", com.arte.ainew.serialization.CanonicalJson.key(id));
+            if (problem.equals("wrong-link")) replace(new Invocation(original.request(), original.requestDigest(),
+                    new Invocation.ConversationLink("other-conversation", 0, original.conversation().turnId()), original.contextSnapshotId(), null,
+                    original.state(), original.version(), original.activeAttemptId(), original.result(), original.error(), original.acceptedAt(), original.updatedAt()));
+            if (problem.equals("wrong-owner")) {
+                var context = original.request().context();
+                var auth = context.authorization();
+                var changedAuth = new com.arte.ainew.common.execution.ExecutionAuthorization(
+                        new com.arte.ainew.common.execution.ExecutionPrincipal("bob-id", "bob", com.arte.ainew.common.execution.ExecutionPrincipal.Kind.USER),
+                        auth.tenantId(), auth.workspaceId(), auth.scopes(), auth.grantRef());
+                var changedContext = new com.arte.ainew.common.execution.ExecutionContext(context.executionId(), context.traceId(), changedAuth, context.deadline(),
+                        null, context.budgetRef(), context.releaseRef(), context.idempotencyKey());
+                var request = new InvocationRequest<>(original.request().capability(), original.request().binding(), original.request().kind(),
+                        original.request().input(), original.request().options(), changedContext);
+                replace(new Invocation(request, original.requestDigest(), original.conversation(), original.contextSnapshotId(), null,
+                        original.state(), original.version(), original.activeAttemptId(), original.result(), original.error(), original.acceptedAt(), original.updatedAt()));
+            }
+            if (problem.equals("missing-result"))
+                jdbc.update("DELETE FROM arte_ai_result WHERE id_key=?", original.result().resultId());
+            if (problem.equals("corrupt-result"))
+                jdbc.update("UPDATE arte_ai_result SET workspace_snapshot='{}' WHERE id_key=?", original.result().resultId());
+            assertThrows(IllegalStateException.class, () -> history(conversation.conversationId()));
+        }
+    }
+
+    @Test
+    public void toolBearingStructuredAndChildUnknownsStillRejectHistoryAssembly() {
+        for (var variant : List.of("tools", "tool-message", "structured", "child")) {
+            var conversation = create();
+            var id = submit(conversation.conversationId(), "question");
+            start(id);
+            complete(id, "partial", true, false);
+            var original = find(id);
+            var input = (com.arte.ainew.pojo.generation.GenerationRequest) original.request().input();
+            var messages = new ArrayList<>(input.messages());
+            var tools = variant.equals("tools") ? List.of(new com.arte.ainew.pojo.generation.GenerationRequest.ToolDefinition(
+                    new com.arte.core.pojo.reference.DefinitionRef("tool", "read", "v1"), "read",
+                    new com.arte.core.pojo.reference.DefinitionRef("schema", "args", "v1"), com.arte.ainew.pojo.control.CapabilityDescriptor.SideEffect.READ_ONLY)) : input.tools();
+            if (variant.equals("tool-message"))
+                messages.add(new ChatMessage("tool", ChatMessage.Role.TOOL, List.of(new ChatMessage.Text("done")), List.of(), "call"));
+            com.arte.ainew.pojo.generation.GenerationRequest.OutputFormat format = variant.equals("structured")
+                    ? new com.arte.ainew.pojo.generation.GenerationRequest.StructuredOutput(new com.arte.core.pojo.reference.DefinitionRef("schema", "output", "v1")) : input.outputFormat();
+            var changedInput = new com.arte.ainew.pojo.generation.GenerationRequest(messages, input.options(), tools, format);
+            var context = original.request().context();
+            var changedContext = new com.arte.ainew.common.execution.ExecutionContext(context.executionId(), context.traceId(), context.authorization(), context.deadline(),
+                    variant.equals("child") ? "run" : null, context.budgetRef(), context.releaseRef(), context.idempotencyKey());
+            var request = new InvocationRequest<>(original.request().capability(), original.request().binding(), changedInput.kind(), changedInput,
+                    new ExecutionOptions(context.deadline(), 1, 4096, 1, 1), changedContext);
+            replace(new Invocation(request, original.requestDigest(), original.conversation(), original.contextSnapshotId(), null,
+                    original.state(), original.version(), original.activeAttemptId(), original.result(), original.error(), original.acceptedAt(), original.updatedAt()));
+            code(ResultCodeEnum.AI_CONVERSATION_BUSY, () -> history(conversation.conversationId()));
+            code(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED, () -> regenerate(id, 1, "regenerate-" + variant));
+        }
+    }
+
+    @Test
+    public void incompleteSuccessReturnedByResultPortIsAnErrorInsteadOfAnEmptyHistory() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        start(id);
+        complete(id, "answer", false, false);
+        var auth = TestAuthorizations.create(new TestAuthorizationResolver(first.properties), first.properties, Clock.systemUTC());
+        var incomplete = new InvocationResult.Generation(new ModelResult("incomplete", new ModelResult.ModelIdentity("provider", "model", null),
+                List.of(new ChatMessage("partial", ChatMessage.Role.ASSISTANT, List.of(new ChatMessage.Text("partial")), List.of(), null)),
+                ModelResult.FinishReason.LENGTH, false, null, Usage.unknown(), List.of()));
+        var results = new com.arte.ainew.spi.persistence.ExecutionResultStore() {
+            public reactor.core.publisher.Mono<StoreOutcome<ResultRef>> put(ExecutionOwner o, String invocation, String attempt, String key, InvocationResult value) {
+                throw new AssertionError("History cannot write results");
+            }
+
+            public reactor.core.publisher.Mono<InvocationResult> find(ExecutionOwner o, String invocation, ResultRef ref) {
+                return reactor.core.publisher.Mono.just(incomplete);
+            }
+        };
+        var loader = new com.arte.ainew.application.context.ChatHistoryLoader(first.conversations, auth, first.executions, first.payloads, results);
+        assertThrows(IllegalStateException.class, () -> loader.load(new com.arte.ainew.pojo.context.ContextRequest.HistorySelection(
+                conversation.conversationId(), 1, List.of(), 10), AdmissionFixture.CAP.id(), first.context("alice", "read-history")).block());
+    }
+
+    @Test
+    public void regenerationReceiptRechecksReadPermissionAndDoesNotAcceptASendKey() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var sourceKey = find(id).request().context().idempotencyKey();
+        start(id);
+        complete(id, "answer", false, false);
+        var accepted = regenerate(id, 1, "regenerate");
+        var restricted = first.context("alice", "regenerate", Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION));
+        assertThrows(AccessDeniedException.class, () -> first.chat.regenerate(new EntryRequests.Regenerate(id, 1,
+                first.chatRequest("unused", 0, "unused", restricted).options()), restricted).block());
+        code(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT, () -> regenerate(id, 1, sourceKey));
+        assertEquals(accepted, regenerate(id, 1, "regenerate"));
+        assertEquals(2, count("arte_ai_invocation"));
     }
 
     @Test
