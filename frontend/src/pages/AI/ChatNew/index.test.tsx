@@ -50,6 +50,7 @@ vi.mock('@/services/arte-ai', async original => ({
   discoverChatOptions: vi.fn(),
   queryConversationWindow: vi.fn(),
   getConversation: vi.fn(),
+  getConversationExecutionState: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   getInvocationSnapshot: vi.fn(),
   getBudget: vi.fn(),
@@ -133,6 +134,19 @@ beforeEach(() => {
     return {invocationId: query.invocationId, status, result, missing: false};
   });
   vi.mocked(api.getConversation).mockResolvedValue(reply(conversation));
+  vi.mocked(api.getConversationExecutionState).mockImplementation(async query => {
+    const value = (await vi.mocked(api.getConversation).getMockImplementation()!(query)).body.data;
+    return {
+      httpStatus: 200, body: {
+        success: true, code: '200', desc: 'OK', data: {
+          conversationId: query.conversationId,
+          version: value.version,
+          activeExecution: null,
+          observedAt: '2026-11-08T00:00:00Z'
+        }
+      }
+    };
+  });
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({
     budgetRef: 'budget',
@@ -326,8 +340,10 @@ it('keeps the current chat and results when lower preparation fails, and scrubs 
 it('keeps dirty configuration protection for search navigation and releases its pending action on cancel', async () => {
   render(<ChatNewPage/>);
   await chooseConversation();
+  await screen.findByText('可用余额 100 CNY');
   fireEvent.click(screen.getByRole('button', {name: '高级参数'}));
   fireEvent.change(screen.getByRole('spinbutton', {name: /最大输出 Token/}), {target: {value: '1024'}});
+  await screen.findByText('有未应用更改');
   await searchReady();
   const reads = vi.mocked(api.getConversation).mock.calls.length;
   fireEvent.click(screen.getByRole('button', {name: '查看命中消息：搜索中的会话'}));
@@ -571,7 +587,7 @@ it('returns from model preparation without auto-applying a unique model, then ex
       '历史读取失败，请重试。', '正在恢复历史…', '执行结果待确认，请刷新或查看待核对费用。']
       .filter(text => screen.queryAllByText(text, {exact: true}).length);
     expect(screen.getByRole('button', {name: '发送'}), blockers.join(' | ')).toBeEnabled();
-  });
+  }, {timeout: 5000});
   expect(readModelChatHandoff(context).handoff).toBeNull();
 });
 

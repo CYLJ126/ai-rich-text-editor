@@ -24,6 +24,7 @@ import {
   type ReconciliationReceipt,
 } from '@/services/arte-ai';
 import type {ChatTestConfig} from './config';
+import {recoveryRead} from './recoveryRead';
 import {type BrowserContext, readOperation, saveOperation, STORAGE_WARNING} from './storage';
 import '../aiManagement.css';
 
@@ -35,6 +36,7 @@ export default function ReconciliationPanel({
                                               context,
                                               writable = true,
                                               onUnsafeToLeave,
+                                              onPendingCount,
                                             }: {
   config: ChatTestConfig;
   t: (key: string) => string;
@@ -42,6 +44,7 @@ export default function ReconciliationPanel({
   context?: BrowserContext;
   writable?: boolean;
   onUnsafeToLeave?: (unsafe: boolean) => void;
+  onPendingCount?: (count: number) => void;
 }) {
   const formId = useId();
   const [restored] = useState(() => readOperation<ConfirmReconciliationRequest>(context, 'reconcile', config.budgetRef));
@@ -102,7 +105,7 @@ export default function ReconciliationPanel({
     setError(null);
     const settings = currentSettings.current;
     try {
-      const {body} = await pendingReconciliations(
+      const {body} = await recoveryRead(signal => pendingReconciliations(
         {
           scope: {
             tenantId: settings.tenantId,
@@ -112,15 +115,25 @@ export default function ReconciliationPanel({
           current,
           size: 10,
         },
-        {signal: controller.signal},
-      );
+        {signal},
+      ), controller.signal);
       if (controller.signal.aborted || !alive.current) return;
+      onPendingCount?.(body.data.page.total);
       setRecords(body.data.page.records);
       setPage(body.data.page.current);
       setTotal(body.data.page.total);
       setCanReconcile(body.data.canReconcile);
     } catch (failure) {
-      if (!controller.signal.aborted && alive.current) setError(failure);
+      if (!controller.signal.aborted && alive.current) {
+        setError(failure);
+        if (failure instanceof AiApiError && [401, 403, 404].includes(failure.httpStatus)) {
+          setRecords([]);
+          setSelected(null);
+          setReceipt(null);
+          setCanReconcile(false);
+          onPendingCount?.(0);
+        }
+      }
     } finally {
       if (!controller.signal.aborted && alive.current) setLoading(false);
     }
@@ -144,12 +157,12 @@ export default function ReconciliationPanel({
     writes.current = controller;
     setSaving(true);
     try {
-      const {body} = await reconciliationReceipt({
+      const {body} = await recoveryRead(signal => reconciliationReceipt({
         scope: snapshot.request.scope,
         budgetRef: snapshot.request.budgetRef,
         invocationId: snapshot.request.invocationId,
         key: snapshot.key
-      }, {signal: controller.signal});
+      }, {signal}), controller.signal);
       if (controller.signal.aborted || !alive.current) return;
       setReceipt(body.data);
       setPending(null);

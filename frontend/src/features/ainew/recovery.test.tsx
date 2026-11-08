@@ -1,4 +1,5 @@
 import React, {useState} from 'react';
+import {Modal} from 'antd';
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import * as api from '@/services/arte-ai';
@@ -27,6 +28,7 @@ vi.mock('@/services/arte-ai/toolInvocation', async original => ({
 vi.mock('@/services/arte-ai', async original => ({
   ...(await original<typeof import('@/services/arte-ai')>()),
   getConversation: vi.fn(),
+  getConversationExecutionState: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   getBudget: vi.fn(),
   getInvocationStatus: vi.fn(),
@@ -92,6 +94,19 @@ beforeEach(() => {
     return {invocationId: query.invocationId, status, result, missing: false};
   });
   vi.mocked(api.getConversation).mockResolvedValue(result(conversation));
+  vi.mocked(api.getConversationExecutionState).mockImplementation(async query => {
+    const value = (await vi.mocked(api.getConversation).getMockImplementation()!(query)).body.data;
+    return {
+      httpStatus: 200, body: {
+        success: true, code: '200', desc: 'OK', data: {
+          conversationId: query.conversationId,
+          version: value.version,
+          activeExecution: null,
+          observedAt: '2026-11-08T00:00:00Z'
+        }
+      }
+    };
+  });
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.listConversations).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(result({
@@ -108,7 +123,10 @@ beforeEach(() => {
   vi.mocked(api.regenerateChat).mockRejectedValue(new TypeError('network'));
   vi.mocked(api.watchInvocation).mockImplementation(async (_query, _handler, options) => new Promise<void>(resolve => options?.signal?.addEventListener('abort', () => resolve(), {once: true})));
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  Modal.destroyAll();
+});
 
 describe('browser recovery uses original operations', () => {
   it('clears an unavailable restored conversation without automatically creating another', async () => {
@@ -159,7 +177,7 @@ describe('browser recovery uses original operations', () => {
       invocationId: 'accepted',
       blocksConversation: false,
       kind: 'GENERATION',
-      conversation: null,
+      conversation: {conversationId: conversation.conversationId, conversationVersion: 0, turnId: 'turn'},
       state: 'RUNNING',
       version: 1,
       budgetState: 'RESERVED',
@@ -233,6 +251,10 @@ describe('browser recovery uses original operations', () => {
       await hook.result.current.send();
     });
     expect(api.turnsForChat).not.toHaveBeenCalled();
+  });
+  it.each([null, false, 0, ''])('blocks a present recovery envelope containing invalid value %s', value => {
+    writeValue(storageKey(context, 'send', 'conversation'), value);
+    expect(readOperation(context, 'send', 'conversation').warning).not.toBeNull();
   });
   it('isolates storage by account, workspace and conversation and clears account session on logout', () => {
     const key = storageKey(context, 'draft', 'conversation');
@@ -400,7 +422,7 @@ describe('progressive history and asynchronous notification refresh', () => {
     blocksConversation: false,
     invocationId: 'inv',
     kind: 'GENERATION',
-    conversation: null,
+    conversation: {conversationId: conversation.conversationId, conversationVersion: 0, turnId: 'turn'},
     state: 'SUCCEEDED',
     version: 3,
     activeAttemptId: 'attempt', budgetState: 'SETTLED', resultAvailable: false, partial: null,
@@ -459,38 +481,78 @@ describe('progressive history and asynchronous notification refresh', () => {
     expect(hook.result.current.invocations.inv.status?.state).toBe('SUCCEEDED');
     expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
   });
-  it('retries a failed terminal refresh after its notification cursor was already recorded', async () => {
+  it('bounds terminal read retries after the notification cursor is recorded and leaves manual refresh', async () => {
     vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
     vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
       invocationId: 'inv',
-      status: {...completed, state: 'RUNNING', version: 1, budgetState: 'RESERVED'},
-      result: null,
-      missing: false
+      status: {...completed, state: 'RUNNING', version: 1, budgetState: 'RESERVED'}, result: null, missing: false
     });
     const hook = session();
     await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
     await waitFor(() => expect(api.watchInvocation).toHaveBeenCalledOnce());
     const reads = vi.mocked(api.getInvocationSnapshot).mock.calls.length;
-    vi.mocked(api.getInvocationSnapshot).mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValue({invocationId: 'inv', status: completed, result: null, missing: false});
+    vi.mocked(api.getInvocationSnapshot).mockRejectedValue(new TypeError('offline'));
+    vi.mocked(api.getInvocationStatus).mockRejectedValue(new TypeError('offline'));
     vi.useFakeTimers();
     try {
       await act(async () => {
         await vi.mocked(api.watchInvocation).mock.calls[0][1]({executionId: 'inv', sequence: 4, kind: 'TERMINAL'});
         await vi.advanceTimersByTimeAsync(50);
       });
-      expect(hook.result.current.pollError).toBeInstanceOf(Error);
       expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
-      await act(async () => vi.advanceTimersByTimeAsync(9999));
-      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 1);
-      await act(async () => vi.advanceTimersByTimeAsync(1));
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
       expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 2);
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 3);
+      expect(hook.result.current.pollPaused).toBe(true);
+      await act(async () => vi.advanceTimersByTimeAsync(30000));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 3);
+      expect(api.turnsForChat).not.toHaveBeenCalled();
+      expect(api.regenerateChat).not.toHaveBeenCalled();
+      vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+        invocationId: 'inv',
+        status: completed,
+        result: null,
+        missing: false
+      });
+      await act(async () => hook.result.current.resume());
+      await act(async () => vi.advanceTimersByTimeAsync(0));
       expect(hook.result.current.activeIds).toEqual([]);
       expect(hook.result.current.invocations.inv.status?.state).toBe('SUCCEEDED');
     } finally {
       vi.useRealTimers();
     }
   });
+  it('stops HTTP fallback after an expired SSE cursor exhausts its bounded reads', async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+      invocationId: 'inv',
+      status: {...completed, blocksConversation: true, state: 'RUNNING', version: 1, budgetState: 'RESERVED'},
+      result: null,
+      missing: false
+    });
+    vi.mocked(api.watchInvocation).mockRejectedValueOnce(new api.AiApiError(410, {}));
+    const hook = session();
+    try {
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expect(api.watchInvocation).toHaveBeenCalledOnce();
+      const reads = vi.mocked(api.getInvocationSnapshot).mock.calls.length;
+      vi.mocked(api.getInvocationSnapshot).mockRejectedValue(new TypeError('offline'));
+      vi.mocked(api.getInvocationStatus).mockRejectedValue(new TypeError('offline'));
+      await act(async () => vi.advanceTimersByTimeAsync(14000));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 3);
+      expect(hook.result.current.pollPaused).toBe(true);
+      expect(hook.result.current.watching).toBe(false);
+      await act(async () => vi.advanceTimersByTimeAsync(30000));
+      expect(api.getInvocationSnapshot).toHaveBeenCalledTimes(reads + 3);
+      expect(api.turnsForChat).not.toHaveBeenCalled();
+    } finally {
+      hook.unmount();
+      vi.useRealTimers();
+    }
+  });
+
 });
 
 it('external Run acceptance invalidates a concurrent history read before its old version can be published', async () => {
@@ -533,4 +595,405 @@ it('typed Run history does not read its final model child as a standalone conver
   await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
   expect(hook.result.current.turns[0].selectedCandidate?.executionId).toBe('run');
   expect(api.getInvocationSnapshot).not.toHaveBeenCalled();
+});
+
+describe('ER-4 authority, damaged recovery and explicit draft actions', () => {
+  const terminal: api.InvocationStatusResponse = {
+    invocationId: 'unknown', blocksConversation: false, kind: 'GENERATION',
+    conversation: {conversationId: 'conversation', conversationVersion: 3, turnId: 'turn'},
+    state: 'UNKNOWN', version: 4, budgetState: 'PENDING_RECONCILIATION',
+    activeAttemptId: null, resultAvailable: false, partial: null,
+    error: null, acceptedAt: '2026-11-08T00:00:00Z', updatedAt: '2026-11-08T00:00:00Z',
+  };
+  const historyTurn: api.ConversationTurnResponse = {
+    turnId: 'turn', conversationId: 'conversation', sequence: 1, parentTurnId: null, supersedesTurnId: null,
+    userMessage: {messageId: 'message', role: 'USER', content: [{text: '历史原问题'}], toolCalls: [], toolCallId: null},
+    invocationIds: ['unknown'], selectedInvocationId: 'unknown', version: 1,
+    createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+  };
+  const ready = async (hook: ReturnType<typeof session>) => waitFor(() => {
+    expect(hook.result.current.historyLoading).toBe(false);
+    expect(hook.result.current.historyError).toBeNull();
+    expect(hook.result.current.budget).not.toBeNull();
+  });
+  const statusRead = (status = terminal) => vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+    invocationId: status.invocationId, status, result: null, missing: false,
+  });
+  it('recovers by a known ID with an invalid request/key, preserves damaged record and never confirms a write', async () => {
+    const key = storageKey(context, 'send', 'conversation');
+    writeValue(key, {key: null, request: {broken: true}, acceptedId: 'unknown'});
+    const raw = sessionStorage.getItem(key);
+    statusRead();
+    const hook = session();
+    expect(hook.result.current.recoveryBlocked).toBe(true);
+    await ready(hook);
+    await waitFor(() => expect(hook.result.current.recoveryBlocked).toBe(false));
+    expect(hook.result.current.pending).toBeNull();
+    expect(hook.result.current.unresolved).toBe(false);
+    expect(sessionStorage.getItem(key)).toBe(raw);
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+    act(() => hook.result.current.setDraft('新问题'));
+    await act(async () => hook.result.current.send());
+    expect(vi.mocked(api.turnsForChat).mock.calls[0][0]).toMatchObject({
+      text: '新问题',
+      binding: request.binding,
+      expectedVersion: 3
+    });
+    const archive = Array.from({length: sessionStorage.length}, (_, index) => sessionStorage.key(index)!).find(key => key.startsWith('arte.ainew.recovery-damaged-send-'));
+    expect(archive).toBeDefined();
+    expect(sessionStorage.getItem(archive!)).toBe(raw);
+  });
+  it('requires authorized conversation ownership for a recovered ID', async () => {
+    writeValue(storageKey(context, 'send', 'conversation'), {acceptedId: 'unknown'});
+    statusRead({...terminal, conversation: {...terminal.conversation!, conversationId: 'another'}});
+    const hook = session();
+    await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+    expect(hook.result.current.recoveryBlocked).toBe(true);
+    expect(hook.result.current.historyError ?? hook.result.current.pollError).not.toBeNull();
+    expect(hook.result.current.turns).toEqual([]);
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+  });
+  it('isolates an unrecoverable record locally, keeps the original read only, and permits another conversation', async () => {
+    const key = storageKey(context, 'send', 'conversation');
+    sessionStorage.setItem(key, '{broken');
+    const hook = session();
+    await ready(hook);
+    act(() => {
+      hook.result.current.setDraft('保留草稿');
+      hook.result.current.isolateRecovery();
+    });
+    expect(hook.result.current.recoveryIsolated).toBe(true);
+    expect(hook.result.current.recoveryBlocked).toBe(true);
+    await act(async () => hook.result.current.send());
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(key)).toBe('{broken');
+    expect(readValue(storageKey(context, 'draft', 'conversation')).value).toBe('保留草稿');
+    hook.unmount();
+    const reopened = session();
+    expect(reopened.result.current.recoveryIsolated).toBe(true);
+    expect(reopened.result.current.recoveryBlocked).toBe(true);
+    const other = renderHook(() => useChatSession(config, {
+      ...conversation,
+      conversationId: 'other'
+    }, vi.fn(), undefined, undefined, context));
+    await waitFor(() => expect(other.result.current.historyLoading).toBe(false));
+    expect(other.result.current.recoveryBlocked).toBe(false);
+    act(() => other.result.current.setDraft('独立问题'));
+    await act(async () => other.result.current.send());
+    expect(vi.mocked(api.turnsForChat).mock.calls[0][0].conversationId).toBe('other');
+    expect(api.createConversation).not.toHaveBeenCalled();
+  });
+  it.each(['INVOCATION', 'RUN'] as const)('an old nonblocking UNKNOWN cannot override a current %s occupant', async kind => {
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getConversationExecutionState).mockResolvedValue(result({
+      conversationId: 'conversation', version: 3,
+      activeExecution: {kind, executionId: 'other',}, observedAt: terminal.updatedAt
+    }));
+    vi.mocked(api.getInvocationSnapshot).mockImplementation(async ({invocationId}) => ({
+      invocationId,
+      status: invocationId === 'unknown' ? terminal : {
+        ...terminal,
+        invocationId,
+        state: 'RUNNING',
+        blocksConversation: true,
+        budgetState: 'RESERVED'
+      }, result: null, missing: false
+    }));
+    const hook = session();
+    await ready(hook);
+    expect(hook.result.current.unresolved).toBe(true);
+    act(() => hook.result.current.setDraft('下一轮'));
+    await act(async () => hook.result.current.send());
+    await act(async () => hook.result.current.regenerate('unknown'));
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+    expect(api.regenerateChat).not.toHaveBeenCalled();
+    expect(hook.result.current.draft).toBe('下一轮');
+  });
+  it('accepts same-version occupancy release while pending fees remain', async () => {
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    statusRead();
+    vi.mocked(api.getConversationExecutionState).mockResolvedValue(result({
+      conversationId: 'conversation', version: 3,
+      activeExecution: {kind: 'RUN', executionId: 'other'}, observedAt: terminal.updatedAt
+    }));
+    const hook = session();
+    await ready(hook);
+    expect(hook.result.current.unresolved).toBe(true);
+    vi.mocked(api.getConversationExecutionState).mockResolvedValue(result({
+      conversationId: 'conversation', version: 3,
+      activeExecution: null, observedAt: terminal.updatedAt
+    }));
+    await act(async () => hook.result.current.resume());
+    await ready(hook);
+    expect(hook.result.current.unresolved).toBe(false);
+    expect(hook.result.current.invocations.unknown.status?.budgetState).toBe('PENDING_RECONCILIATION');
+    act(() => hook.result.current.setDraft('继续提问'));
+    await act(async () => hook.result.current.send());
+    expect(api.turnsForChat).toHaveBeenCalledOnce();
+  });
+  it('clears stale readable data when current authorization is revoked, without automatic retry or write', async () => {
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    statusRead();
+    const hook = session();
+    await ready(hook);
+    vi.mocked(api.getConversationExecutionState).mockRejectedValue(new api.AiApiError(403, {}));
+    const reads = vi.mocked(api.getConversationExecutionState).mock.calls.length;
+    await act(async () => hook.result.current.resume());
+    await waitFor(() => expect(hook.result.current.historyError).not.toBeNull());
+    expect(api.getConversationExecutionState).toHaveBeenCalledTimes(reads + 1);
+    expect(hook.result.current.turns).toEqual([]);
+    expect(hook.result.current.invocations).toEqual({});
+    expect(hook.result.current.unresolved).toBe(true);
+    expect(api.turnsForChat).not.toHaveBeenCalled();
+  });
+  it('refreshes occupancy without repeatedly scanning unchanged full history, pauses hidden and refreshes visible', async () => {
+    const intervals = vi.spyOn(globalThis, 'setInterval');
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    try {
+      const hook = session();
+      await ready(hook);
+      const historyReads = vi.mocked(api.queryTurnsOfConversation).mock.calls.length;
+      const stateReads = vi.mocked(api.getConversationExecutionState).mock.calls.length;
+      const tick = intervals.mock.calls.find(([, delay]) => delay === 10000)![0] as () => void;
+      await act(async () => tick());
+      expect(api.getConversationExecutionState).toHaveBeenCalledTimes(stateReads + 1);
+      expect(api.queryTurnsOfConversation).toHaveBeenCalledTimes(historyReads);
+      visibility.mockReturnValue('hidden');
+      act(() => document.dispatchEvent(new Event('visibilitychange')));
+      await act(async () => {
+        tick();
+        tick();
+      });
+      expect(api.getConversationExecutionState).toHaveBeenCalledTimes(stateReads + 1);
+      visibility.mockReturnValue('visible');
+      await act(async () => document.dispatchEvent(new Event('visibilitychange')));
+      expect(api.getConversationExecutionState).toHaveBeenCalledTimes(stateReads + 2);
+      expect(api.queryTurnsOfConversation).toHaveBeenCalledTimes(historyReads + 1);
+      expect(api.turnsForChat).not.toHaveBeenCalled();
+    } finally {
+      visibility.mockRestore();
+      intervals.mockRestore();
+    }
+  });
+  it('keeps draft and configuration after a version conflict and never retries the write', async () => {
+    const hook = session();
+    await ready(hook);
+    vi.mocked(api.turnsForChat).mockRejectedValue(new api.AiApiError(409, {code: '205035'}));
+    act(() => hook.result.current.setDraft('当前问题'));
+    await act(async () => hook.result.current.send());
+    await ready(hook);
+    expect(api.turnsForChat).toHaveBeenCalledOnce();
+    expect(hook.result.current.draft).toBe('当前问题');
+    expect(hook.result.current.pending).toBeNull();
+    expect(vi.mocked(api.turnsForChat).mock.calls[0][0].binding).toEqual(request.binding);
+  });
+});
+
+it('copies only a question into the draft, defaults to keep a nonempty draft, and never submits automatically', async () => {
+  const messages = (await import('@/locales/zh-CN/aiChat')).default;
+  const uiT = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
+  vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([{
+    turnId: 'failed-turn', conversationId: 'conversation', sequence: 1, parentTurnId: null, supersedesTurnId: null,
+    selectedInvocationId: 'unknown', invocationIds: ['unknown'], version: 1,
+    userMessage: {
+      messageId: 'question',
+      role: 'USER',
+      content: [{text: '可复制的原问题'}],
+      toolCalls: [],
+      toolCallId: null
+    },
+    createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+  }]));
+  vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+    invocationId: 'unknown', missing: false, result: null, status: {
+      invocationId: 'unknown', blocksConversation: false, kind: 'GENERATION', state: 'UNKNOWN', version: 4,
+      conversation: {conversationId: 'conversation', conversationVersion: 3, turnId: 'failed-turn'},
+      activeAttemptId: null, budgetState: 'PENDING_RECONCILIATION', resultAvailable: false, partial: null,
+      error: null, acceptedAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+    }
+  });
+  writeValue(storageKey(context, 'draft', 'conversation'), '已有草稿');
+  render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
+                            onUpdated={vi.fn()} onChooseModel={vi.fn()} onConfigurationRejected={vi.fn()}
+                            onInteraction={vi.fn()} onOpenToolSettings={vi.fn()} t={uiT}/>);
+  const copy = await screen.findByRole('button', {name: uiT('recovery.copyQuestion')});
+  await screen.findByText(uiT('recovery.turnSkipped'));
+  expect(screen.getByRole('textbox', {name: '输入问题'})).toHaveValue('已有草稿');
+  fireEvent.click(copy);
+  const keep = await screen.findByRole('button', {name: uiT('recovery.keepDraft')});
+  await waitFor(() => expect(keep).toHaveFocus());
+  await act(async () => {
+    fireEvent.click(keep);
+    await new Promise(resolve => setTimeout(resolve, 30));
+  });
+  const dialog = screen.getByRole('dialog');
+  fireEvent.animationEnd(dialog);
+  fireEvent.transitionEnd(dialog);
+  expect(screen.getByRole('textbox', {name: '输入问题'})).toHaveValue('已有草稿');
+  await waitFor(() => expect(screen.queryByRole('button', {name: uiT('recovery.replace')})).toBeNull());
+  fireEvent.click(copy);
+  fireEvent.click(await screen.findByRole('button', {name: uiT('recovery.replace')}));
+  await waitFor(() => expect(screen.getByRole('textbox', {name: '输入问题'})).toHaveValue('可复制的原问题'));
+  expect(screen.getByText(uiT('recovery.currentConfiguration'))).toBeInTheDocument();
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+  expect(api.regenerateChat).not.toHaveBeenCalled();
+  expect(api.confirmReconciliation).not.toHaveBeenCalled();
+});
+
+it('regenerates from the original source without requiring a current model or budget selection', async () => {
+  const state: api.InvocationStatusResponse = {
+    invocationId: 'source',
+    blocksConversation: false,
+    kind: 'GENERATION',
+    conversation: {conversationId: 'conversation', conversationVersion: 3, turnId: 'turn'},
+    state: 'UNKNOWN',
+    version: 1,
+    activeAttemptId: null,
+    budgetState: 'PENDING_RECONCILIATION',
+    resultAvailable: false,
+    partial: null,
+    error: null,
+    acceptedAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt
+  };
+  vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+    invocationId: 'source',
+    status: state,
+    result: null,
+    missing: false
+  });
+  const hook = session({...config, bindingId: '', budgetRef: ''}, false);
+  await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+  await act(async () => hook.result.current.regenerate('source'));
+  expect(vi.mocked(api.regenerateChat).mock.calls[0][0]).toEqual({
+    scope,
+    originalInvocationId: 'source',
+    expectedConversationVersion: 3,
+    timeoutSeconds: config.timeoutSeconds
+  });
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+});
+
+it('marks only a failed viewed candidate when a complete successful answer remains selected for context', async () => {
+  const messages = (await import('@/locales/zh-CN/aiChat')).default;
+  const uiT = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
+  vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([{
+    turnId: 'turn', conversationId: 'conversation', sequence: 1, parentTurnId: null, supersedesTurnId: null,
+    selectedInvocationId: 'success', invocationIds: ['success', 'failed'], version: 1,
+    userMessage: {
+      messageId: 'question',
+      role: 'USER',
+      content: [{text: '保留旧答案的问题'}],
+      toolCalls: [],
+      toolCallId: null
+    },
+    createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
+  }]));
+  vi.mocked(api.getInvocationSnapshot).mockImplementation(async ({invocationId}) => ({
+    invocationId, missing: false,
+    status: {
+      invocationId,
+      kind: 'GENERATION',
+      blocksConversation: false,
+      state: invocationId === 'success' ? 'SUCCEEDED' : 'UNKNOWN',
+      conversation: {conversationId: 'conversation', conversationVersion: 3, turnId: 'turn'},
+      version: 3,
+      activeAttemptId: null,
+      budgetState: invocationId === 'success' ? 'SETTLED' : 'PENDING_RECONCILIATION',
+      resultAvailable: invocationId === 'success',
+      partial: null,
+      error: null,
+      acceptedAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    },
+    result: invocationId !== 'success' ? null : {
+      invocationId, kind: 'GENERATION', result: {
+        value: {
+          resultId: 'answer', model: {providerId: 'provider', modelId: 'model', revision: null},
+          outputs: [{
+            messageId: 'answer-message',
+            role: 'ASSISTANT',
+            content: [{text: '原完整成功答案'}],
+            toolCalls: [],
+            toolCallId: null
+          }],
+          finishReason: 'STOP', complete: true, structuredOutput: null,
+          usage: {basis: 'PROVIDER_REPORTED', inputTokens: 3, outputTokens: 3, totalTokens: 6}, sources: [],
+        }
+      }
+    },
+  }));
+  render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
+                            onUpdated={vi.fn()} onChooseModel={vi.fn()} onConfigurationRejected={vi.fn()}
+                            onInteraction={vi.fn()} onOpenToolSettings={vi.fn()} t={uiT}/>);
+  await screen.findByText('原完整成功答案');
+  expect(screen.getByText('回复 1 · 后续上下文采用')).toBeInTheDocument();
+  expect(screen.queryByText(uiT('recovery.turnSkipped'))).toBeNull();
+  fireEvent.mouseDown(screen.getByRole('combobox', {name: '浏览第 1 轮候选回复'}));
+  fireEvent.click(await screen.findByText('回复 2'));
+  await screen.findByText(uiT('recovery.candidateSkipped'));
+  expect(screen.queryByText(uiT('recovery.turnSkipped'))).toBeNull();
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+  expect(api.regenerateChat).not.toHaveBeenCalled();
+});
+
+it('uses the newly applied configuration when resuming from focus after initially reading without a model', async () => {
+  const hook = renderHook(({enabled}) => useChatSession(enabled ? config : {...config, bindingId: '', budgetRef: ''},
+    conversation, vi.fn(), undefined, undefined, context, enabled), {initialProps: {enabled: false}});
+  await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+  expect(api.getBudget).not.toHaveBeenCalled();
+  hook.rerender({enabled: true});
+  await waitFor(() => expect(hook.result.current.budget?.budgetRef).toBe('budget'));
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  await waitFor(() => expect(hook.result.current.historyLoading).toBe(false));
+  expect(hook.result.current.budget?.available).toBe('100.000000000000000001');
+  expect(hook.result.current.budgetError).toBeNull();
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+});
+
+it('lets the user isolate corrupt recovery through the page and release only the navigation guard', async () => {
+  const messages = (await import('@/locales/zh-CN/aiChat')).default;
+  const uiT = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
+  const key = storageKey(context, 'send', 'conversation');
+  sessionStorage.setItem(key, '{broken');
+  const interaction = vi.fn();
+  render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
+                            onUpdated={vi.fn()} onChooseModel={vi.fn()} onConfigurationRejected={vi.fn()}
+                            onInteraction={interaction} onOpenToolSettings={vi.fn()} t={uiT}/>);
+  await waitFor(() => expect(interaction.mock.calls.at(-1)?.[0].unsafeToLeave).toBe(true));
+  fireEvent.change(screen.getByRole('textbox', {name: '输入问题'}), {target: {value: '保留的问题'}});
+  expect(screen.queryByRole('button', {name: '重试确认原提交'})).toBeNull();
+  fireEvent.click(screen.getByRole('button', {name: uiT('recovery.leave')}));
+  const stay = await screen.findByRole('button', {name: uiT('recovery.stay')});
+  await waitFor(() => expect(stay).toHaveFocus());
+  expect(screen.getByText(uiT('recovery.leaveWarning'))).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name: uiT('recovery.isolate')}));
+  await waitFor(() => expect(interaction.mock.calls.at(-1)?.[0].unsafeToLeave).toBe(false));
+  expect(screen.getByRole('button', {name: '发送'})).toBeDisabled();
+  expect(screen.getByRole('textbox', {name: '输入问题'})).toHaveValue('保留的问题');
+  expect(sessionStorage.getItem(key)).toBe('{broken');
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+  expect(api.regenerateChat).not.toHaveBeenCalled();
+  expect(api.cancelInvocation).not.toHaveBeenCalled();
+  expect(api.createConversation).not.toHaveBeenCalled();
+});
+
+it('explains insufficient available funds as held money while leaving the record lookup in the costs view', async () => {
+  const messages = (await import('@/locales/zh-CN/aiChat')).default;
+  const uiT = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
+  vi.mocked(api.getBudget).mockResolvedValue(result({
+    budgetRef: 'budget', currency: 'CNY', limit: '10', held: '10',
+    charged: '0', available: '0', rateVersion: {type: 'rate', id: 'rate', version: 'v1'}, version: 1
+  }));
+  render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
+                            onUpdated={vi.fn()} onChooseModel={vi.fn()} onConfigurationRejected={vi.fn()}
+                            onInteraction={vi.fn()} onOpenToolSettings={vi.fn()} t={uiT}/>);
+  fireEvent.change(screen.getByRole('textbox', {name: '输入问题'}), {target: {value: '新问题'}});
+  await screen.findByText(`${uiT('recovery.insufficientHeld')} (10 CNY)`);
+  expect(screen.getByRole('button', {name: '发送'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: '查看费用'})).toBeEnabled();
+  expect(screen.queryByText(uiT('recovery.busy'))).toBeNull();
+  expect(screen.queryByText(uiT('recovery.insufficientWithPending'))).toBeNull();
+  expect(api.confirmReconciliation).not.toHaveBeenCalled();
+  expect(api.turnsForChat).not.toHaveBeenCalled();
 });

@@ -86,7 +86,7 @@ try {
 `watchInvocation({scope, invocationId, afterSequence}, onEvent, {signal, onConnected?, onText?})` 返回持续读取连接的
 Promise。 通知类型为 `{executionId, sequence, kind, text?}`，OUTPUT 的 text 为已落库的文本增量，旧服务端只发指针时缺省。
 成功处理后推进游标；封装按 sequence 去重，不自动查询结果、不自动重连，也不提交消息。 聊天 Hook 的回调只登记刷新事实，不等待
-HTTP；连续通知合并，失败事实保留并低频重试。 状态、结果、历史、余额读取由刷新协调器完成，避免 HTTP 查询阻塞文字解码。
+HTTP；连续通知合并，读取按有限重试恢复，耗尽后转为手动刷新。状态、结果、历史、余额读取由刷新协调器完成，避免 HTTP 查询阻塞文字解码。
 `onText` 接收独立的 `text-delta`：`{executionId, attemptId, offset, text}`，offset 按 UTF-16 计数。 每帧最多 256 个 UTF-16
 字符，没有 SSE id，不推进耐久游标。它是模型预览，可能重复或缺失；页面按偏移合并并由 OUTPUT／终态结果修复。 支持分块 UTF-8、多行
 data、CR/LF、注释心跳、安全 error 帧；单帧最多 8 Mi 个解码字符，以兼容历史大批次的 JSON 转义， 单批 text 和页面累计增量均限
@@ -110,3 +110,21 @@ S4-03：Turn 响应新增 `candidates`／`selectedCandidate`；`invocationIds` �
 
 S4-06 的观察、恢复与三种后续动作见 [界面说明](../../../../backend/arte-ai/TOOL_CHAT_FRONTEND.md)。只读刷新必须使用
 `submitReadOnlyToolChat`，不能只在浏览器过滤工具；只改写使用用户确认的最终回答快照准备新文本草稿，不自动外发原始工具输出。
+
+## 普通文本会话异常恢复（ER-4）
+
+页面使用 `getConversationExecutionState` 返回的同一时点业务 `version` 和带类型的 `activeExecution`
+，结合历史、当前权限／配置及预算决定动作；不能以旧调用 `blocksConversation=false` 推断会话空闲。其他标签的 Invocation 和 Run
+仍会阻止竞争提交，同版本释放通过请求序号和取消机制接纳。
+
+`useChatSession` 分别保存不确定写操作、活动执行和费用观察。普通 UNKNOWN 的费用待核对不再占用输入；新问题用当前配置／历史，重新生成沿用原来源快照并创建新调用。
+`BusinessChatPanel` 的“复制问题到输入框”只填草稿，已有草稿默认保留；失败整轮和失败候选分别标记。核对表单仍须实际证据及服务端权限。
+
+已知合法调用 ID 可直接做当前授权读取并验证会话归属；无需恢复完整写请求。无 ID
+的完整原请求／键只在用户明确确认时原样重放。损坏记录无法确认时保留原记录与草稿，可明确隔离后切换或新建其他会话；原会话继续只读，隔离不创建服务端状态，也不取消远端或清空费用。
+
+`recoveryRead` 仅用于读取：单次十秒，网络／408／429／5xx 最多重试两次（一秒、三秒）；参数／契约错误及 401／403／404 不重试，409
+仅有界重读。失败耗尽后手动刷新；隐藏页面取消读取和退避，重新可见重读。十秒观察兜底只查询占用，变化后才重读必要历史。所有写请求继续沿用各自显式确认与原幂等键规则。
+
+阶段证据及未完成验收见 [会话异常恢复需求及设计第 9.5 节](../../../../ARTE%20AI%20会话异常恢复需求及设计.md)
+。管理核对、时延测量及用户任务试用尚未交付。

@@ -2,9 +2,10 @@ import {act, renderHook, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import type {ConversationExecutionState} from '@/services/arte-ai';
 import {getConversationExecutionState} from '@/services/arte-ai';
+import {AiApiError} from '@/services/arte-ai/request';
 import {useConversationExecutionState} from './useConversationExecutionState';
 
-vi.mock('@/services/arte-ai/request', () => ({currentAiCredential: () => localStorage.getItem('user_token')}));
+vi.mock('@umijs/max', () => ({request: vi.fn()}));
 vi.mock('@/services/arte-ai', () => ({getConversationExecutionState: vi.fn()}));
 const scope = {tenantId: 'tenant', workspaceId: 'workspace'};
 const state = (id = 'one', active = true): ConversationExecutionState => ({
@@ -34,8 +35,8 @@ it('accepts same-version release and coalesces concurrent refreshes', async () =
   await waitFor(() => expect(result.current.state).toEqual(state()));
   const read = deferred();
   vi.mocked(getConversationExecutionState).mockReturnValue(read.promise);
-  let a!: Promise<void>;
-  let b!: Promise<void>;
+  let a!: Promise<ConversationExecutionState | undefined>;
+  let b!: Promise<ConversationExecutionState | undefined>;
   act(() => {
     a = result.current.refresh();
     b = result.current.refresh();
@@ -59,6 +60,7 @@ it('rejects a late busy result after switching and returning to the same convers
     result,
     rerender
   } = renderHook(({id}) => useConversationExecutionState(scope, id), {initialProps: {id: 'one'}});
+  await waitFor(() => expect(getConversationExecutionState).toHaveBeenCalledTimes(1));
   const firstSignal = vi.mocked(getConversationExecutionState).mock.calls[0][1]?.signal;
   rerender({id: 'two'});
   expect(firstSignal?.aborted).toBe(true);
@@ -75,7 +77,7 @@ it('rejects a late busy result after switching and returning to the same convers
 });
 
 it('scope changes invalidate existing state and errors keep occupancy unconfirmed without automatic retries', async () => {
-  vi.mocked(getConversationExecutionState).mockResolvedValueOnce(response(state())).mockRejectedValueOnce(new Error('unavailable'));
+  vi.mocked(getConversationExecutionState).mockResolvedValueOnce(response(state())).mockRejectedValueOnce(new AiApiError(403, {desc: 'denied'}));
   const {result, rerender} = renderHook(({workspaceId}) => useConversationExecutionState({
     ...scope,
     workspaceId
@@ -93,6 +95,7 @@ it('unmount cancels the active read and ignores its completion', async () => {
   const read = deferred();
   vi.mocked(getConversationExecutionState).mockReturnValue(read.promise);
   const {unmount} = renderHook(() => useConversationExecutionState(scope, 'one'));
+  await waitFor(() => expect(getConversationExecutionState).toHaveBeenCalledTimes(1));
   const signal = vi.mocked(getConversationExecutionState).mock.calls[0][1]?.signal;
   unmount();
   expect(signal?.aborted).toBe(true);

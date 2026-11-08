@@ -36,6 +36,7 @@ vi.mock('@/services/arte-ai', async original => ({
   discoverChatOptions: vi.fn(),
   queryConversationWindow: vi.fn(),
   getConversation: vi.fn(),
+  getConversationExecutionState: vi.fn(),
   queryTurnsOfConversation: vi.fn(),
   getBudget: vi.fn(),
   turnsForChat: vi.fn(),
@@ -144,6 +145,19 @@ beforeEach(() => {
     return {invocationId: query.invocationId, status, result, missing: false};
   });
   vi.mocked(api.getConversation).mockResolvedValue(reply(conversation));
+  vi.mocked(api.getConversationExecutionState).mockImplementation(async query => {
+    const value = (await vi.mocked(api.getConversation).getMockImplementation()!(query)).body.data;
+    return {
+      httpStatus: 200, body: {
+        success: true, code: '200', desc: 'OK', data: {
+          conversationId: query.conversationId,
+          version: value.version,
+          activeExecution: null,
+          observedAt: '2026-11-08T00:00:00Z'
+        }
+      }
+    };
+  });
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({
     budgetRef: 'budget',
@@ -475,7 +489,7 @@ it('cancels the old invocation observer on switching and resumes only the origin
     blocksConversation: false,
     invocationId: 'accepted-in-A',
     kind: 'GENERATION',
-    conversation: null,
+    conversation: {conversationId: conversation.conversationId, conversationVersion: 0, turnId: 'turn'},
     state: 'RUNNING',
     version: 1,
     budgetState: 'RESERVED', activeAttemptId: 'attempt', resultAvailable: false, partial: null, error: null,

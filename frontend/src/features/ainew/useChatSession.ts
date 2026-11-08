@@ -1,4 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
+import {recoveryRead} from './recoveryRead';
+import {useConversationExecutionState} from './useConversationExecutionState';
 import {beginChatLatency, markChatLatency} from '@/services/arte-ai/latency';
 import {
   AiApiError,
@@ -9,6 +11,7 @@ import {
   getBudget,
   getConversation,
   getInvocationSnapshot,
+  getInvocationStatus,
   type InvocationResultResponse,
   type InvocationStatusResponse,
   queryTurnsOfConversation,
@@ -24,6 +27,7 @@ import {
   type Operation,
   readOperation,
   readValue,
+  RECOVERY_WARNING,
   saveOperation,
   STORAGE_WARNING,
   storageKey,
@@ -40,16 +44,12 @@ export function isActive(status: InvocationStatusResponse) {
 }
 
 function needsObservation(status: InvocationStatusResponse) {
-  return isActive(status) || (status.budgetState === 'RESERVED' && !isUserStoppedGeneration(status));
+  return isActive(status) || status.budgetState === 'RESERVED';
 }
 
 export function isUserStoppedGeneration(status?: InvocationStatusResponse) {
   return status?.kind === 'GENERATION' && status.state === 'UNKNOWN' &&
     status.error?.code === 'INVOCATION_CANCELLED';
-}
-
-function blocksConversation(status?: InvocationStatusResponse) {
-  return status?.state === 'UNKNOWN' && !isUserStoppedGeneration(status);
 }
 
 function canReuseInvocation(view?: InvocationView) {
@@ -106,6 +106,8 @@ export function useChatSession(
   rejected.current = onConfigurationRejected;
   const settings = useRef(config);
   settings.current = config;
+  const sendingAvailable = useRef(sendingEnabled);
+  sendingAvailable.current = sendingEnabled;
   const titleUpdated = useRef(onTitleUpdated);
   titleUpdated.current = onTitleUpdated;
   const updated = useRef(onUpdated);
@@ -113,23 +115,42 @@ export function useChatSession(
   const metadata = useRef(initial);
   const scope = {tenantId: config.tenantId, workspaceId: config.workspaceId};
   const target = initial.conversationId;
+  const execution = useConversationExecutionState(scope, target, false);
   const [restored] = useState(() => ({
     send: readOperation<SubmitChatRequest>(context, 'send', target),
     regenerate: readOperation<RegenerateChatRequest>(context, 'regenerate', target),
     stop: readOperation<{ scope: typeof scope; invocationId: string }>(context, 'stop', target),
     draft: context ? readValue<string>(storageKey(context, 'draft', target)) : {value: null, warning: null},
   }));
-  const recoveryBlocked = !!(restored.send.warning || restored.regenerate.warning || restored.stop.warning);
+  const [recoveredIds, setRecoveredIds] = useState<string[]>([]);
+  const recoveryIds = [...new Set([restored.send.knownId, restored.regenerate.knownId, restored.stop.knownId].filter((id): id is string => !!id))];
+  const recoveryBlocked = [restored.send, restored.regenerate, restored.stop].some(record => record.warning && (!record.knownId || !recoveredIds.includes(record.knownId)));
+  const [recoveryIsolated, setRecoveryIsolated] = useState(() => !!context && readValue<{
+    isolated: boolean
+  }>(storageKey(context, 'recovery-isolation', target)).value?.isolated === true);
   const [storageWarning, setStorageWarning] = useState<string | null>(restored.send.warning || restored.regenerate.warning || restored.stop.warning || restored.draft.warning);
   const storageWarningRef = useRef(storageWarning);
   storageWarningRef.current = storageWarning;
   const acceptedOperations = useRef({
-    send: restored.send.value?.acceptedId,
-    regenerate: restored.regenerate.value?.acceptedId,
-    stop: restored.stop.value?.acceptedId
+    send: restored.send.value?.acceptedId ?? restored.send.knownId,
+    regenerate: restored.regenerate.value?.acceptedId ?? restored.regenerate.knownId,
+    stop: restored.stop.value?.acceptedId ?? restored.stop.knownId
   });
+  const archivedDamage = useRef(new Set<string>());
   const persist = <T, >(kind: 'send' | 'regenerate' | 'stop', value: Operation<T> | null) => {
     acceptedOperations.current[kind] = value?.acceptedId;
+    // 保留损坏记录供排查；已知 ID 的读取恢复不能抹去原始证据。
+    if (!value && restored[kind].warning && !archivedDamage.current.has(kind)) return;
+    if (value && restored[kind].warning && context && !archivedDamage.current.has(kind)) {
+      try {
+        const raw = sessionStorage.getItem(storageKey(context, kind, target));
+        if (raw !== null) sessionStorage.setItem(storageKey(context, `recovery-damaged-${kind}-${crypto.randomUUID()}`, target), raw);
+        archivedDamage.current.add(kind);
+      } catch {
+        setStorageWarning(STORAGE_WARNING);
+        return;
+      }
+    }
     if (!saveOperation(context, kind, target, value)) setStorageWarning(STORAGE_WARNING);
   };
   const [draft, setDraft] = useState(typeof restored.draft.value === 'string' ? restored.draft.value : '');
@@ -152,6 +173,7 @@ export function useChatSession(
   const historyRevision = useRef(0);
   const historyRead = useRef<HistoryRead | null>(null);
   const firstHistory = useRef(!!context);
+  const recoveryPaused = useRef(false);
   const budgetRead = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const budgetDirty = useRef(false);
   const budgetKey = useRef<string | null>(null);
@@ -178,7 +200,7 @@ export function useChatSession(
   const [pollPaused, setPollPaused] = useState(false);
   const [activeIds, setActiveIds] = useState<string[]>([]);
   const watched = useRef<string[]>([]);
-  const created = useRef<string | null>(restored.send.value?.acceptedId ?? restored.regenerate.value?.acceptedId ?? null);
+  const created = useRef<string | null>(restored.send.value?.acceptedId ?? restored.regenerate.value?.acceptedId ?? recoveryIds[0] ?? null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const cursors = useRef(new Map<string, number>());
   const committedTextOffsets = useRef(new Map<string, number>());
@@ -215,7 +237,7 @@ export function useChatSession(
       chars: 0,
     };
     if (
-      previous?.result ||
+      previous?.result || (previous?.status && !isActive(previous.status)) ||
       (attemptId &&
         ((pending.attemptId && pending.attemptId !== attemptId) ||
           (previous?.streamAttemptId &&
@@ -313,19 +335,22 @@ export function useChatSession(
         ...view,
       };
       if (view.result) pendingText.current.delete(id);
+      if (view.status) {
+        setRecoveredIds(previous => recoveryIds.includes(id) && !previous.includes(id) ? [...previous, id] : previous);
+      }
       if (view.status && !isActive(view.status)) {
         if (stopTarget.current === id) {
           setPendingStop(null);
           persist('stop', null);
         }
         if (acceptedOperations.current.stop === id) persist('stop', null);
-        if (canReuseInvocation(views.current[id]) || isUserStoppedGeneration(view.status)) {
+        if (typeof view.status.blocksConversation === 'boolean') {
           if (acceptedOperations.current.send === id) persist('send', null);
           if (acceptedOperations.current.regenerate === id) persist('regenerate', null);
         }
       }
     }
-    // Keep unresolved executions for the send gate, but bound settled history/result caches.
+    // 保留观察中的执行；限制已结算历史和结果缓存的大小。
     const ids = Object.keys(views.current);
     let excess = ids.length - 256;
     for (const id of ids) {
@@ -354,6 +379,22 @@ export function useChatSession(
     }
   }
 
+  function clearReadableData() {
+    stopWatching();
+    requests.current.history?.abort();
+    requests.current.candidate?.abort();
+    requests.current.budget?.abort();
+    setBudgetLoading(false);
+    for (const read of invocationReads.current.values()) read.controller.abort();
+    views.current = {};
+    setInvocations({});
+    setTurns([]);
+    setBudget(null);
+    setHistoryLoading(false);
+    setWatching(false);
+    execution.invalidate();
+  }
+
   function invalidateInvocation(id: string) {
     invocationRevisions.current.set(
       id,
@@ -364,11 +405,12 @@ export function useChatSession(
   function readInvocation(
     id: string,
     signal: AbortSignal,
+    fresh = false,
   ): Promise<InvocationView> {
     if (signal.aborted)
       return Promise.reject(new DOMException('Aborted', 'AbortError'));
     const cached = views.current[id];
-    if (canReuseInvocation(cached)) return Promise.resolve(cached);
+    if (!fresh && canReuseInvocation(cached)) return Promise.resolve(cached);
     let read = invocationReads.current.get(id);
     if (!read || read.controller.signal.aborted) {
       const controller = new AbortController();
@@ -377,18 +419,30 @@ export function useChatSession(
         consumers: new Set<symbol>(),
         promise: Promise.resolve().then(async () => {
           let revision: number;
+          let passes = 0;
           do {
             revision = invocationRevisions.current.get(id) ?? 0;
-            const snapshot = await getInvocationSnapshot({
-              scope, invocationId: id,
-              knownResultVersion: views.current[id]?.result ? views.current[id]?.status?.version : undefined
-            }, {signal: controller.signal});
-            if (snapshot.missing || !snapshot.status || snapshot.status.invocationId !== id)
-              throw new Error('Invocation unavailable');
+            const snapshot = await recoveryRead(async signal => {
+              try {
+                return await getInvocationSnapshot({
+                  scope, invocationId: id,
+                  knownResultVersion: views.current[id]?.result ? views.current[id]?.status?.version : undefined
+                }, {signal});
+              } catch (error) {
+                if (error instanceof AiApiError && error.httpStatus < 500 && error.httpStatus !== 408 && error.httpStatus !== 429) throw error;
+                const response = await getInvocationStatus({scope, invocationId: id}, {signal});
+                return {invocationId: id, status: response.body.data, result: null, missing: false};
+              }
+            }, controller.signal);
+            if (snapshot.missing || !snapshot.status || snapshot.status.invocationId !== id ||
+              typeof snapshot.status.blocksConversation !== 'boolean')
+              throw new AiApiError(200, snapshot, '调用状态缺少权威占用字段。');
+            if (snapshot.status.conversation?.conversationId !== target)
+              throw new AiApiError(404, {}, '调用不属于当前会话。');
             const body = {data: snapshot.status};
             const result = snapshot.result ?? (views.current[id]?.status?.version === body.data.version ? views.current[id]?.result : undefined);
-            if (body.data.resultAvailable && !isActive(body.data) && !result)
-              throw new Error('Committed invocation result unavailable');
+            const resultError = body.data.resultAvailable && !isActive(body.data) && !result
+              ? new Error('已提交的回复暂时无法读取。') : undefined;
             if (controller.signal.aborted || !alive.current)
               throw new DOMException('Aborted', 'AbortError');
             const previous = views.current[id]?.status;
@@ -397,9 +451,9 @@ export function useChatSession(
               // 历史查询也可能先于 SSE 读到终态，不能把先前取得的会话版本当作最新版本。
               historyRevision.current++;
             }
-            publish({[id]: {status: body.data, result}});
+            publish({[id]: {status: body.data, result, error: resultError}});
             // 查询开始后收到通知，补查一次；确定且已结算的终态不会再变化。
-          } while (!canReuseInvocation(views.current[id]) &&
+          } while (++passes < 3 && !canReuseInvocation(views.current[id]) &&
           revision !== (invocationRevisions.current.get(id) ?? 0));
           return views.current[id];
         }).finally(() => {
@@ -470,7 +524,7 @@ export function useChatSession(
       return;
     stopWatching();
     watched.current = [...new Set(ids)];
-    setActiveIds(watched.current);
+    setActiveIds(watched.current.filter(id => !views.current[id]?.status || isActive(views.current[id].status!)));
     setWatching(ids.length > 0);
     setPollPaused(false);
     setPollError(null);
@@ -509,7 +563,7 @@ export function useChatSession(
       if (view.status && !isActive(view.status)) {
         if (!needsObservation(view.status))
           watched.current = watched.current.filter((item) => item !== id);
-        setActiveIds(watched.current);
+        setActiveIds(watched.current.filter(id => !views.current[id]?.status || isActive(views.current[id].status!)));
         if (!watched.current.length) {
           if (expiry.current) clearTimeout(expiry.current);
           setWatching(false);
@@ -522,6 +576,18 @@ export function useChatSession(
     };
     // 历史、停止和 SSE 共用同一个状态读取；事件期间的变化由读取循环补查。
     const refresh = refreshOnce;
+    const failedRead = (error: unknown) => {
+      if (!valid()) return;
+      recoveryPaused.current = true;
+      setPollError(error);
+      setPollPaused(true);
+      setWatching(false);
+      controller.abort();
+      if (expiry.current) clearTimeout(expiry.current);
+      if (error instanceof AiApiError && [401, 403, 404].includes(error.httpStatus)) {
+        clearReadableData();
+      }
+    };
     // 通知回调只登记失效事实；HTTP 刷新与 SSE 解码独立，短时间连续通知合并一次。
     const queued = new Map<string, boolean>();
     let flushing = false;
@@ -543,12 +609,10 @@ export function useChatSession(
       let failed = false;
       const outcomes = await Promise.allSettled(work.map(([id]) => refresh(id)));
       if (valid()) {
-        outcomes.forEach((outcome, index) => {
+        outcomes.forEach(outcome => {
           if (outcome.status !== 'rejected') return;
-          const [id, budgetChanged] = work[index];
-          queued.set(id, (queued.get(id) ?? false) || budgetChanged);
           failed = true;
-          setPollError(outcome.reason);
+          failedRead(outcome.reason);
           if (outcome.reason instanceof AiApiError && [401, 403].includes(outcome.reason.httpStatus)) {
             controller.abort();
             if (expiry.current) clearTimeout(expiry.current);
@@ -559,7 +623,7 @@ export function useChatSession(
           await loadBudget(true);
       }
       flushing = false;
-      // 失败事实留在队列，低频补查；不能因为已处理通知游标而丢掉终态刷新。
+      // 有界读取耗尽后停止观察，显式刷新会从耐久状态恢复。
       schedule(failed ? POLL_INTERVAL_MS : 50);
     };
     const claimed = new Set<string>();
@@ -579,20 +643,14 @@ export function useChatSession(
         try {
           // 状态查询与建连并行。避免慢 HTTP 查询挡住模型首段；SSE 重放仍覆盖 202 到建连间的完成事件。
           if (expiredCursors.current.has(id)) {
-            await refresh(id);
+            try {
+              await refresh(id);
+            } catch (error) {
+              failedRead(error);
+              return;
+            }
           } else {
-            void refresh(id).catch((error) => {
-              if (!valid()) return;
-              setPollError(error);
-              if (
-                error instanceof AiApiError &&
-                [401, 403].includes(error.httpStatus)
-              ) {
-                controller.abort();
-                if (expiry.current) clearTimeout(expiry.current);
-                setWatching(false);
-              }
-            });
+            void refresh(id).catch(failedRead);
           }
           if (!valid() || !watched.current.includes(id)) return;
           if (!expiredCursors.current.has(id)) {
@@ -615,7 +673,7 @@ export function useChatSession(
                 } else if (['TERMINAL', 'CONTROL', 'STARTED', 'BUDGET_CHANGED'].includes(event.kind)) {
                   enqueue(id, event.kind === 'BUDGET_CHANGED');
                 }
-                // 登记刷新事实后推进通知游标；失败由队列重试，重连始终先恢复权威状态。
+                // 登记刷新事实后推进游标；读取耗尽后由显式刷新恢复权威状态。
                 if (valid()) cursors.current.set(id, event.sequence);
               },
               {
@@ -635,11 +693,9 @@ export function useChatSession(
           setPollError(error);
           if (
             error instanceof AiApiError &&
-            [401, 403].includes(error.httpStatus)
+            error.httpStatus < 500 && ![408, 409, 410, 429].includes(error.httpStatus)
           ) {
-            controller.abort();
-            if (expiry.current) clearTimeout(expiry.current);
-            setWatching(false);
+            failedRead(error);
             return;
           }
           if (error instanceof AiApiError && error.httpStatus === 410) {
@@ -656,7 +712,8 @@ export function useChatSession(
 
   function loadBudget(force = false): Promise<void> {
     const budgetRef = settings.current.budgetRef;
-    const key = JSON.stringify([scope, budgetRef, sendingEnabled]);
+    const enabled = sendingAvailable.current;
+    const key = JSON.stringify([scope, budgetRef, enabled]);
     if (budgetKey.current !== key) {
       budgetKey.current = key;
       setBudget(null);
@@ -666,7 +723,7 @@ export function useChatSession(
       return budgetRead.current.promise;
     }
     requests.current.budget?.abort();
-    if (!sendingEnabled || !budgetRef) {
+    if (!enabled || !budgetRef) {
       setBudget(null);
       return Promise.resolve();
     }
@@ -676,16 +733,22 @@ export function useChatSession(
     setBudgetError(null);
     const pending = {
       key, promise: Promise.resolve().then(async () => {
+        let passes = 0;
         do {
           budgetDirty.current = false;
           try {
-            const {body} = await getBudget({scope, budgetRef}, {signal: controller.signal});
+            const {body} = await recoveryRead(signal => getBudget({scope, budgetRef}, {signal}), controller.signal);
             if (!controller.signal.aborted && alive.current) setBudget(previous =>
               previous?.budgetRef === body.data.budgetRef && previous.version > body.data.version ? previous : body.data);
           } catch (error) {
-            if (!controller.signal.aborted && alive.current) setBudgetError(error);
+            if (!controller.signal.aborted && alive.current) {
+              setBudget(null);
+              setBudgetError(error);
+              recoveryPaused.current = true;
+            }
+            break;
           }
-        } while (budgetDirty.current && !controller.signal.aborted && alive.current);
+        } while (++passes < 3 && budgetDirty.current && !controller.signal.aborted && alive.current);
       }).finally(() => {
         if (budgetRead.current === pending) budgetRead.current = null;
       if (!controller.signal.aborted && alive.current) setBudgetLoading(false);
@@ -717,31 +780,34 @@ export function useChatSession(
 
   async function readHistory(requestedPage: number | undefined, controller: AbortController) {
     let retriedConflict = false;
+    let passes = 0;
     try {
-      while (!controller.signal.aborted && alive.current) {
+      while (!controller.signal.aborted && alive.current && passes++ < 3) {
         const revision = historyRevision.current;
         try {
-          const reuseInitial = firstHistory.current;
+          const observed = await execution.refresh();
+          if (!observed || controller.signal.aborted || !alive.current) return;
+          const reuseInitial = firstHistory.current && initial.version === observed.version;
           firstHistory.current = false;
           const conversation = reuseInitial ? initial : (
-            await getConversation(
-              {scope, conversationId: initial.conversationId},
-              {signal: controller.signal},
-            )
+            await recoveryRead(signal => getConversation(
+              {scope, conversationId: initial.conversationId}, {signal}), controller.signal)
           ).body.data;
           if (controller.signal.aborted || !alive.current) return;
           if (revision !== historyRevision.current) continue;
+          if (conversation.version !== observed.version)
+            throw new AiApiError(409, {}, '会话版本已变化，请刷新状态。');
           const query = async (current: number) =>
             (
-              await queryTurnsOfConversation(
+              await recoveryRead(signal => queryTurnsOfConversation(
                 {
                   scope,
                   conversationId: conversation.conversationId,
                   expectedVersion: conversation.version,
                   page: {current, size: HISTORY_PAGE_SIZE},
                 },
-                {signal: controller.signal},
-              )
+                {signal},
+              ), controller.signal)
             ).body;
           let history = await query(requestedPage ?? 1);
           const lastPage = Math.max(
@@ -756,7 +822,7 @@ export function useChatSession(
             const selected = turn.selectedCandidate?.kind === 'TOOL_CHAT_RUN' ? undefined : turn.selectedInvocationId ?? turn.invocationIds.at(-1);
             const latest = turn.invocationIds.at(-1);
             return [selected, latest].filter((id): id is string => !!id);
-          }), ...Object.entries(views.current).filter(([, view]) => blocksConversation(view.status)).map(([id]) => id)])];
+          }), ...(observed.activeExecution?.kind === 'INVOCATION' ? [observed.activeExecution.executionId] : []), ...recoveryIds])];
           // 先展示问题与已有回答；读取状态仍进行时禁止提交，避免使用尚未核对的会话版本。
           setTurns(history.records);
           setPage(history.current);
@@ -764,17 +830,13 @@ export function useChatSession(
           if (requestedPage === undefined && ids.length)
             setInvocationId(created.current ?? history.records.at(-1)?.invocationIds.at(-1) ?? null);
           const entries: [string, InvocationView][] = [];
-          const unread = ids.filter(id => {
-            if (!canReuseInvocation(views.current[id])) return true;
-            entries.push([id, views.current[id]]);
-            return false;
-          });
+          const unread = ids;
           // 最近的回复先补全；每批不超过服务端上限，每批返回立即发布。
           unread.reverse();
           for (let offset = 0; offset < unread.length; offset += 20) {
             await Promise.all(unread.slice(offset, offset + 20).map(async id => {
               try {
-                entries.push([id, await readInvocation(id, controller.signal)]);
+                entries.push([id, await readInvocation(id, controller.signal, recoveryIds.includes(id) && !recoveredIds.includes(id))]);
               } catch (error) {
                 const view = {error};
                 entries.push([id, view]);
@@ -782,7 +844,7 @@ export function useChatSession(
               }
             }));
             if (controller.signal.aborted || !alive.current) return;
-            const denied = entries.find(([, view]) => view.error instanceof AiApiError && [401, 403].includes(view.error.httpStatus));
+            const denied = entries.find(([, view]) => view.error instanceof AiApiError && [401, 403, 404].includes(view.error.httpStatus));
             if (denied) throw denied[1].error;
           }
           if (controller.signal.aborted || !alive.current) return;
@@ -818,9 +880,16 @@ export function useChatSession(
             active.push(created.current);
           }
           // A failed history status lookup must be retried before submitting another turn.
-          if (entries.some(([, view]) => 'error' in view && view.error !== undefined))
+          if (entries.some(([, view]) => view.error !== undefined && !(view.status && !isActive(view.status) && view.status.state !== 'SUCCEEDED' && view.status.blocksConversation === false))) {
             setHistoryError(new Error('History invocation lookup failed'));
+            recoveryPaused.current = true;
+            stopWatching();
+            setWatching(false);
+            setPollPaused(true);
+            return;
+          }
           watch(active);
+          recoveryPaused.current = false;
           return;
         } catch (error) {
           if (!controller.signal.aborted && alive.current && revision !== historyRevision.current &&
@@ -835,8 +904,18 @@ export function useChatSession(
           throw error;
         }
       }
+      if (!controller.signal.aborted && alive.current) throw new AiApiError(409, {}, '会话持续变化，请刷新状态。');
     } catch (error) {
-      if (!controller.signal.aborted && alive.current) setHistoryError(error);
+      if (!controller.signal.aborted && alive.current) {
+        recoveryPaused.current = true;
+        stopWatching();
+        setWatching(false);
+        setPollPaused(true);
+        setHistoryError(error);
+        if (error instanceof AiApiError && [401, 403, 404].includes(error.httpStatus)) {
+          clearReadableData();
+        }
+      }
     } finally {
       if (!controller.signal.aborted && alive.current) setHistoryLoading(false);
     }
@@ -850,11 +929,9 @@ export function useChatSession(
       !pendingRef.current &&
       (historyLoading ||
         historyError ||
-        watched.current.length > 0 ||
-        Object.values(views.current).some(
-          (view) => blocksConversation(view.status),
-        ) ||
-        !budget ||
+        !execution.current() || execution.current()!.version !== metadata.current.version || execution.current()!.activeExecution !== null ||
+        watched.current.some(id => !views.current[id]?.status || isActive(views.current[id].status!)) ||
+        !budget || budgetLoading || budgetError ||
         !hasAvailableBudget(budget.available) ||
         metadata.current.state !== 'ACTIVE')
     )
@@ -907,6 +984,7 @@ export function useChatSession(
       });
       if (controller.signal.aborted || !alive.current) return;
       if (httpStatus !== 202 || !body.data.invocationId || body.data.conversationId !== snapshot.request.conversationId) throw new Error('Invalid chat acceptance; confirm the original request.');
+      execution.invalidate();
       acceptedLatency(body.data.invocationId);
       if (body.data.titleMetadata) titleUpdated.current?.(snapshot.request.conversationId, body.data.titleMetadata);
       persist('send', {...snapshot, acceptedId: body.data.invocationId});
@@ -936,6 +1014,7 @@ export function useChatSession(
           rejected.current?.(snapshot.request, error);
         } else {
           if (error.httpStatus === 409) {
+            execution.invalidate();
             historyRevision.current++;
             void loadHistory();
           }
@@ -951,11 +1030,11 @@ export function useChatSession(
   }
 
   async function regenerate(originalInvocationId?: string) {
-    if (requests.current.submit || pendingRef.current || !alive.current || recoveryBlocked || !writesAllowed || (!sendingEnabled && !regenerationRef.current)) return;
+    if (requests.current.submit || pendingRef.current || !alive.current || recoveryBlocked || !writesAllowed) return;
     let snapshot = regenerationRef.current;
     if (!snapshot) {
-      if (historyLoading || historyError || watched.current.length > 0 ||
-        Object.values(views.current).some(view => blocksConversation(view.status)) || !originalInvocationId ||
+      if (historyLoading || historyError || !execution.current() || execution.current()!.version !== metadata.current.version || execution.current()!.activeExecution !== null ||
+        watched.current.some(id => !views.current[id]?.status || isActive(views.current[id].status!)) || !originalInvocationId ||
         metadata.current.state !== 'ACTIVE') return;
       snapshot = {
         key: crypto.randomUUID(),
@@ -977,6 +1056,7 @@ export function useChatSession(
       const {body, httpStatus} = await regenerateChat(snapshot.request, snapshot.key, {signal: controller.signal});
       if (controller.signal.aborted || !alive.current) return;
       if (httpStatus !== 202 || !body.data.executionId) throw new Error('Invalid regeneration acceptance; confirm the original request.');
+      execution.invalidate();
       acceptedLatency(body.data.executionId);
       persist('regenerate', {...snapshot, acceptedId: body.data.executionId});
       regenerationRef.current = null;
@@ -1012,10 +1092,16 @@ export function useChatSession(
     requests.current.candidate?.abort();
     requests.current.candidate = controller;
     try {
-      const view = await readInvocation(id, controller.signal);
+      const view = await readInvocation(id, controller.signal, true);
       if (!controller.signal.aborted && alive.current) publish({[id]: view});
     } catch (error) {
-      if (!controller.signal.aborted && alive.current) publish({[id]: {...views.current[id], error}});
+      if (!controller.signal.aborted && alive.current) {
+        if (error instanceof AiApiError && [401, 403, 404].includes(error.httpStatus)) {
+          clearReadableData();
+          setHistoryError(error);
+          recoveryPaused.current = true;
+        } else publish({[id]: {...views.current[id], error}});
+      }
     }
   }
 
@@ -1099,6 +1185,52 @@ export function useChatSession(
   }, [config, sendingEnabled]);
 
   useEffect(() => {
+    const refresh = () => {
+      if (!alive.current || document.visibilityState === 'hidden' || (historyRead.current && !historyRead.current.controller.signal.aborted)) return;
+      recoveryPaused.current = false;
+      historyRevision.current++;
+      void loadHistory();
+      void loadBudget(true);
+    };
+    const visible = () => {
+      if (document.visibilityState === 'hidden') {
+        stopWatching();
+        requests.current.history?.abort();
+        requests.current.budget?.abort();
+        for (const read of invocationReads.current.values()) read.controller.abort();
+        execution.invalidate();
+      } else refresh();
+    };
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('focus', refresh);
+    // Multi-tab activity must be discovered even when an old invocation is already terminal.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden' || recoveryPaused.current || historyRead.current || requests.current.submit) return;
+      const previous = execution.current();
+      void execution.refresh().then(current => {
+        if (current && (previous?.version !== current.version || JSON.stringify(previous?.activeExecution) !== JSON.stringify(current.activeExecution))) {
+          historyRevision.current++;
+          void loadHistory();
+        }
+      }).catch(error => {
+        recoveryPaused.current = true;
+        stopWatching();
+        setWatching(false);
+        setPollPaused(true);
+        setHistoryError(error);
+        if (error instanceof AiApiError && [401, 403, 404].includes(error.httpStatus)) {
+          clearReadableData();
+        }
+      });
+    }, POLL_INTERVAL_MS);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     const updatedBudget = (event: Event) => {
       if (!alive.current || !sendingEnabled) return;
       const {scope: owner, account} = (event as CustomEvent<{
@@ -1141,8 +1273,27 @@ export function useChatSession(
   }, []);
 
   return {
-    storageWarning,
+    storageWarning: storageWarning === RECOVERY_WARNING && !recoveryBlocked ? '已按调用 ID 恢复状态；原浏览器请求记录损坏，已保留供排查。' : storageWarning,
     recoveryBlocked,
+    recoveryIsolated,
+    recoveryIds,
+    recoveryDiagnostic: JSON.stringify({
+      scope,
+      conversationId: target,
+      invocationIds: recoveryIds,
+      error: '原提交无法自动确认'
+    }),
+    isolateRecovery: () => {
+      setRecoveryIsolated(true);
+      if (context && !writeValue(storageKey(context, 'recovery-isolation', target), {
+        isolated: true,
+        isolatedAt: new Date().toISOString()
+      }))
+        setStorageWarning('本页已临时隔离；浏览器保存失败，刷新后仍需确认。请复制保存草稿。');
+    },
+    executionState: execution.state,
+    executionLoading: execution.loading,
+    executionError: execution.error,
     draft,
     setDraft,
     turns,
@@ -1174,10 +1325,13 @@ export function useChatSession(
     pollError,
     pollPaused,
     activeIds,
-    unresolved: Object.values(invocations).some(
-      (view) => blocksConversation(view.status),
-    ),
-    resume: () => watch(watched.current, true),
+    unresolved: !execution.state || execution.loading || !!execution.error || execution.state.activeExecution !== null,
+    resume: () => {
+      recoveryPaused.current = false;
+      void loadHistory();
+      void loadBudget(true);
+      watch(watched.current, true);
+    },
     send,
     stop,
     stopping,

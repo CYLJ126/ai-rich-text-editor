@@ -114,7 +114,7 @@ export default function ChatPanel({
           const latestStatus = latestId ? chat.invocations[latestId]?.status : undefined;
           const latestTurn = chat.page === Math.max(1, Math.ceil(chat.total / HISTORY_PAGE_SIZE)) && turn.sequence === chat.total;
           const regeneratable = latestStatus && !['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(latestStatus.state) &&
-            (latestStatus.state !== 'UNKNOWN' || isUserStoppedGeneration(latestStatus));
+            latestStatus.kind === 'GENERATION' && latestStatus.blocksConversation === false;
           const invocation = id ? chat.invocations[id] : undefined;
           const result = invocation?.result;
           const model =
@@ -315,7 +315,11 @@ export default function ChatPanel({
       {chat.budget && !available && (
         <Alert type="warning" title={t('insufficientBudget')}/>
       )}
-      {chat.unresolved && <Alert type="warning" title={t('unknownOutcome')}/>}
+      {chat.unresolved && <Alert type="warning" title={t('recovery.occupancyUnknown')}/>}
+      {current?.status?.state === 'UNKNOWN' && !isUserStoppedGeneration(current.status) &&
+        <Alert type="info" title={t('recovery.unknown')}
+               description={!blocked ? t('recovery.canContinue') : undefined}/>}
+      <Button onClick={chat.resume}>{t('recovery.refresh')}</Button>
       {error(chat.pollError, chat.resume)}
       {chat.pollPaused && (
         <Alert

@@ -10,6 +10,7 @@ import {
   type ConversationTurnResponse,
   getBudget,
   getConversation,
+  getConversationExecutionState,
   getInvocationResult,
   getInvocationSnapshot,
   getInvocationStatus,
@@ -30,6 +31,7 @@ vi.mock('@/services/arte-ai', async (original) => ({
   cancelInvocation: vi.fn(),
   getBudget: vi.fn(),
   getConversation: vi.fn(),
+  getConversationExecutionState: vi.fn(),
   getInvocationResult: vi.fn(),
   getInvocationStatus: vi.fn(),
   getInvocationSnapshot: vi.fn(),
@@ -232,6 +234,15 @@ beforeEach(() => {
     return {invocationId: query.invocationId, status: value, result: output, missing: false};
   });
   vi.mocked(getConversation).mockResolvedValue(reply(conversation));
+  vi.mocked(getConversationExecutionState).mockImplementation(async query => {
+    const value = (await vi.mocked(getConversation).getMockImplementation()!(query)).body.data;
+    return reply({
+      conversationId: query.conversationId,
+      version: value.version,
+      activeExecution: null,
+      observedAt: '2026-11-08T00:00:00Z'
+    });
+  });
   vi.mocked(getBudget).mockResolvedValue(reply(budget));
   vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([]));
   vi.mocked(getInvocationStatus).mockImplementation(async ({invocationId}) =>
@@ -419,7 +430,7 @@ describe('消息、历史和预算', () => {
     expect(hook.result.current.activeIds).toEqual(['invocation-11']);
   });
 
-  it('轮询错误保留调用身份，恢复查询不会再次提交消息', async () => {
+  it('快照读取瞬时失败时按原调用状态恢复，不再次提交消息', async () => {
     vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
     let count = 0;
     vi.mocked(getInvocationStatus).mockImplementation(
@@ -432,9 +443,7 @@ describe('消息、历史和预算', () => {
     );
     const hook = mount();
     await ready(hook);
-    await waitFor(() => expect(hook.result.current.pollError).toBeTruthy());
-    expect(hook.result.current.activeIds).toEqual(['invocation-1']);
-    act(() => hook.result.current.resume());
+    // 一次快照失败由只读状态兜底恢复，不产生写请求。
     await waitFor(() => expect(hook.result.current.activeIds).toEqual([]));
     expect(turnsForChat).not.toHaveBeenCalled();
     expect(hook.result.current.pollError).toBeNull();
@@ -921,7 +930,7 @@ describe('消息、历史和预算', () => {
     expect(hook.result.current.invocations['invocation-1'].result).toEqual(
       result('invocation-1'),
     );
-    expect(hook.result.current.activeIds).toEqual(['invocation-1']);
+    expect(hook.result.current.activeIds).toEqual([]);
     expect(hook.result.current.watching).toBe(true);
     expect(watchInvocation).toHaveBeenCalledOnce();
     vi.mocked(getInvocationStatus).mockResolvedValue(
@@ -984,7 +993,7 @@ describe('消息、历史和预算', () => {
     expect(turnsForChat).not.toHaveBeenCalled();
   });
 
-  it('UNKNOWN 待对账停止观察但保留预留并阻止继续提交', async () => {
+  it('UNKNOWN 待对账停止执行观察，保留费用且会话空闲可显式提交', async () => {
     vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn()]));
     vi.mocked(getInvocationStatus).mockResolvedValue(
       reply({
@@ -1012,13 +1021,13 @@ describe('消息、历史和预算', () => {
       }));
     });
     expect(hook.result.current.activeIds).toEqual([]);
-    expect(hook.result.current.unresolved).toBe(true);
+    expect(hook.result.current.unresolved).toBe(false);
     expect(hook.result.current.budget?.held).toBe('1');
     act(() => hook.result.current.setDraft('下一轮'));
     await act(async () => {
       await hook.result.current.send();
     });
-    expect(turnsForChat).not.toHaveBeenCalled();
+    expect(turnsForChat).toHaveBeenCalledOnce();
   });
 
   it('断线 10 秒后恢复查询并用已处理序号重连，卸载取消连接', async () => {
@@ -1195,8 +1204,8 @@ describe('消息、历史和预算', () => {
     expect(turnsForChat).not.toHaveBeenCalled();
     expect(
       screen.getByRole('textbox', {name: t('messageInput')}),
-    ).toBeDisabled();
-    expect(screen.getByText(t('unknownOutcome'))).toBeInTheDocument();
+    ).toBeEnabled();
+    expect(screen.getByText(t('recovery.unknown'))).toBeInTheDocument();
   });
 
   it('预算查询失败或余额为零时禁止新消息，刷新预算后可发送', async () => {
@@ -1291,7 +1300,8 @@ describe('消息、历史和预算', () => {
     const hook = renderHook(() =>
       useChatSession(config, conversation, updated),
     );
-    const signal = vi.mocked(getConversation).mock.calls[0][1]?.signal;
+    await waitFor(() => expect(getConversationExecutionState).toHaveBeenCalled());
+    const signal = vi.mocked(getConversationExecutionState).mock.calls[0][1]?.signal;
     hook.unmount();
     expect(signal?.aborted).toBe(true);
     await act(async () => {
@@ -1407,7 +1417,7 @@ describe('状态缓存与请求合并', () => {
     await ready(hook);
     expect(hook.result.current.historyError).toBeTruthy();
     await act(async () => hook.result.current.loadHistory());
-    expect(getInvocationStatus).toHaveBeenCalledTimes(2);
+    expect(getInvocationStatus).toHaveBeenCalledTimes(3);
     expect(getInvocationResult).toHaveBeenCalledTimes(2);
     expect(hook.result.current.invocations['invocation-1'].result).toEqual(result('invocation-1'));
     expect(hook.result.current.historyError).toBeNull();
@@ -1501,12 +1511,25 @@ describe('状态缓存与请求合并', () => {
       resolve = done;
     }))
       .mockResolvedValue(reply({...conversation, version: 2}));
+    vi.mocked(getConversationExecutionState).mockResolvedValue(reply({
+      conversationId: 'conversation',
+      version: 0,
+      activeExecution: null,
+      observedAt: conversation.updatedAt
+    }));
     const reads = vi.mocked(getConversation).mock.calls.length;
     let historyRequest!: Promise<void>;
     act(() => {
       historyRequest = hook.result.current.loadHistory();
     });
+    await waitFor(() => expect(getConversation).toHaveBeenCalledTimes(reads + 1));
     vi.mocked(getInvocationStatus).mockResolvedValue(reply(status('invocation-1', 'SUCCEEDED', 3)));
+    vi.mocked(getConversationExecutionState).mockResolvedValue(reply({
+      conversationId: 'conversation',
+      version: 2,
+      activeExecution: null,
+      observedAt: conversation.updatedAt
+    }));
     let terminalRequest!: Promise<void>;
     await act(async () => {
       terminalRequest = notification(vi.mocked(watchInvocation).mock.calls[0][1]({
@@ -1720,7 +1743,7 @@ describe('停止生成', () => {
     expect(screen.getByText(t('partialResult'))).toBeInTheDocument();
     expect(screen.queryByText(t('unknownOutcome'))).not.toBeInTheDocument();
     expect(screen.getByText(t('stoppedPendingReconciliation'))).toBeInTheDocument();
-    expect(watchInvocation).not.toHaveBeenCalled();
+    expect(vi.mocked(watchInvocation).mock.calls.length).toBe(budgetState === 'RESERVED' ? 1 : 0);
     expect(turnsForChat).not.toHaveBeenCalled();
     expect(cancelInvocation).not.toHaveBeenCalled();
     page.unmount();
@@ -1800,7 +1823,7 @@ describe('重新生成及核对后的恢复', () => {
     expect(regenerateChat).not.toHaveBeenCalled();
   });
 
-  it('核对旧页上的 UNKNOWN 后更新已缓存状态，恢复发送新问题', async () => {
+  it('核对旧页上的 UNKNOWN 更新费用状态，不改变已经空闲的会话', async () => {
     const unresolved = {
       ...status('invocation-1', 'UNKNOWN', 4), error: {
         code: 'CONNECTION_LOST', phase: 'INVOCATION' as const,
@@ -1811,7 +1834,7 @@ describe('重新生成及核对后的恢复', () => {
     vi.mocked(getInvocationStatus).mockResolvedValue(reply(unresolved));
     const hook = mount();
     await ready(hook);
-    expect(hook.result.current.unresolved).toBe(true);
+    expect(hook.result.current.unresolved).toBe(false);
     vi.mocked(queryTurnsOfConversation).mockResolvedValue(history([turn(2)]));
     vi.mocked(getInvocationStatus).mockImplementation(async ({invocationId}) => reply({
       ...status(invocationId, 'FAILED', 5),

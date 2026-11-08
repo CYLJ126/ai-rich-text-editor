@@ -168,21 +168,33 @@ export function removeValue(key: string, persistent = false) {
 }
 
 export function readOperation<T>(context: BrowserContext | undefined, kind: OperationKind, target: string) {
-  if (!context) return {value: null, warning: null};
-  const stored = readValue<Operation<T>>(storageKey(context, kind, target));
-  if (!stored.value) return stored;
+  if (!context) return {value: null, warning: null, knownId: undefined as string | undefined};
+  const key = storageKey(context, kind, target);
+  const stored = readValue<Operation<T>>(key);
+  if (stored.warning) return {...stored, knownId: undefined as string | undefined};
+  try {
+    if (stored.value === null && sessionStorage.getItem(key) === null)
+      return {...stored, knownId: undefined as string | undefined};
+  } catch {
+    return {value: null, warning: RECOVERY_WARNING, knownId: undefined as string | undefined};
+  }
+  // 已知调用 ID 可以独立恢复；损坏的请求／键不能被拼成新写操作。
+  const known = z.object({acceptedId: id}).safeParse(stored.value);
+  const stop = kind === 'stop' ? z.object({request: z.object({invocationId: id})}).safeParse(stored.value) : undefined;
+  const knownId = ['send', 'regenerate', 'stop'].includes(kind) && known.success ? known.data.acceptedId
+    : stop?.success ? stop.data.request.invocationId : undefined;
   const parsed = z.object({key: id, request: schemas[kind], acceptedId: id.optional()}).safeParse(stored.value);
   if (!parsed.success || !sameScope(parsed.data.request.scope, context.scope)) return {
     value: null,
-    warning: RECOVERY_WARNING
+    warning: RECOVERY_WARNING, knownId
   };
   const request = parsed.data.request;
   if ((kind === 'send' && 'conversationId' in request && request.conversationId !== target)
     || (kind === 'reconcile' && 'budgetRef' in request && request.budgetRef !== target)) return {
     value: null,
-    warning: RECOVERY_WARNING
+    warning: RECOVERY_WARNING, knownId
   };
-  return {value: parsed.data as unknown as Operation<T>, warning: null};
+  return {value: parsed.data as unknown as Operation<T>, warning: null, knownId};
 }
 
 export function saveOperation<T>(context: BrowserContext | undefined, kind: OperationKind, target: string, operation: Operation<T> | null) {

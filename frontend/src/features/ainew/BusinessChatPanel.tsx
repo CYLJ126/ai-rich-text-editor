@@ -1,6 +1,20 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {Alert, Button, Collapse, Descriptions, Drawer, Empty, Flex, Input, Select, Spin, Tag, Typography} from 'antd';
+import {
+  Alert,
+  Button,
+  Collapse,
+  Descriptions,
+  Drawer,
+  Empty,
+  Flex,
+  Input,
+  Modal,
+  Select,
+  Spin,
+  Tag,
+  Typography
+} from 'antd';
 import {
   AiApiError,
   type ChatMessage,
@@ -72,6 +86,7 @@ export default function BusinessChatPanel({
   onLocationInvalidated?: (error: unknown, target: LocatedHistory) => void;
 }) {
   const assistantChat = !!conversation.chatProfile;
+  const [confirmation, confirmationContext] = Modal.useModal();
   const readingConfig = config ?? {...DEFAULT_CHAT_CONFIG, ...context.scope, temperature: null, topP: null};
   const option = options.find(item => config && item.binding.id === config.bindingId && item.binding.version === config.bindingVersion);
   const chat = useChatSession(readingConfig, conversation, onUpdated, option?.limits.maxInputBytes, onConfigurationRejected, context, !!config && writable && !assistantUnavailable, writable, onTitleUpdated);
@@ -87,6 +102,7 @@ export default function BusinessChatPanel({
     const latest = turnCandidates(turn).at(-1);
     return latest?.kind === 'TOOL_CHAT_RUN' ? [latest.executionId] : [];
   }), ...Object.entries(runStates).flatMap(([id, value]) => value.status && !runTerminal(value.status.state) ? [id] : []),
+    ...(chat.executionState?.activeExecution?.kind === 'RUN' ? [chat.executionState.activeExecution.executionId] : []),
     ...(toolCommand.stop ? [toolCommand.stop.runId] : []), ...(toolCommand.saved?.acceptedId ? [toolCommand.saved.acceptedId] : [])])];
   const runBusy = runGateIds.some(id => !runStates[id]?.status || !!runStates[id].error || !runTerminal(runStates[id].status?.state ?? 'ACCEPTED'));
   const toolPending = !!toolCommand.saved && !toolCommand.saved.acceptedId;
@@ -99,11 +115,12 @@ export default function BusinessChatPanel({
       void chat.send();
       return;
     }
+    if (!chat.executionState || chat.unresolved || chat.recoveryBlocked || chat.historyLoading || chat.historyError) return;
     if (!config || !chat.budget || toolBlocked || toolChoiceInvalid || toolModelUnsupported) return;
     void toolCommand.send({
       scope: context.scope,
       conversationId: conversation.conversationId,
-      expectedVersion: conversation.version,
+      expectedVersion: chat.executionState.version,
       text: chat.draft.trim(),
       binding: {type: 'binding', id: config.bindingId, version: config.bindingVersion},
       capability: {type: 'capability', id: config.capabilityId, version: config.capabilityVersion},
@@ -174,9 +191,28 @@ export default function BusinessChatPanel({
   const [newContent, setNewContent] = useState(false);
   const lastVersion = useRef(conversation.version);
   const composing = useRef(false);
+  const composer = useRef<React.ComponentRef<typeof Input.TextArea>>(null);
+  const [pendingFees, setPendingFees] = useState({budgetRef: '', count: 0});
+
+  function copyQuestion(text: string) {
+    const fill = () => {
+      chat.setDraft(text);
+      setNotice(t('recovery.copyPrepared'));
+      requestAnimationFrame(() => composer.current?.focus({cursor: 'end'}));
+    };
+    if (chat.draft.trim()) confirmation.confirm({
+      title: t('recovery.replaceDraft'),
+      content: t('recovery.copyHelp'),
+      okText: t('recovery.replace'),
+      cancelText: t('recovery.keepDraft'),
+      focusable: {autoFocusButton: 'cancel'},
+      onOk: fill
+    });
+    else fill();
+  }
   const available = !!chat.budget && hasAvailableBudget(chat.budget.available);
   const pending = !!chat.pending || !!chat.pendingRegeneration;
-  const blocked = assistantUnavailable || toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || !available;
+  const blocked = assistantUnavailable || toolBlocked || toolChoiceInvalid || toolModelUnsupported || !config || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved || chat.budgetLoading || !!chat.budgetError || !available;
   const regenerationBlocked = assistantUnavailable || toolBlocked || !writable || dirty || chat.recoveryBlocked || conversation.state !== 'ACTIVE' || chat.historyLoading || !!chat.historyError || chat.submitting || pending || chat.activeIds.length > 0 || chat.unresolved;
   const tooLarge = !!option && new TextEncoder().encode(chat.draft.trim()).length > option.limits.maxInputBytes;
 
@@ -184,9 +220,9 @@ export default function BusinessChatPanel({
     onInteraction({
       pending: toolPending || toolCommand.busy || !!toolCommand.stop || pending || !!chat.pendingStop || chat.submitting || chat.stopping,
       active: runBusy || chat.activeIds.length > 0,
-      unsafeToLeave: toolCommand.storageError || unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
+      unsafeToLeave: (chat.recoveryBlocked && !chat.recoveryIsolated) || toolCommand.storageError || unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
     });
-  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy]);
+  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy, chat.recoveryBlocked, chat.recoveryIsolated]);
 
   const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
   const visibleViews = located.active ? located.views : chat.invocations;
@@ -267,10 +303,24 @@ export default function BusinessChatPanel({
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
            action={retry && <Button onClick={retry}>重试</Button>}/> : null;
-  const reason = toolPending ? '原工具聊天提交结果待确认，请继续确认原请求。' : runBusy ? '原工具聊天正在执行或状态待读取。' : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。' : toolChoiceInvalid ? '请选择工具并填写模型及工具所需币种的本次费用上限。' : !writable ? '此空间当前只读，不能创建新调用。' : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。' : pending ? '原操作受理结果待确认，请使用原操作恢复按钮。' : chat.activeIds.length ? '当前回复正在生成。' : chat.unresolved ? '执行结果待确认，请刷新或查看待核对费用。' : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请重试。' : !available ? '预算余额未知或不足，请刷新预算。' : '';
+  const hasPendingFees = pendingFees.budgetRef === config?.budgetRef && pendingFees.count > 0;
+  const reason = !writable ? '此空间当前只读，不能创建新调用。' : chat.recoveryBlocked ? t('recovery.damaged')
+    : pending || toolPending ? t('recovery.confirmOriginal')
+      : chat.executionLoading || chat.executionError || !chat.executionState ? t('recovery.occupancyUnknown')
+        : chat.executionState.activeExecution || chat.activeIds.length || runBusy ? t('recovery.busy')
+          : toolModelUnsupported ? '当前模型不支持工具调用，请选择支持工具调用的模型，或关闭工具。'
+            : toolChoiceInvalid ? '请选择工具并填写模型及工具所需币种的本次费用上限。'
+              : !config ? '请选择模型和兼容预算。' : dirty ? '有未应用配置，请应用或取消修改。'
+                : chat.historyLoading ? '正在恢复历史…' : chat.historyError ? '历史读取失败，请刷新状态。'
+                  : chat.budgetLoading ? '正在刷新预算…' : chat.budgetError ? '预算读取失败，请刷新状态。'
+                    : !available ? hasPendingFees ? t('recovery.insufficientWithPending')
+                      : chat.budget && hasAvailableBudget(chat.budget.held) ? `${t('recovery.insufficientHeld')} (${chat.budget.held} ${chat.budget.currency})`
+                        : '预算余额未知或不足，请刷新预算。' : '';
+
   const current = chat.invocationId ? chat.invocations[chat.invocationId] : undefined;
 
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
+    {confirmationContext}
     <Flex align="center" gap={8} wrap className="ainew-chat-tools">
       <Button loading={located.active ? located.loading : chat.historyLoading} onClick={() => {
         if (located.active) {
@@ -281,6 +331,7 @@ export default function BusinessChatPanel({
         setOlderCache({version: conversation.version, turns: []});
         void chat.loadHistory();
       }}>刷新历史</Button>
+      <Button loading={chat.executionLoading} onClick={chat.resume}>{t('recovery.refresh')}</Button>
       <Button onClick={() => setFees(true)}>查看费用</Button>
       <Typography.Text>{chat.budget ? `可用余额 ${chat.budget.available} ${chat.budget.currency}` : '可用余额待查询'}</Typography.Text>
     </Flex>
@@ -338,7 +389,14 @@ export default function BusinessChatPanel({
         const invocation = id ? visibleViews[id] : undefined;
         const result = invocation?.result?.kind === 'GENERATION' ? invocation.result.result.value : null;
         const text = result ? result.outputs.map(messageText).join('\n\n') : invocation?.streamText ?? '';
-        const regenerate = !located.active && turn.sequence === chat.total && latest && !isActive(latest) && (latest.state !== 'UNKNOWN' || isUserStoppedGeneration(latest));
+        const regenerate = !located.active && turn.sequence === chat.total && latest?.kind === 'GENERATION' && !isActive(latest) && latest.blocksConversation === false;
+        const selectedView = selected?.kind === 'INVOCATION' ? visibleViews[selected.executionId] : undefined;
+        const adopted = selectedView?.status?.state === 'SUCCEEDED' && selectedView.result?.kind === 'GENERATION' && selectedView.result.result.value.complete;
+        const skippedTurn = selectedView?.status && !isActive(selectedView.status) && selectedView.status.state !== 'SUCCEEDED' && selectedView.status.blocksConversation === false;
+        const skippedCandidate = invocation?.status && !isActive(invocation.status) && invocation.status.state !== 'SUCCEEDED' && invocation.status.blocksConversation === false;
+        const plainQuestion = candidates.every(candidate => candidate.kind === 'INVOCATION') && turn.userMessage.content.every(part => 'text' in part)
+          && turn.userMessage.toolCalls.length === 0 && !turn.userMessage.toolCallId
+          && !!invocation?.status && invocation.status.kind === 'GENERATION';
         const waitingForReply = !invocation?.status ? chat.historyLoading : isActive(invocation.status);
 
         return <Flex component="article" vertical className="ainew-turn" key={turn.turnId} data-turn-id={turn.turnId}>
@@ -355,7 +413,7 @@ export default function BusinessChatPanel({
                                                 value={candidate ? candidateKey(candidate) : id}
                                                 options={candidates.map((candidate, index) => ({
                                                   value: candidateKey(candidate),
-                                                  label: `回复 ${index + 1}${candidate.executionId === selected?.executionId ? ' · 后续上下文采用' : ''}`
+                                                  label: `回复 ${index + 1}${candidate.executionId === selected?.executionId && adopted ? ' · 后续上下文采用' : ''}`
                                                         }))} onChange={candidate => {
                 if (located.active) {
                   const chosen = candidates.find(c => candidateKey(c) === candidate);
@@ -380,9 +438,19 @@ export default function BusinessChatPanel({
               </Flex>}
             {!result && text && <Typography.Paragraph type="secondary"
                                                       className="ainew-muted">流式预览；最终结果以服务器记录为准。</Typography.Paragraph>}
+              {invocation?.status?.state === 'UNKNOWN' && invocation.status.blocksConversation === false &&
+                <Typography.Paragraph role="status">
+                  {t('recovery.unknown')}{!blocked && ` ${t('recovery.canContinue')}`}
+                </Typography.Paragraph>}
+              {skippedTurn ? <Typography.Paragraph>{t('recovery.turnSkipped')}</Typography.Paragraph>
+                : skippedCandidate && <Typography.Paragraph>{t('recovery.candidateSkipped')}</Typography.Paragraph>}
             {error(invocation?.error, () => id && void chat.inspectCandidate(id))}
             <Flex align="center" gap={8} wrap className="ainew-answer-actions">
               {text && <Button size="small" onClick={() => void copyText(text, setNotice)}>复制回答</Button>}
+              {plainQuestion && <Button size="small"
+                                        onClick={() => copyQuestion(messageText(turn.userMessage))}>{t('recovery.copyQuestion')}</Button>}
+              {plainQuestion &&
+                <Typography.Text type="secondary">{t('recovery.currentConfiguration')}</Typography.Text>}
               {regenerate && <Button size="small" disabled={regenerationBlocked}
                                      title="沿用原问题、模型、参数及预算，将产生新调用和费用。" onClick={() => {
                 setViewed(previous => {
@@ -392,10 +460,13 @@ export default function BusinessChatPanel({
                 });
                 void chat.regenerate(latestId);
               }}>重新生成</Button>}
+              {regenerate && <Typography.Text
+                type="secondary">{t(latest?.state === 'UNKNOWN' ? 'recovery.regenerateUnknown' : 'recovery.regenerateHelp')}</Typography.Text>}
               <Collapse ghost size="small" className="ainew-execution-details"
                         styles={{header: {padding: '8px 0'}, body: {padding: '0 0 8px'}}}
                         items={[{
-                          key: 'execution', label: '执行详情', children:
+                          key: 'execution', label: '执行详情', children: <>
+                            <Typography.Paragraph>{t('recovery.copyHelp')}</Typography.Paragraph>
                             <Descriptions column={1} size="small" className="ainew-info" items={[
                               {key: 'invocation', label: '调用', children: id ?? '未知'},
                               ...(result ? [
@@ -416,7 +487,7 @@ export default function BusinessChatPanel({
                                 label: '错误',
                                 children: `${invocation.status.error.code} · ${invocation.status.error.phase} · ${invocation.status.error.correlationId}`
                               }] : []),
-                            ]}/>
+                            ]}/></>
                         }]}/>
             </Flex>
             </>}
@@ -458,12 +529,28 @@ export default function BusinessChatPanel({
         <Button loading={toolCommand.busy} disabled={toolCommand.blocked} onClick={() => void toolCommand.cancel()}>继续确认原
           Run 停止请求</Button>}
       {notice && <Typography.Paragraph role="status">{notice}</Typography.Paragraph>}
+      {chat.recoveryBlocked && <Alert type="warning" title={t('recovery.damaged')}
+                                      description={<>
+                                        <Typography.Paragraph>{chat.recoveryIds.length ? t('recovery.knownId') : t('recovery.unrecoverable')}</Typography.Paragraph>
+                                        <Typography.Paragraph>{chat.recoveryDiagnostic}</Typography.Paragraph>
+                                        {chat.recoveryIsolated &&
+                                          <Typography.Paragraph>{t('recovery.isolated')}</Typography.Paragraph>}
+                                        <Button
+                                          onClick={() => void copyText(chat.draft, setNotice)}>{t('recovery.saveDraft')}</Button>
+                                        <Button onClick={() => confirmation.confirm({
+                                          title: t('recovery.leave'),
+                                          content: t('recovery.leaveWarning'),
+                                          okText: t('recovery.isolate'),
+                                          cancelText: t('recovery.stay'),
+                                          focusable: {autoFocusButton: 'cancel'},
+                                          onOk: chat.isolateRecovery
+                                        })}>{t('recovery.leave')}</Button></>}/>}
       {chat.storageWarning && <Alert type="warning" title={chat.storageWarning}/>}
       {error(chat.submitError)}{error(chat.stopError, chat.retryStop)}
       {chat.pendingStop && !chat.stopError && <Button loading={chat.stopping}
                                                       onClick={chat.retryStop}>重试确认原停止请求</Button>}{error(chat.pollError, chat.resume)}
       {chat.pollPaused && <Button onClick={chat.resume}>恢复执行观察</Button>}
-      {pending && <Alert type="warning" title="原操作结果待确认"
+      {pending && <Alert type="warning" title={t('recovery.confirmOriginal')}
                          description="确认时保持原请求和幂等键；当前模型选择不会改写原请求。"/>}
       {chat.pending && <Button loading={chat.submitting} disabled={chat.recoveryBlocked || !writable}
                                onClick={() => void chat.send()}>重试确认原提交</Button>}
@@ -476,7 +563,7 @@ export default function BusinessChatPanel({
                                                              disabled={!!chat.draft.trim() || pending || chat.activeIds.length > 0}
                                                              onClick={() => chat.setDraft(example + '\n\n')}>填入示例 {index + 1}</Button>)}
         </Flex>}
-      <Input.TextArea aria-label="输入问题" placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+      <Input.TextArea ref={composer} aria-label="输入问题" placeholder="输入问题，Enter 发送，Shift+Enter 换行"
                       autoSize={{minRows: 2, maxRows: 7}} maxLength={1_000_000} value={chat.draft}
                       onChange={event => chat.setDraft(event.target.value)} onCompositionStart={() => {
         composing.current = true;
@@ -530,7 +617,9 @@ export default function BusinessChatPanel({
         ]}/>}
         {error(chat.budgetError, () => void chat.loadBudget())}
         <ReconciliationPanel key={config.budgetRef} context={context} config={config} t={t} writable={writable}
-                             onUnsafeToLeave={setUnsafeReconciliation} onConfirmed={chat.refreshAfterReconciliation}/>
+                             onUnsafeToLeave={setUnsafeReconciliation}
+                             onPendingCount={count => setPendingFees({budgetRef: config.budgetRef, count})}
+                             onConfirmed={chat.refreshAfterReconciliation}/>
       </> : <Typography.Paragraph>选择兼容预算后可查看费用。</Typography.Paragraph>}
       <Typography.Paragraph>单次最终费用未由状态接口提供，不能用余额差推算。未知费用不会补零。</Typography.Paragraph>
     </Drawer>
