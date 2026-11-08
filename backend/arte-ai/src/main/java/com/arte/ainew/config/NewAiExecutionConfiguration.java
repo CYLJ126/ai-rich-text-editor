@@ -6,6 +6,7 @@ import com.arte.ainew.api.execution.ExecutionControl;
 import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.api.execution.InvocationCoordinator;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.conversation.ConversationExecutionPolicy;
 import com.arte.ainew.application.execution.*;
 import com.arte.ainew.application.tool.discovery.StaticToolDiscovery;
 import com.arte.ainew.application.tool.execution.ToolDispatcher;
@@ -86,6 +87,11 @@ public class NewAiExecutionConfiguration {
     @Bean("newAiExecutionControl")
     ExecutionControl control(AdmissionAuthorization authorization, MybatisExecutionPersistence executions, InvocationCoordinator coordinator) {
         return new DefaultExecutionControl(authorization, executions, coordinator);
+    }
+
+    @Bean
+    ConversationExecutionPolicy conversationExecutionPolicy(MybatisExecutionPersistence executions) {
+        return new ConversationExecutionPolicy(executions);
     }
 
     @Bean("newAiInvocationBudgetStatusResolver")

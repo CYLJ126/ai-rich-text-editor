@@ -127,7 +127,7 @@ public class SearchQualityAcceptanceTest {
         var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, clock), props.deployment());
         mvc = MockMvcBuilders.standaloneSetup(new NewAiConversationSearchController(service, http, props.deployment()),
                         new NewAiConversationController(conversations, new ConversationHttpContext(http, props.deployment())),
-                        new NewAiInvocationController(null, events, http, props.deployment(), null))
+                        new NewAiInvocationController(null, events, http, props.deployment(), null, new com.arte.ainew.application.conversation.ConversationExecutionPolicy(store)))
                 .setControllerAdvice(new ConversationExceptionHandler()).build();
         corpus = json.readTree(new ClassPathResource("search-s5/corpus.json").getInputStream());
         started = System.currentTimeMillis();

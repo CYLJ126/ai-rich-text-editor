@@ -6,6 +6,7 @@ export {
   changeConversationMetadata, getMetadataCommandReceipt,
   createConversation,
   getConversation,
+  getConversationExecutionState,
   listConversations,
   queryTurnsOfConversation,
 } from './conversation';

@@ -1,4 +1,5 @@
-import {type AiRequestOptions, postPage, postResult, requireIdempotencyKey,} from './request';
+import {z} from 'zod';
+import {AiApiError, type AiRequestOptions, postPage, postResult, requireIdempotencyKey} from './request';
 import {
   conversationCommandSchema,
   conversationItemSchema,
@@ -11,6 +12,7 @@ import type {
   AiScope,
   ConversationCommandResult,
   ConversationCursorPage,
+  ConversationExecutionState,
   ConversationListItem,
   ConversationMetadataReceipt,
   ConversationMetadataRequest,
@@ -106,4 +108,23 @@ export function changeConversationMetadata(request: ConversationMetadataRequest,
 
 export function getMetadataCommandReceipt(data: { scope: AiScope; commandId: string }, options?: AiRequestOptions) {
   return postResult<ConversationCommandResult>('conversation/getMetadataCommandReceipt', data, options).then(directoryData(conversationCommandSchema));
+}
+
+/** 缺字段或未知 kind 必须失败，不能把不完整响应当成空闲。 */
+const executionStateSchema: z.ZodType<ConversationExecutionState> = z.object({
+  conversationId: z.string().trim().min(1).max(256),
+  version: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  activeExecution: z.object({
+    kind: z.enum(['INVOCATION', 'RUN']),
+    executionId: z.string().trim().min(1).max(256)
+  }).nullable(),
+  observedAt: z.iso.datetime({offset: true}),
+});
+
+export async function getConversationExecutionState(data: GetConversationRequest, options?: AiRequestOptions) {
+  const response = await postResult<ConversationExecutionState>('conversation/getConversationExecutionState', data, options);
+  const parsed = executionStateSchema.safeParse(response.body.data);
+  if (!parsed.success || parsed.data.conversationId !== data.conversationId)
+    throw new AiApiError(response.httpStatus, response.body, 'Invalid conversation execution state');
+  return {...response, body: {...response.body, data: parsed.data}};
 }

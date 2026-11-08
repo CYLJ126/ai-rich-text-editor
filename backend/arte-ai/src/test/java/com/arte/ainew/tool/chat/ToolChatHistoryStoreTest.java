@@ -59,6 +59,24 @@ import static org.junit.Assert.*;
  */
 public class ToolChatHistoryStoreTest {
 
+    @Test
+    public void executionStateKeepsParentRunAndRejectsArchivedOrCorruptReferences() {
+        try (var c = new Chat()) {
+            assertTrue(c.accept().successful());
+            var state = c.conversations.executionState("conversation", c.context).block(WAIT);
+            assertEquals(com.arte.ainew.pojo.conversation.ConversationExecutionState.Kind.RUN, state.activeExecution().kind());
+            assertEquals("run", state.activeExecution().executionId());
+            assertEquals(c.version(), state.version());
+            assertEquals(key("run"), c.gate());
+            c.archived.set(true);
+            assertThrows(AdmissionException.class, () -> c.conversations.executionState("conversation", c.context).block(WAIT));
+            c.archived.set(false);
+            c.r.jdbc.update("UPDATE arte_ai_tool_chat_run SET state_digest=?", "0".repeat(64));
+            assertThrows(IllegalStateException.class, () -> c.conversations.executionState("conversation", c.context).block(WAIT));
+            assertEquals(key("run"), c.gate());
+        }
+    }
+
     private static final Duration WAIT = Duration.ofSeconds(15);
 
     static final class Chat implements AutoCloseable {

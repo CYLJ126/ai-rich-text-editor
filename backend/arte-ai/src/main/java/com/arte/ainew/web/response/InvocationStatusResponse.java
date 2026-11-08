@@ -17,12 +17,12 @@ public record InvocationStatusResponse(String invocationId, CapabilityDescriptor
                                        Invocation.ConversationLink conversation, Invocation.State state,
                                        long version, String activeAttemptId, boolean resultAvailable,
                                        Boolean partial, ExecutionError error, Instant acceptedAt, Instant updatedAt,
-                                       InvocationBudgetState budgetState) {
+                                       InvocationBudgetState budgetState, boolean blocksConversation) {
 
-    public static InvocationStatusResponse from(Invocation invocation, InvocationBudgetState budgetState) {
+    public static InvocationStatusResponse from(Invocation invocation, InvocationBudgetState budgetState, boolean blocksConversation) {
         return new InvocationStatusResponse(invocation.request().context().executionId(), invocation.request().kind(),
                 invocation.conversation(), invocation.state(), invocation.version(), invocation.activeAttemptId(),
                 invocation.result() != null, invocation.result() == null ? null : invocation.result().partial(),
-                invocation.error(), invocation.acceptedAt(), invocation.updatedAt(), budgetState);
+                invocation.error(), invocation.acceptedAt(), invocation.updatedAt(), budgetState, blocksConversation);
     }
 }

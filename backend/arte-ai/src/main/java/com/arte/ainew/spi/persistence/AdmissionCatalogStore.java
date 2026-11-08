@@ -1,10 +1,7 @@
 package com.arte.ainew.spi.persistence;
 
 import com.arte.ainew.pojo.budget.BudgetCommands;
-import com.arte.ainew.pojo.conversation.Conversation;
-import com.arte.ainew.pojo.conversation.ConversationList;
-import com.arte.ainew.pojo.conversation.ConversationPage;
-import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.pojo.conversation.*;
 import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
@@ -101,6 +98,11 @@ public interface AdmissionCatalogStore {
      * @return 会话快照；会话不存在或归属不匹配时返回空 Mono
      */
     Mono<Conversation> findConversation(ExecutionOwner owner, String conversationId);
+
+    /**
+     * 同一事务快照读取会话业务版本、活动引用并校验 owner；不存在或不匹配返回空，损坏记录明确失败。
+     */
+    Mono<ConversationExecutionState> conversationExecutionState(ExecutionOwner owner, String conversationId);
 
     /**
      * 按页码读取指定归属的会话快照列表，返回总数及当前页记录。

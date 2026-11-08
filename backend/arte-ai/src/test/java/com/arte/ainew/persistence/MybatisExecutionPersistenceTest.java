@@ -149,6 +149,48 @@ public class MybatisExecutionPersistenceTest {
     }
 
     @Test
+    public void executionStateUsesOneSnapshotWhileAnotherInstanceAdvancesConversation() throws Exception {
+        var at = Instant.now();
+        var original = new Conversation("consistent-state", OWNER, "state", 0, null, List.of(), Conversation.State.ACTIVE, at, at);
+        first.createConversation(original).block();
+        var readStarted = new java.util.concurrent.CountDownLatch(1);
+        var resumeRead = new java.util.concurrent.CountDownLatch(1);
+        var intercept = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var pausedCodec = new com.arte.ainew.spi.persistence.ExecutionRecordCodec() {
+            public String encode(Object value) {
+                return codec.encode(value);
+            }
+
+            public <T> T decode(String json, Class<T> type) {
+                var value = codec.decode(json, type);
+                if (type == Conversation.class && intercept.compareAndSet(true, false)) {
+                    readStarted.countDown();
+                    try {
+                        if (!resumeRead.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                            throw new IllegalStateException("Read was not resumed");
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(e);
+                    }
+                }
+                return value;
+            }
+        };
+        var reader = new MybatisExecutionPersistence(dataSource, pausedCodec, scheduler);
+        var read = reader.conversationExecutionState(OWNER, original.conversationId()).toFuture();
+        try {
+            assertTrue(readStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            var advanced = new Conversation(original.conversationId(), OWNER, "state", 1, null, List.of(), Conversation.State.ACTIVE, at, at);
+            jdbc.update("UPDATE arte_ai_conversation_new SET version_no=1,workspace_snapshot=? WHERE id_key=?",
+                    codec.encode(advanced), com.arte.ainew.serialization.CanonicalJson.key(original.conversationId()));
+        } finally {
+            resumeRead.countDown();
+        }
+        assertEquals(0, read.get(10, java.util.concurrent.TimeUnit.SECONDS).version());
+        assertEquals(1, second.conversationExecutionState(OWNER, original.conversationId()).block().version());
+    }
+
+    @Test
     public void seventhPinIsAtomicAcrossInstancesAndReceiptSurvivesLaterChanges() {
         for (int i = 0; i < 8; i++) sidebarConversation("pin-" + i, Instant.now());
         for (int i = 0; i < 6; i++)

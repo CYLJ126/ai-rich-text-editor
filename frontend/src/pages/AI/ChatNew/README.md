@@ -1,5 +1,10 @@
 # 新版 AI 聊天（阶段 A）
 
+> 2026-11-08：完成[会话异常恢复需求与设计 V1.2](../../../../../ARTE%20AI%20会话异常恢复需求及设计.md) ER-1，ER-2～ER-6 待实施。
+> 下文描述现有恢复实现；新目标将普通文本本地执行观察、原受理确认和费用观察分开，补充复制问题到输入框与上下文标记。
+> 当前仍不能把普通 UNKNOWN 视为已完成本专项，也不能把新目标用于工具聊天子调用。
+> V1.1 增加会话级占用只读契约、损坏记录隔离出口和具体账户授权的责任人核对；前台自动恢复有界，按钮统一为“复制问题到输入框”，不自动发送。
+
 入口为 `/AI/ChatNew`，已由 Umi 约定式路由注册。原 `/AI/Chat` 联调页顶部也提供新版入口。
 
 正式菜单编码为 `ChatNew`，名称为“AI 聊天（新版）”，独立于旧聊天入口。新建库的两份 RBAC 初始化脚本均已包含该菜单，并默认分配给已有
@@ -102,3 +107,14 @@ npm run build
 
 搜索 S5 的真实会话／搜索／历史 HTTP 联调入口为 `frontend/scripts/search-s5-browser/`（仅隔离验收，不是业务路由），实测与部署限制见
 `backend/arte-ai/CONVERSATION_SEARCH_S5_ACCEPTANCE.md`。生产身份与模型链路不由固定测试空间／模型选项替身证明。
+
+## ER-1 读取基础（2026-11-08）
+
+- `InvocationStatusResponse.blocksConversation` 已为必填字段；单条及批量 HTTP 状态缺失此字段时明确失败，不补默认 false。
+- `getConversationExecutionState({scope, conversationId}, {signal})` 返回一致性读取的业务版本和类型化活动引用；缺失
+  activeExecution 不等于 null，未知 kind、会话不匹配或字段错误会拒绝响应。
+- `useConversationExecutionState` 是独立只读 hook：挂载读取、显式 refresh
+  单飞、取消传输、按本地序号和账号／空间／会话拒绝旧响应；同版本也接纳新占用结果，observedAt 不参与排序。读取失败清除已确认状态并暴露错误，不自动写请求。
+- 该 hook 尚未接入 `useChatSession`／页面发送条件、轮询或有限重试；这些恢复交互属于 ER-4。当前页面中的 UNKNOWN
+  限制仍不能当作本专项已完整交付。
+- ER-1 测试及当前检查限制见专项 §9.2；无新增浏览器存储结构、配置开关、模型调用或迁移。

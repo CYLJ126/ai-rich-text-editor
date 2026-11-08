@@ -1,6 +1,7 @@
 package com.arte.ainew.web.controller;
 
 import com.arte.ainew.api.conversation.ConversationService;
+import com.arte.ainew.pojo.conversation.ConversationExecutionState;
 import com.arte.ainew.pojo.conversation.ConversationList;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.web.ConversationHttpContext;
@@ -119,6 +120,14 @@ public class NewAiConversationController {
                         ConversationRequestDiagnostics.capture(http, "getConversation", request.scope(), request.conversationId(), null, null,
                                 () -> Mono.just(context)).flatMap(current -> conversationService.find(request.conversationId(), current)))
                 .map(conversation -> ResultContext.success(ConversationResponse.from(conversation), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/getConversationExecutionState")
+    public Mono<ResultContext<ConversationExecutionState>> getConversationExecutionState(
+            @Valid @RequestBody ConversationRequests.Find request, Locale locale) {
+        return conversationHttpContext.read(request.scope(), context ->
+                        conversationService.executionState(request.conversationId(), context))
+                .map(value -> ResultContext.success(value, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/queryTurnsOfConversation")

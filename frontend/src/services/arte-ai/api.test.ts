@@ -181,6 +181,10 @@ describe('新 AI 接口封装', () => {
     async ({path, data, key, call, paged}) => {
       if (paged)
         vi.mocked(request).mockResolvedValue({status: 200, data: page});
+      if (path === 'invocation/getInvocationStatus') vi.mocked(request).mockResolvedValue({
+        status: 200,
+        data: {...metadata, data: {...invocationQuery, blocksConversation: true}}
+      });
       await call();
       expect(request).toHaveBeenCalledExactlyOnceWith(
         `/arte/ai-new/${path}`,
@@ -287,6 +291,7 @@ describe('新 AI 接口封装', () => {
     const status = {
       invocationId: 'invocation-1',
       state: 'UNKNOWN',
+      blocksConversation: false,
       resultAvailable: false,
       partial: null,
     };

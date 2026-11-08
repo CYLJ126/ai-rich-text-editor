@@ -208,6 +208,7 @@ function oldSnapshot(): api.InvocationSnapshotResponse {
     invocationId: 'old-answer', missing: false,
     status: {
       invocationId: 'old-answer',
+      blocksConversation: false,
       conversation: {conversationId: 'conversation', conversationVersion: 1, turnId: 'old-turn'},
       kind: 'GENERATION',
       state: 'UNKNOWN',

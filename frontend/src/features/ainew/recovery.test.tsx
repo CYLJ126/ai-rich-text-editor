@@ -157,6 +157,7 @@ describe('browser recovery uses original operations', () => {
     });
     vi.mocked(api.getInvocationStatus).mockResolvedValue(result({
       invocationId: 'accepted',
+      blocksConversation: false,
       kind: 'GENERATION',
       conversation: null,
       state: 'RUNNING',
@@ -396,7 +397,12 @@ it('restores a reconciliation and queries the receipt without issuing a new char
 
 describe('progressive history and asynchronous notification refresh', () => {
   const completed: api.InvocationStatusResponse = {
-    invocationId: 'inv', kind: 'GENERATION', conversation: null, state: 'SUCCEEDED', version: 3,
+    blocksConversation: false,
+    invocationId: 'inv',
+    kind: 'GENERATION',
+    conversation: null,
+    state: 'SUCCEEDED',
+    version: 3,
     activeAttemptId: 'attempt', budgetState: 'SETTLED', resultAvailable: false, partial: null,
     error: null, acceptedAt: conversation.createdAt, updatedAt: conversation.updatedAt,
   };

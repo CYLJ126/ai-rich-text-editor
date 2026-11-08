@@ -3,6 +3,8 @@ package com.arte.ainew.pojo.execution;
 import com.arte.ainew.common.execution.ExecutionError;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.control.CapabilityDescriptor;
+import com.arte.ainew.pojo.generation.ChatMessage;
+import com.arte.ainew.pojo.generation.GenerationRequest;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -88,6 +90,20 @@ public record Invocation(InvocationRequest<? extends CapabilityInput> request, S
                 "Unknown certainty must be represented as UNKNOWN state");
         ContractChecks.require(state == State.SUCCEEDED || result == null || result.partial(), "Unsuccessful result must be partial");
         ContractChecks.ordered(acceptedAt, updatedAt, "updatedAt");
+    }
+
+    /**
+     * 仅判断耐久请求中的普通文本事实；会话、候选及 owner 关联还须由统一会话判定组件核验。
+     * 模型能力目录支持工具不影响资格，只有本次实际请求声明或消息中的工具事实参与判断。
+     */
+    public boolean ordinaryTextRequest() {
+        return request.kind() == CapabilityDescriptor.Kind.GENERATION
+                && request.input() instanceof GenerationRequest input
+                && input.outputFormat() instanceof GenerationRequest.TextOutput
+                && request.context().parentExecutionId() == null && input.tools().isEmpty()
+                && input.messages().stream().allMatch(message ->
+                message.role() != ChatMessage.Role.TOOL
+                        && message.toolCalls().isEmpty() && message.toolCallId() == null);
     }
 
     /**

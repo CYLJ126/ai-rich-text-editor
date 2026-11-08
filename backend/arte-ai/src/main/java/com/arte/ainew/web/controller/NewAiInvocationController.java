@@ -3,6 +3,7 @@ package com.arte.ainew.web.controller;
 import com.arte.ainew.api.execution.ExecutionControl;
 import com.arte.ainew.api.execution.ExecutionEventService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
+import com.arte.ainew.application.conversation.ConversationExecutionPolicy;
 import com.arte.ainew.application.execution.GenerationDispatcher;
 import com.arte.ainew.application.execution.InvocationBudgetStatusResolver;
 import com.arte.ainew.application.gateway.DefaultModelGateway;
@@ -64,11 +65,14 @@ public class NewAiInvocationController {
     private final ExecutionEventService executionEventService;
     private final NewAiHttpContext httpContext;
     private final InvocationBudgetStatusResolver budgetStatus;
+    private final ConversationExecutionPolicy conversationPolicy;
     private final Duration queryTimeout;
     private final Duration watchTimeout;
 
     public NewAiInvocationController(ExecutionControl executionControl, ExecutionEventService executionEventService,
-                                     NewAiHttpContext httpContext, NewAiProperties properties, InvocationBudgetStatusResolver budgetStatus) {
+                                     NewAiHttpContext httpContext, NewAiProperties properties, InvocationBudgetStatusResolver budgetStatus,
+                                     ConversationExecutionPolicy conversationPolicy) {
+        this.conversationPolicy = conversationPolicy;
         this.budgetStatus = budgetStatus;
         this.executionControl = executionControl;
         this.executionEventService = executionEventService;
@@ -104,8 +108,8 @@ public class NewAiInvocationController {
             @Valid @RequestBody InvocationRequests.Query request, Locale locale) {
         return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
                 context -> executionControl.status(request.invocationId(), context)
-                        .flatMap(invocation -> budgetStatus.resolve(invocation).map(state ->
-                                ResultContext.success(InvocationStatusResponse.from(invocation, state), ResultCodeEnum.SUCCESS, locale))));
+                        .flatMap(invocation -> Mono.zip(budgetStatus.resolve(invocation), conversationPolicy.blocksConversation(invocation))
+                                .map(facts -> ResultContext.success(InvocationStatusResponse.from(invocation, facts.getT1(), facts.getT2()), ResultCodeEnum.SUCCESS, locale))));
     }
 
     public record SnapshotResponse(String invocationId, InvocationStatusResponse status,
@@ -116,11 +120,15 @@ public class NewAiInvocationController {
     public Mono<ResultContext<java.util.List<SnapshotResponse>>> getInvocationSnapshots(
             @Valid @RequestBody InvocationRequests.Batch request, Locale locale) {
         return httpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), queryTimeout, false,
-                        context -> executionEventService.snapshots(request.invocationIds(), request.knownResultVersions() == null ? java.util.Map.of() : request.knownResultVersions(), context))
-                .map(values -> ResultContext.success(values.stream().map(value -> new SnapshotResponse(value.invocationId(),
-                        value.invocation() == null ? null : InvocationStatusResponse.from(value.invocation(), value.budgetState()),
-                        value.result() == null ? null : InvocationResultResponse.from(value.invocationId(), value.result()),
-                        value.invocation() == null)).toList(), ResultCodeEnum.SUCCESS, locale));
+                        context -> executionEventService.snapshots(request.invocationIds(), request.knownResultVersions() == null ? java.util.Map.of() : request.knownResultVersions(), context)
+                                .flatMap(values -> Flux.fromIterable(values).concatMap(value -> {
+                                    if (value.invocation() == null)
+                                        return Mono.just(new SnapshotResponse(value.invocationId(), null, null, true));
+                                    return conversationPolicy.blocksConversation(value.invocation()).map(blocks -> new SnapshotResponse(value.invocationId(),
+                                            InvocationStatusResponse.from(value.invocation(), value.budgetState(), blocks),
+                                            value.result() == null ? null : InvocationResultResponse.from(value.invocationId(), value.result()), false));
+                                }).collectList()))
+                .map(projections -> ResultContext.success(projections, ResultCodeEnum.SUCCESS, locale));
     }
 
     @PostMapping("/getInvocationResult")

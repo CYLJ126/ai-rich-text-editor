@@ -114,6 +114,15 @@ export interface QueryTurnsRequest extends ListConversationsRequest {
   expectedVersion: number;
 }
 
+/** 会话入口的权威时点投影；同一业务版本也可能发生占用变化。 */
+export interface ConversationExecutionState {
+  conversationId: string;
+  version: number;
+  activeExecution: { kind: 'INVOCATION' | 'RUN'; executionId: string } | null;
+  /** 仅供展示，不用作读取响应排序。 */
+  observedAt: string;
+}
+
 export interface ConversationResponse {
   conversationId: string;
   title: string;
@@ -317,6 +326,8 @@ export type InvocationBudgetState =
   | 'RELEASED';
 
 export interface InvocationStatusResponse {
+  /** 该调用是否要求保留直接所属会话占用；不代表整个会话空闲或当前可发送。 */
+  blocksConversation: boolean;
   invocationId: string;
   kind: CapabilityKind;
   conversation: {

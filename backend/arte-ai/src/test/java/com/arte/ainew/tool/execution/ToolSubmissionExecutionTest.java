@@ -115,7 +115,7 @@ public class ToolSubmissionExecutionTest {
 
         MockMvc mvc() {
             var http = new NewAiHttpContext(new ExecutionContextFactory(resolver, f.clock), properties.deployment());
-            return standaloneSetup(new NewAiInvocationController(control, events, http, properties.deployment(), budget),
+            return standaloneSetup(new NewAiInvocationController(control, events, http, properties.deployment(), budget, new com.arte.ainew.application.conversation.ConversationExecutionPolicy(f.executions)),
                     new NewAiToolInvocationController(control, http, properties.deployment()), submission(http), management())
                     .setControllerAdvice(new ConversationExceptionHandler(), new ToolManagementExceptionHandler())
                     .setAsyncRequestTimeout(15000).build();

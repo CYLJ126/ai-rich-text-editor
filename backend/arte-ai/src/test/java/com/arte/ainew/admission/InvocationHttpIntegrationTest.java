@@ -180,7 +180,7 @@ public class InvocationHttpIntegrationTest {
         mvc = standaloneSetup(
                 new NewAiConversationController(fixture.conversations, new ConversationHttpContext(http, properties.deployment())),
                 new NewAiChatController(fixture.chat, fixture.catalog, http, properties.deployment()),
-                new NewAiInvocationController(new DefaultExecutionControl(authorization, fixture.executions, fixture.coordinator), eventService, http, properties.deployment(), new InvocationBudgetStatusResolver(fixture.executions, fixture.executions)))
+                new NewAiInvocationController(new DefaultExecutionControl(authorization, fixture.executions, fixture.coordinator), eventService, http, properties.deployment(), new InvocationBudgetStatusResolver(fixture.executions, fixture.executions), new com.arte.ainew.application.conversation.ConversationExecutionPolicy(fixture.executions)))
                 .setControllerAdvice(new ConversationExceptionHandler()).setValidator(validator).setAsyncRequestTimeout(10000).build();
     }
 
@@ -1051,6 +1051,8 @@ public class InvocationHttpIntegrationTest {
         assertEquals(1, statements.size());
         var http = send("/ai-new/invocation/getInvocationSnapshots", Map.of("scope", SCOPE, "invocationIds", List.of(first, "missing")), 200).path("data");
         assertEquals("SUCCEEDED", http.get(0).path("status").path("state").asString());
+        assertTrue(http.get(0).path("status").has("blocksConversation"));
+        assertFalse(http.get(0).path("status").path("blocksConversation").asBoolean());
         assertEquals("GENERATION", http.get(0).path("result").path("kind").asString());
         assertTrue(http.get(1).path("missing").asBoolean());
         assertFalse(http.toString().contains("private user input"));
@@ -1102,6 +1104,8 @@ public class InvocationHttpIntegrationTest {
         var status = send(STATUS, query(id), 200).path("data");
         assertEquals("UNKNOWN", status.path("state").asString());
         assertEquals("PENDING_RECONCILIATION", status.path("budgetState").asString());
+        assertTrue(status.has("blocksConversation"));
+        assertFalse(status.path("blocksConversation").asBoolean());
         assertEquals("UNKNOWN", status.path("error").path("certainty").asString());
         assertTrue(status.path("partial").asBoolean());
         var result = send(RESULT, query(id), 200).path("data").path("result").path("value");

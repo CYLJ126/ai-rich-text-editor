@@ -2,10 +2,7 @@ package com.arte.ainew.api.conversation;
 
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.pojo.context.ContextRequest;
-import com.arte.ainew.pojo.conversation.Conversation;
-import com.arte.ainew.pojo.conversation.ConversationList;
-import com.arte.ainew.pojo.conversation.ConversationPage;
-import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.pojo.conversation.*;
 import com.arte.core.pojo.PageParam;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.reference.ResourceVersionRef;
@@ -121,6 +118,11 @@ public interface ConversationService {
      * @return 会话快照；会话不存在或归属不匹配时返回 AI_CONVERSATION_NOT_FOUND 错误
      */
     Mono<Conversation> find(String conversationId, ExecutionContext context);
+
+    /**
+     * 沿用会话读取授权和可见性，返回当前业务版本及类型化活动执行；不受理调用或释放占用。
+     */
+    Mono<ConversationExecutionState> executionState(String conversationId, ExecutionContext context);
 
     /**
      * 按页码查询当前归属的会话快照列表，使用数据库分页并按会话键稳定排序；不修改请求分页对象。

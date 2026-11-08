@@ -104,6 +104,7 @@ function status(
   version = 0,
 ): InvocationStatusResponse {
   return {
+    blocksConversation: ['ACCEPTED', 'WAITING_APPROVAL', 'QUEUED', 'RUNNING'].includes(state),
     invocationId: id,
     kind: 'GENERATION',
     conversation: {

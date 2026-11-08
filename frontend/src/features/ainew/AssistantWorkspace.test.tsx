@@ -64,7 +64,7 @@ it('只有当前修订的成功试用能解锁发布', async () => {
   vi.mocked(getInvocationSnapshot).mockResolvedValue({
     invocationId: trial.invocationId, missing: false, result: null,
     status: {
-      invocationId: trial.invocationId, kind: 'GENERATION', state: 'SUCCEEDED', version: 1,
+      blocksConversation: false, invocationId: trial.invocationId, kind: 'GENERATION', state: 'SUCCEEDED', version: 1,
       budgetState: 'SETTLED', activeAttemptId: null, error: null, resultAvailable: false, partial: null,
       conversation: null, acceptedAt: trial.createdAt, updatedAt: trial.createdAt,
     },

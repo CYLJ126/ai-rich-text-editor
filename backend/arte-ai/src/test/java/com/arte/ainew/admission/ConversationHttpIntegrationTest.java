@@ -100,6 +100,49 @@ public class ConversationHttpIntegrationTest {
     }
 
     @Test
+    public void executionStateReadsTypedOccupancyAndSameVersionReleaseWithoutWriting() throws Exception {
+        var id = createId("execution state", "create-state");
+        var fields = "\"conversationId\":\"" + id + "\"";
+        var idle = sidebar("getConversationExecutionState", fields, null, 200).path("data");
+        assertEquals(id, idle.path("conversationId").asString());
+        assertEquals(0, idle.path("version").asLong());
+        assertTrue(idle.has("activeExecution"));
+        assertTrue(idle.path("activeExecution").isNull());
+        assertNotNull(Instant.parse(idle.path("observedAt").asString()));
+        fixture.initializeBudget("alice");
+        var context = fixture.context("alice", "question-state");
+        var accepted = fixture.chat.submit(fixture.chatRequest(id, 0, "hello", context), context).block();
+        var busy = sidebar("getConversationExecutionState", fields, null, 200).path("data");
+        assertEquals("INVOCATION", busy.path("activeExecution").path("kind").asString());
+        assertEquals(accepted.executionId(), busy.path("activeExecution").path("executionId").asString());
+        assertEquals(1, busy.path("version").asLong());
+        assertFalse(busy.has("request"));
+        assertEquals(1L, jdbc.queryForObject("SELECT COUNT(*) FROM arte_ai_invocation", Long.class).longValue());
+        // 模拟后续终态事务只解除 gate：同版本的新读取必须看到空闲。ER-1 本身不修改终态释放规则。
+        jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=NULL WHERE id_key=?", com.arte.ainew.serialization.CanonicalJson.key(id));
+        var released = sidebar("getConversationExecutionState", fields, null, 200).path("data");
+        assertEquals(busy.path("version"), released.path("version"));
+        assertTrue(released.path("activeExecution").isNull());
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> fixture.conversations.executionState(id, fixture.context("alice", "read-without-conversation", java.util.Set.of("ai:read"))).block());
+        login("bob");
+        sidebar("getConversationExecutionState", fields, null, 404);
+        sidebar("getConversationExecutionState", "\"conversationId\":\"missing\"", null, 404);
+        SecurityContextHolder.clearContext();
+        sidebar("getConversationExecutionState", fields, null, 401);
+    }
+
+    @Test
+    public void corruptActiveReferenceDoesNotBecomeAnIdleResponse() throws Exception {
+        var id = createId("bad state", "bad-state");
+        var key = com.arte.ainew.serialization.CanonicalJson.key(id);
+        jdbc.update("UPDATE arte_ai_conversation_new SET active_invocation=?,active_kind='INVOCATION' WHERE id_key=?", "missing", key);
+        assertThrows(IllegalStateException.class, () -> fixture.conversations.executionState(id, fixture.context("alice", "read-state")).block());
+        jdbc.update("UPDATE arte_ai_conversation_new SET active_kind='UNSUPPORTED' WHERE id_key=?", key);
+        assertThrows(IllegalStateException.class, () -> fixture.conversations.executionState(id, fixture.context("alice", "read-state")).block());
+    }
+
+    @Test
     public void diagnosticsPreserveSuccessfulEmptyListPagination() throws Exception {
         var response = body(send(post(ROOT + "listConversations")
                 .content("{" + SCOPE + ",\"page\":{\"current\":2,\"size\":5}}"), 200));
@@ -300,7 +343,7 @@ public class ConversationHttpIntegrationTest {
         // 授权可以声明在方法或 Controller 类上；URL 分类由 arte-app 的安全配置测试验证。
         var methods = Arrays.stream(NewAiConversationController.class.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(org.springframework.web.bind.annotation.PostMapping.class)).toList();
-        assertEquals(11, methods.size());
+        assertEquals(12, methods.size());
         for (var method : methods) {
             var authorization = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
             if (authorization == null) {

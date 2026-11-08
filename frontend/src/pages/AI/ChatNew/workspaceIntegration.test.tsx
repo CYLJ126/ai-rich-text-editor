@@ -472,7 +472,12 @@ it('cancels the old invocation observer on switching and resumes only the origin
     }), httpStatus: 202
   });
   vi.mocked(api.getInvocationStatus).mockResolvedValue(reply({
-    invocationId: 'accepted-in-A', kind: 'GENERATION', conversation: null, state: 'RUNNING', version: 1,
+    blocksConversation: false,
+    invocationId: 'accepted-in-A',
+    kind: 'GENERATION',
+    conversation: null,
+    state: 'RUNNING',
+    version: 1,
     budgetState: 'RESERVED', activeAttemptId: 'attempt', resultAvailable: false, partial: null, error: null,
     acceptedAt: 'now', updatedAt: 'now',
   }));

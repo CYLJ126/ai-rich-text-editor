@@ -1,4 +1,11 @@
-import {type AiRequestOptions, currentAiCredential, postResult, requireIdempotencyKey, shareAiRead} from './request';
+import {
+  AiApiError,
+  type AiRequestOptions,
+  currentAiCredential,
+  postResult,
+  requireIdempotencyKey,
+  shareAiRead
+} from './request';
 import type {
   ControlReceipt,
   InvocationEventsRequest,
@@ -8,15 +15,17 @@ import type {
   InvocationStatusResponse,
 } from './types';
 
-export function getInvocationStatus(
+export async function getInvocationStatus(
   data: InvocationQuery,
   options?: AiRequestOptions,
 ) {
-  return postResult<InvocationStatusResponse>(
+  const response = await postResult<InvocationStatusResponse>(
     'invocation/getInvocationStatus',
     data,
     options,
   );
+  requireConversationFact(response.body.data, data.invocationId, response.httpStatus, response.body);
+  return response;
 }
 
 export function getInvocationResult(
@@ -47,12 +56,18 @@ export function cancelInvocation(data: InvocationQuery, idempotencyKey: string, 
   return postResult<ControlReceipt>('invocation/cancelInvocation', data, options, requireIdempotencyKey(idempotencyKey));
 }
 
-export function getInvocationSnapshots(data: {
+export async function getInvocationSnapshots(data: {
   scope: import('./types').AiScope;
   invocationIds: string[];
   knownResultVersions?: Record<string, number>
 }, options?: AiRequestOptions) {
-  return postResult<import('./types').InvocationSnapshotResponse[]>('invocation/getInvocationSnapshots', data, options);
+  const response = await postResult<import('./types').InvocationSnapshotResponse[]>('invocation/getInvocationSnapshots', data, options);
+  if (!Array.isArray(response.body.data)) throw new AiApiError(response.httpStatus, response.body, 'Invalid invocation snapshots');
+  for (const value of response.body.data) {
+    if (value.status !== null) requireConversationFact(value.status, value.invocationId, response.httpStatus, response.body);
+    else if (value.missing !== true) throw new AiApiError(response.httpStatus, response.body, 'Invocation status is missing');
+  }
+  return response;
 }
 
 type Snapshot = import('./types').InvocationSnapshotResponse;
@@ -116,4 +131,10 @@ export function getInvocationSnapshot(query: SnapshotQuery, options?: AiRequestO
       }
     });
   }));
+}
+
+/** 缺失占用事实时拒绝投影，不把旧通知或不完整状态转换成可继续发送的许可。 */
+function requireConversationFact(status: InvocationStatusResponse | undefined, id: string, httpStatus: number, body: unknown) {
+  if (!status || status.invocationId !== id || typeof status.blocksConversation !== 'boolean')
+    throw new AiApiError(httpStatus, body, 'Invocation conversation blocking fact is missing');
 }

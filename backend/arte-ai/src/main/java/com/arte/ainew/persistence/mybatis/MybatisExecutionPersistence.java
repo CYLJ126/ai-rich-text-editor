@@ -17,6 +17,7 @@ import com.arte.ainew.pojo.control.CapabilityDescriptor;
 import com.arte.ainew.pojo.conversation.*;
 import com.arte.ainew.pojo.execution.*;
 import com.arte.ainew.pojo.tool.ToolApproval;
+import com.arte.ainew.pojo.tool.ToolChatRun;
 import com.arte.ainew.pojo.tool.ToolInvocation;
 import com.arte.ainew.pojo.tool.ToolResult;
 import com.arte.ainew.serialization.CanonicalJson;
@@ -32,8 +33,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-import javax.sql.DataSource;
 
+import javax.sql.DataSource;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -68,6 +69,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
     private final SystemMapper system;
     private final ExecutionMapper execution;
     private final AdmissionMapper admission;
+    private final ToolChatRunMapper conversationRuns;
     private final ConversationMetadataPersistence conversationMetadata;
     private final BudgetMapper budget;
     private final ToolChatBudgetPersistence runBudgets;
@@ -121,6 +123,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
         this.system = sessions.getMapper(SystemMapper.class);
         this.execution = sessions.getMapper(ExecutionMapper.class);
         this.admission = sessions.getMapper(AdmissionMapper.class);
+        this.conversationRuns = sessions.getMapper(ToolChatRunMapper.class);
         this.budget = sessions.getMapper(BudgetMapper.class);
         this.runBudgets = new ToolChatBudgetPersistence(sessions, codec);
         this.event = sessions.getMapper(EventMapper.class);
@@ -410,6 +413,55 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
             var conversation = workspaceSnapshot(admission.conversationSnapshot(hash(conversationId), false), Conversation.class);
             return conversation != null && conversation.owner().equals(owner) ? conversation : null;
         });
+    }
+
+    @Override
+    public Mono<ConversationExecutionState> conversationExecutionState(ExecutionOwner owner, String conversationId) {
+        Objects.requireNonNull(owner, "owner");
+        ContractChecks.id(conversationId, "conversationId");
+        return tx(readTransaction, () -> {
+            var key = hash(conversationId);
+            var conversation = workspaceSnapshot(admission.conversationSnapshot(key, false), Conversation.class);
+            if (conversation == null || !conversation.owner().equals(owner)) return null;
+            if (!conversation.conversationId().equals(conversationId))
+                throw new IllegalStateException("Conversation identity mismatch");
+            var gate = admission.conversationGate(key);
+            if (gate == null || gate.versionNo() != conversation.version())
+                throw new IllegalStateException("Conversation execution version mismatch");
+            ConversationExecutionState.ActiveExecution active = null;
+            if (gate.activeInvocation() != null) {
+                if ("INVOCATION".equals(gate.activeKind())) {
+                    var invocation = workspaceSnapshot(execution.invocationSnapshot(gate.activeInvocation(), false), Invocation.class);
+                    if (invocation == null || !hash(id(invocation)).equals(gate.activeInvocation())
+                            || !ExecutionOwners.from(invocation.request().context()).equals(owner)
+                            || invocation.request().context().parentExecutionId() != null
+                            || invocation.conversation() == null || !invocation.conversation().conversationId().equals(conversationId))
+                        throw new IllegalStateException("Conversation active invocation mismatch");
+                    requireActiveCandidate(conversationId, invocation.conversation().turnId(), AnswerCandidate.invocation(id(invocation)));
+                    active = new ConversationExecutionState.ActiveExecution(ConversationExecutionState.Kind.INVOCATION, id(invocation));
+                } else if ("TOOL_CHAT_RUN".equals(gate.activeKind())) {
+                    var row = conversationRuns.find(gate.activeInvocation(), false);
+                    if (row == null || !CanonicalJson.sha256(row.stateSnapshot()).equals(row.stateDigest()))
+                        throw new IllegalStateException("Conversation active run is missing or corrupt");
+                    var run = codec.decode(row.stateSnapshot(), ToolChatRun.class);
+                    var link = conversationRuns.chat(gate.activeInvocation());
+                    if (!hash(run.runId()).equals(gate.activeInvocation()) || !run.owner().equals(owner)
+                            || !row.ownerKey().equals(ownerKey(owner)) || row.version() != run.version()
+                            || link == null || !link.runKey().equals(gate.activeInvocation()) || !link.conversationId().equals(conversationId))
+                        throw new IllegalStateException("Conversation active run mismatch");
+                    requireActiveCandidate(conversationId, link.turnId(), AnswerCandidate.run(run.runId()));
+                    active = new ConversationExecutionState.ActiveExecution(ConversationExecutionState.Kind.RUN, run.runId());
+                } else throw new IllegalStateException("Unknown conversation active execution kind");
+            }
+            return new ConversationExecutionState(conversationId, gate.versionNo(), active, now());
+        });
+    }
+
+    private void requireActiveCandidate(String conversationId, String turnId, AnswerCandidate candidate) {
+        var turn = workspaceSnapshot(admission.turnSnapshot(hash(turnId), false), Turn.class);
+        if (turn == null || !turn.turnId().equals(turnId) || !turn.conversationId().equals(conversationId)
+                || !turn.candidates().contains(candidate))
+            throw new IllegalStateException("Conversation active candidate mismatch");
     }
 
     @Override

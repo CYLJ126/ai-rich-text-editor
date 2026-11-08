@@ -8,10 +8,7 @@ import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
-import com.arte.ainew.pojo.conversation.Conversation;
-import com.arte.ainew.pojo.conversation.ConversationList;
-import com.arte.ainew.pojo.conversation.ConversationPage;
-import com.arte.ainew.pojo.conversation.Turn;
+import com.arte.ainew.pojo.conversation.*;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
@@ -161,6 +158,18 @@ public final class DefaultConversationService implements ConversationService {
                                         .flatMap(excluded -> excluded.contains(id) ? Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)) : Mono.just(value))))
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND))),
                 context, "getConversation", id, null, null);
+    }
+
+    @Override
+    public Mono<ConversationExecutionState> executionState(String id, ExecutionContext context) {
+        return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
+            var owner = ExecutionOwners.from(current);
+            var read = admissionCatalogStore.conversationExecutionState(owner, id);
+            if (archives == null) return read;
+            return archives.findArchivedConversationIds(owner, java.util.Set.of(id))
+                    .switchIfEmpty(Mono.error(new IllegalStateException("Archive qualification is unavailable")))
+                    .flatMap(excluded -> excluded.contains(id) ? Mono.empty() : read);
+        }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
     }
 
     @Override
