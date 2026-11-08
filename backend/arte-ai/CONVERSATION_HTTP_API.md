@@ -1,5 +1,8 @@
 # 新 AI 会话 HTTP 接口
 
+> 2026-11-08 待实施设计：[会话异常恢复专项 V1.1](../../ARTE%20AI%20会话异常恢复需求及设计.md)增加会话级占用只读投影，见本文末尾。
+> 新端点尚未实现，不改变下文现有目录、元数据、创建和历史接口的交付状态。
+
 入口为 `com.arte.ainew.web.controller.NewAiConversationController`，保留已有 POST 路径。 需开启 `arte.ai-new.enabled=true`
 。2026-10-15 的目录能力增加 4 张表，部署步骤见本文末尾；不初始化预算、不调用模型。
 以下路径不含应用的 context-path；当前应用若配置 `/arte`，请求时添加该前缀。
@@ -359,3 +362,36 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 有 total 的第一页 2 条 SQL，续页 1 条；完整窗口读取 4 条（带锚点另 1 条），窗口两区合计不超过 100 条。 H2 EXPLAIN
 确认命中目录索引。这是本地查询结构和成本基线，不代表真实 MySQL、网络／鉴权端到端延迟或浏览器滚动验收； 上线前仍需在目标 MySQL
 数据规模及实际消息历史下检查 EXPLAIN 与延迟。
+
+<a id="conversation-execution-state"></a>
+
+## 会话级占用读取契约（ER-1 已实现）
+
+新增 `POST /ai-new/conversation/getConversationExecutionState`，请求含 `scope` 和 `conversationId`，沿用会话读取授权、ResultContext
+及不存在／跨主体统一拒绝规则。 在同一事务／一致性读取中取得权威会话业务版本和当前活动执行，不扫描历史，不创建调用或释放占用。
+
+```json
+{
+  "conversationId": "<会话 ID>",
+  "version": 3,
+  "activeExecution": {
+    "kind": "INVOCATION",
+    "executionId": "<调用 ID>"
+  },
+  "observedAt": "2026-11-08T00:00:00Z"
+}
+```
+
+- 数据位于 ResultContext.data；activeExecution 必填，空闲为 null，非空为 INVOCATION 或 RUN 的类型化引用。缺字段不是空闲。
+- version 使用会话行的 version_no，对应提交的 expectedVersion，不是 metadataVersion 或 Invocation.version；占用释放可能不推进该版本。
+- observedAt 仅标记观察时间，不是可比较的事务版本、持续有效的授权或占用租约；前端单飞并按本地请求序号忽略旧响应，允许同版本占用变化更新。
+- 在进入、恢复、收到终态、重新可见及冲突后读取；活动引用按 kind 观察。旧调用 blocksConversation=false 不意味着当前会话无人占用。
+- 必要历史按该会话版本读取，遇到版本冲突废弃组合结果并重读。最终提交仍由会话事务核验版本和占用，409 后保留草稿，由用户决定再次提交。
+- 使用现有会话行 gate 字段，不增加表，也不在普通列表每行额外查询活动状态。范围、恢复时效和验收见专项
+  §5.2.1、§6.5、ER-AC35～ER-AC37。
+
+ER-1 实现使用同一只读 REPEATABLE_READ 事务读取会话快照与 gate，再按类型读取并校验活动执行及候选归属。 数据库内部
+`TOOL_CHAT_RUN` 映射为公开 `RUN`，返回真实 ID，不返回存储哈希。活动记录缺失、归属／版本不一致或未知占用类型明确报错，不猜测空闲；查询不修复、释放或推进会话。
+沿用 `ai:conversation` 读取权限与归档可见性；未认证 401，无权 403，不存在／跨主体／归档不可见 404。 前端 API 校验
+conversationId、业务版本、必填 activeExecution、引用类型和 observedAt；独立 hook 按请求序号拒绝迟到响应并接受同版本变化，尚未接入页面动作放开。验证证据见专项
+§9.2。
