@@ -712,6 +712,10 @@ public class RegenerationReconciliationIntegrationTest {
     }
 
     private org.springframework.test.web.servlet.MockMvc mvc(com.arte.ainew.testing.TestAiConfiguration properties) {
+        return mvc(properties, null);
+    }
+
+    private org.springframework.test.web.servlet.MockMvc mvc(com.arte.ainew.testing.TestAiConfiguration properties, ManagedAccess managed) {
         var clock = Clock.systemUTC();
         var resolver = new TestAuthorizationResolver(properties);
         var auth = com.arte.ainew.testing.TestAuthorizations.create(resolver, properties, clock);
@@ -719,8 +723,10 @@ public class RegenerationReconciliationIntegrationTest {
         var http = new com.arte.ainew.web.NewAiHttpContext(new com.arte.ainew.context.ExecutionContextFactory(resolver, clock), properties.deployment());
         var validator = new org.springframework.validation.beanvalidation.LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
+        var manual = new ManualReconciliationService(auth, accounts, first.executions);
+        manual.accountAccess(managed);
         return org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
-                        new com.arte.ainew.web.controller.NewAiReconciliationController(new ManualReconciliationService(auth, accounts, first.executions), http, properties.deployment()),
+                        new com.arte.ainew.web.controller.NewAiReconciliationController(manual, http, properties.deployment()),
                         new com.arte.ainew.web.controller.NewAiChatController(first.chat, first.catalog, http, properties.deployment()))
                 .setControllerAdvice(new com.arte.ainew.web.ConversationExceptionHandler()).setValidator(validator).build();
     }
@@ -789,7 +795,8 @@ public class RegenerationReconciliationIntegrationTest {
             var receipt = http(mvc, "/ai-new/budget/confirmReconciliation", request, "verify-http", 200).path("data");
             assertTrue(receipt.path("charge").path("amount").isString());
             assertEquals("0.123456789012345678", receipt.path("charge").path("amount").asString());
-            assertEquals("alice", receipt.path("reviewer").path("subjectName").asString());
+            assertEquals("alice-id", receipt.path("reviewer").path("subjectId").asString());
+            assertFalse(receipt.path("reviewer").has("subjectName"));
             assertEquals(receipt, http(mvc, "/ai-new/budget/confirmReconciliation", request, "verify-http", 200).path("data"));
             assertEquals(receipt, http(mvc, "/ai-new/budget/reconciliationReceipt", Map.of("scope", request.get("scope"),
                     "budgetRef", "alice-budget", "invocationId", id, "key", "verify-http"), null, 200).path("data"));
@@ -877,4 +884,242 @@ public class RegenerationReconciliationIntegrationTest {
         assertEquals(256, count("arte_ai_invocation"));
     }
 
+
+    /**
+     * 隔离公共许可桩只建模撤权时点；账本、回执、事件和事务均使用真实存储。
+     */
+    private final class ManagedAccess implements com.arte.ainew.spi.auth.BudgetReconciliationAccess {
+        boolean allowed = true, failAudit;
+        int checks;
+        final List<Reconciliation.Receipt> audits = new ArrayList<>();
+        final BudgetCommands.Account target = account();
+
+        @Override
+        public reactor.core.publisher.Mono<Permit> authorize(com.arte.core.pojo.access.ResourceRef ref,
+                                                             com.arte.ainew.common.execution.ExecutionContext actor, boolean submitting) {
+            if (!ref.equals(BudgetAccountQueryService.accountRef(target)) || !actor.authorization().principal().subjectId().equals("bob-id"))
+                return reactor.core.publisher.Mono.error(new AccessDeniedException("not this account"));
+            return reactor.core.publisher.Mono.just(new Permit() {
+                public BudgetCommands.Account account() {
+                    return target;
+                }
+
+                public com.arte.core.pojo.access.ResourceRef accountRef() {
+                    return ref;
+                }
+
+                public boolean allowsConfirmation() {
+                    return submitting;
+                }
+
+                public void lockScopeInCurrentTransaction() {
+                    assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                }
+
+                public String requireInCurrentTransaction() {
+                    assertTrue(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive());
+                    checks++;
+                    if (!allowed) throw new AccessDeniedException("account grant revoked");
+                    return "budget-account:alice-budget:acl=7";
+                }
+
+                public void auditInCurrentTransaction(Reconciliation.Receipt receipt) {
+                    if (failAudit) throw new IllegalStateException("audit unavailable");
+                    audits.add(receipt);
+                }
+            });
+        }
+
+        @Override
+        public reactor.core.publisher.Mono<Handling> handling(BudgetCommands.Account target,
+                                                              com.arte.ainew.common.execution.ExecutionContext actor, boolean admin) {
+            return reactor.core.publisher.Mono.just(new Handling("ASSIGNED", new Responsible("bob-id", "Bob")));
+        }
+    }
+
+    private ManualReconciliationService managedService(ManagedAccess access) {
+        var result = service(first);
+        result.accountAccess(access);
+        return result;
+    }
+
+    private com.arte.ainew.common.execution.ExecutionContext reviewer(String key) {
+        return first.context("bob", key, Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN));
+    }
+
+    private Reconciliation.Receipt managedConfirm(ManualReconciliationService service, String id, BudgetReservation reservation, String key) {
+        return service.confirmManaged(BudgetAccountQueryService.accountRef(account()), "alice-budget", id, find(id).version(),
+                reservation.reservationId(), reservation.version(), AdmissionFixture.money("0.25"), "bill-123", "Verified exact invocation and execution ended", true, reviewer(key)).block();
+    }
+
+    @Test
+    public void managedFinancialReadAndConfirmationRetainOwnerAndActualActor() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "private question");
+        var reservation = start(id);
+        complete(id, "private answer", true, false);
+        reservation = pending(reservation);
+        var access = new ManagedAccess();
+        var service = managedService(access);
+        var page = service.managedPending(BudgetAccountQueryService.accountRef(account()), 1, 10, reviewer("read")).block();
+        assertTrue(page.canReconcile());
+        assertEquals(1, page.page().total());
+        assertNull(page.page().records().getFirst().conversationId());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        var receipt = managedConfirm(service, id, reservation, "managed-key");
+        assertEquals(owner, receipt.targetOwner());
+        assertEquals("bob-id", receipt.reviewer().subjectId());
+        assertEquals("budget-account:alice-budget:acl=7", receipt.authorizationRef());
+        assertEquals(AdmissionFixture.money("0.25"), account().charged());
+        assertEquals(AdmissionFixture.money("0"), account().held());
+        assertEquals(receipt, service.managedReceipt(BudgetAccountQueryService.accountRef(account()), id, "managed-key", reviewer("receipt")).block());
+        assertEquals(receipt, first.executions.reconciliationReceipt(owner, id, "managed-key").block());
+        assertEquals(1, access.audits.size());
+        assertTrue(access.checks >= 3);
+    }
+
+    @Test
+    public void sameTargetAndKeyReplayAcrossSelfAndManagedEntriesNeverChargesAgain() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        reservation = pending(reservation);
+        var original = command(id, reservation, "shared-key", "0.25");
+        var receipt = first.executions.confirmReconciliation(original).block().value();
+        var access = new ManagedAccess();
+        var service = managedService(access);
+        // 原版本和原正文保持不变；处理人和入口变化不制造第二次结算。
+        var replay = service.confirmManaged(BudgetAccountQueryService.accountRef(account()), "alice-budget", id, original.invocationVersion(),
+                reservation.reservationId(), reservation.version(), original.charge(), original.evidenceRef(), original.note(), true, reviewer("shared-key")).block();
+        assertEquals(receipt, replay);
+        assertEquals("alice-id", replay.reviewer().subjectId());
+        assertEquals(AdmissionFixture.money("0.25"), account().charged());
+        assertTrue(access.audits.isEmpty());
+    }
+
+    @Test
+    public void managedGrantRevokedBeforeSettlementRejectsBothWriteAndReceipt() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        var fixed = pending(reservation);
+        var access = new ManagedAccess();
+        var service = managedService(access);
+        access.allowed = false;
+        assertThrows(AccessDeniedException.class, () -> managedConfirm(service, id, fixed, "revoked"));
+        assertThrows(AccessDeniedException.class, () -> service.managedReceipt(BudgetAccountQueryService.accountRef(account()), id, "revoked", reviewer("read")).block());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertEquals(AdmissionFixture.money("0"), account().charged());
+        assertTrue(access.audits.isEmpty());
+    }
+
+    @Test
+    public void managedAuditFailureRollsBackFeesInvocationAndReceipt() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        var fixed = pending(reservation);
+        var access = new ManagedAccess();
+        access.failAudit = true;
+        var service = managedService(access);
+        assertThrows(IllegalStateException.class, () -> managedConfirm(service, id, fixed, "audit-fail"));
+        assertEquals(Invocation.State.UNKNOWN, find(id).state());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertEquals(AdmissionFixture.money("0"), account().charged());
+        assertNull(first.executions.reconciliationReceipt(owner, id, "audit-fail").block());
+        access.failAudit = false;
+        assertNotNull(managedConfirm(service, id, fixed, "audit-fail"));
+    }
+
+    @Test
+    public void accountReferenceCannotRedirectAnotherOwnersInvocationOrBudget() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        var fixed = pending(reservation);
+        var service = managedService(new ManagedAccess());
+        assertThrows(AccessDeniedException.class, () -> service.confirmManaged(BudgetAccountQueryService.accountRef(account()), "bob-budget", id,
+                find(id).version(), fixed.reservationId(), fixed.version(), AdmissionFixture.money("0"), "bill", "ended", true, reviewer("wrong-account")).block());
+        assertThrows(AccessDeniedException.class, () -> service.managedPending(new com.arte.core.pojo.access.ResourceRef("other-tenant",
+                com.arte.core.constant.platform.PlatformResourceTypes.BUDGET_ACCOUNT, "alice-budget"), 1, 10, reviewer("wrong-scope")).block());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertThrows(AccessDeniedException.class, () -> service(first).managedPending(BudgetAccountQueryService.accountRef(account()), 1, 10, reviewer("no-account-authority")).block());
+    }
+
+    @Test
+    public void foreignReviewerCannotBypassAccountPermitThroughRawStore() {
+        var conversation = create();
+        var id = submit(conversation.conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        var fixed = pending(reservation);
+        var command = new Reconciliation.Confirm(owner, reviewer("no-permit").authorization().principal(), "trace", "no-permit",
+                "alice-budget", id, find(id).version(), fixed.reservationId(), fixed.version(), AdmissionFixture.money("0"), "bill", "ended", true);
+        assertEquals(OWNER_MISMATCH, first.executions.confirmReconciliation(command).block().code());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+    }
+
+    @Test
+    public void managedHttpEndpointsRequireAccountPermissionAndValidateExactBillFields() throws Exception {
+        try {
+            login("bob");
+            var id = submit(create().conversationId(), "private input");
+            var reservation = start(id);
+            complete(id, "private output", true, false);
+            reservation = pending(reservation);
+            var access = new ManagedAccess();
+            var mvc = mvc(first.properties, access);
+            var ref = Map.of("tenantId", "tenant", "type", "budget-account", "resourceId", "alice-budget");
+            var body = billRequest(id, reservation);
+            body.put("accountRef", ref);
+            var query = Map.of("scope", body.get("scope"), "accountRef", ref, "current", 1, "size", 10);
+            var page = http(mvc, "/ai-new/budget/managedPendingReconciliations", query, null, 200).path("data");
+            assertTrue(page.path("canReconcile").asBoolean());
+            var row = page.path("page").path("records").get(0);
+            assertTrue(row.path("conversationId").isNull());
+            assertTrue(row.path("pendingSince").isString());
+            assertFalse(row.has("input"));
+            assertFalse(row.has("outputs"));
+            assertFalse(row.has("credential"));
+            var bad = new LinkedHashMap<>(body);
+            bad.put("executionEnded", false);
+            http(mvc, "/ai-new/budget/confirmManagedReconciliation", bad, "bad-end", 400);
+            bad = new LinkedHashMap<>(body);
+            bad.put("evidenceRef", "");
+            http(mvc, "/ai-new/budget/confirmManagedReconciliation", bad, "no-evidence", 400);
+            bad = new LinkedHashMap<>(body);
+            bad.put("accountRef", Map.of("tenantId", "tenant", "type", "model", "resourceId", "alice-budget"));
+            http(mvc, "/ai-new/budget/confirmManagedReconciliation", bad, "wrong-type", 400);
+            var receipt = http(mvc, "/ai-new/budget/confirmManagedReconciliation", body, "managed-http", 200).path("data");
+            assertEquals("bob-id", receipt.path("reviewer").path("subjectId").asString());
+            assertEquals(receipt, http(mvc, "/ai-new/budget/confirmManagedReconciliation", body, "managed-http", 200).path("data"));
+            assertEquals(receipt, http(mvc, "/ai-new/budget/managedReconciliationReceipt", Map.of("scope", body.get("scope"), "accountRef", ref,
+                    "invocationId", id, "key", "managed-http"), null, 200).path("data"));
+            access.allowed = false;
+            http(mvc, "/ai-new/budget/managedPendingReconciliations", query, null, 403);
+            http(mvc, "/ai-new/budget/managedReconciliationReceipt", Map.of("scope", body.get("scope"), "accountRef", ref,
+                    "invocationId", id, "key", "managed-http"), null, 403);
+            assertEquals(1, access.audits.size());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    public void financialReadPermitCannotBeUsedForSettlement() {
+        var id = submit(create().conversationId(), "question");
+        var reservation = start(id);
+        complete(id, "partial", true, false);
+        var fixed = pending(reservation);
+        var access = new ManagedAccess();
+        var readPermit = access.authorize(BudgetAccountQueryService.accountRef(account()), reviewer("read-only"), false).block();
+        var confirm = command(id, fixed, "read-only", "0.25");
+        assertEquals(INVALID_STATE, first.executions.confirmReconciliation(confirm, readPermit).block().code());
+        assertEquals(AdmissionFixture.money("1"), account().held());
+        assertEquals(AdmissionFixture.money("0"), account().charged());
+    }
 }

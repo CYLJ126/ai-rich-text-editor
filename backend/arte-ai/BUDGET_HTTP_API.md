@@ -1,8 +1,8 @@
 # 新 AI 预算账户查询 HTTP 接口
 
-> 2026-11-08：[会话异常恢复专项 V1.4](../../ARTE%20AI%20会话异常恢复需求及设计.md) ER-1～ER-3 已实现。
+> 2026-11-08：[会话异常恢复专项 V1.6](../../ARTE%20AI%20会话异常恢复需求及设计.md) ER-1～ER-5 已实现。
 > 合格普通文本本地终态会释放会话占用，原预留、实际账单、执行结束证明及核对权限契约保留。
-> ER-3 已实现历史跳过和快照固定；后端合格新问题不等待旧费用收尾。页面放行仍待 ER-4，管理责任核对路径仍待 ER-5。
+> 页面恢复及具体账户责任／管理核对已接入；ER-6 浏览器整体验收、时延测量及用户任务试用待完成。
 
 A1 的模型使用准备接口、批准额度来源和幂等初始化约束见 [模型使用准备](../arte-app/docs/MODEL_USAGE_PREPARATION_A1.md)
 。该接口复用当前用户账本，不改变下述执行及结算契约。
@@ -54,22 +54,26 @@ Accept-Language: zh-CN
   "charged": "2.5",
   "available": "87.5",
   "rateVersion": {"type": "rate", "id": "default-text", "version": "v1"},
-  "version": 3
+  "version": 3,
+  "accountRef": {"tenantId": "example-tenant", "type": "budget-account", "resourceId": "example-budget"},
+  "reconciliationHandling": {"status": "UNASSIGNED", "responsible": null}
 }
 ```
 
 费率引用和金额仅为结构示例，不是供应商定价。
 
-| 字段        | 含义                                         |
-|-------------|----------------------------------------------|
-| budgetRef   | 已授权预算账户引用                           |
-| currency    | 所有金额共用的 ISO 币种代码                  |
-| limit       | 耐久账本中的账户限额                         |
-| held        | 尚未释放的预留，包含已派发且费用待对账的预留 |
-| charged     | 已按可信费用事实结算的金额                   |
-| available   | `limit - held - charged`，允许为负           |
-| rateVersion | 固定费率版本引用                             |
-| version     | 本次账户快照版本                             |
+| 字段                   | 含义                                         |
+|------------------------|----------------------------------------------|
+| budgetRef              | 已授权预算账户引用                           |
+| currency               | 所有金额共用的 ISO 币种代码                  |
+| limit                  | 耐久账本中的账户限额                         |
+| held                   | 尚未释放的预留，包含已派发且费用待对账的预留 |
+| charged                | 已按可信费用事实结算的金额                   |
+| available              | `limit - held - charged`，允许为负           |
+| rateVersion            | 固定费率版本引用                             |
+| version                | 本次账户快照版本                             |
+| accountRef             | 定位具体公共账户资源的引用，不是权限凭据     |
+| reconciliationHandling | 当前派生的核对处理资格／主责任人，详见下文   |
 
 四个金额字段均为十进制 **字符串**，避免浏览器将高精度金额转换为浮点数；计算时应使用十进制运算。它们来自同一个权威账户快照，不分别读取或在查询时重新计费。响应不暴露
 owner、授权快照或凭据。
@@ -107,7 +111,8 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 ## 待对账查询和人工核对
 
 当前没有接入供应商账单查询适配器。停止、断流、用量缺失等未知费用仍保留预留；由有 `ai:budget:admin`
-权限的当前账户归属主体核实实际账单和执行结束事实后处理。 普通用户只有 `ai:read` 时可查看自己获授权预算的待对账记录，不能自报金额结算；不能处理其他主体的预算。
+权限及具体账户 `budget-account:reconcile` 授权的当前账户归属主体核实实际账单和执行结束事实后处理。普通用户只有 `ai:read`
+时可查看自己获授权预算的待对账记录，不能自报金额结算；跨主体处理须使用下述独立管理接口。
 以下接口均受真实身份、租户／空间、当前 grant 和预算归属检查约束。
 
 | POST 路径                             | 所需权限                 | 请求字段（均含 scope）                   |
@@ -117,7 +122,8 @@ mvn -o -f backend/pom.xml -pl arte-ai -am \
 | /ai-new/budget/reconciliationReceipt  | ai:read                  | budgetRef、invocationId、key（原核对键） |
 
 查询返回 ResultContext.data：`{page:{current,size,total,records:[...]},canReconcile:true/false}`。 records 提供调用／会话
-ID、调用状态及版本、预留 ID 及版本、预算引用、预留 Money、远端请求 ID 和受理时间；不暴露输入、凭据或授权快照。 只列生成类已终止调用的
+ID、调用状态及版本、预留 ID 及版本、预算引用、预留 Money、远端请求 ID、受理时间和 pendingSince；不暴露输入、凭据或授权快照。pendingSince
+为该预留最早未知费用记录时间，尚无记录时为本地终态更新时间；不能用 acceptedAt 冒充挂起时间。只列生成类已终止调用的
 RESERVED／PENDING_RECONCILIATION 预留；运行中的预留不允许人工提前结束。 当前沿用 v1 紧凑 JSON
 快照及账户索引过滤、数据库计数分页，没有新增数据库表；大规模账单可在后续迁移中增加专用状态索引。
 
@@ -140,16 +146,18 @@ RESERVED／PENDING_RECONCILIATION 预留；运行中的预留不允许人工提�
 实际金额必须明确填写非负十进制字符串，最多 20 位整数及 18 位小数；币种必须匹配账本。可以确认零费用，但不能因取消或估算自动填写零。
 凭据、说明和执行结束确认均必填。核对基于管理员确认的外部凭据，不是服务端已经自动校验了供应商账单。
 
-存储统一按 Invocation → Account → Reservation 锁定并比较版本，同事务完成：
+完整宿主先锁公共 scope，再按 Invocation → Attempt → Account → Reservation 锁定、复查当前授权并比较版本，同事务完成：
 
 1. 最终结算为 SETTLED，held 减去该次预留、charged 增加实际费用（实际费用可超预留或限额）；未知 Token 用量仍保持未知。
 2. 用户停止的 UNKNOWN 收敛为 CANCELLED；其他生成 UNKNOWN 收敛为 FAILED／GENERATION_RECONCILED：已确认执行结束，但未恢复完整输出。已有完整成功结果保持
    SUCCEEDED，部分回复保留原引用。
 3. 推进 UNKNOWN 的 Invocation／Attempt 版本和 fencing，使旧 Worker 不能覆盖核对结果；按原 Invocation ID
    有条件释放门闩，不影响后来已开始的新调用。
-4. 保存账单证据、说明、核对主体、trace、时间、实际 Money、操作键及结果版本，并追加预算／终态事件和发布 Outbox。
+4. 保存账单证据、说明、真实核对主体、目标 owner、账户授权依据、trace、时间、实际 Money、操作键及结果版本，并追加公共审计、预算／终态事件和发布
+   Outbox。
 
-响应为不可变核对回执。页面显示核对人、时间、金额、凭据、调用 ID 与请求键；可用请求键查询保存的回执。 同键同内容返回原回执，不重复扣费；同键异内容
+响应为不可变核对回执；公开 reviewer 为 `{subjectId,displayName,kind}`，不返回登录名 subjectName，无获授权显示名时
+displayName 为 null。页面显示核对人、时间、金额、凭据、调用 ID 与请求键；可用请求键查询保存的回执。同键同内容返回原回执，不重复扣费；同键异内容
 409。调用或预留版本冲突 409 后重新查询并核对；最终结算不可被另一个键覆盖。
 数据库或回执写入失败则整体回滚，不能出现费用已扣而审计未保存的部分成功。费用未明时保持原预留，不伪造成功结果或最终费用。
 网络错误／408／5xx 必须保留原表单和键重试；页面在不确定时锁定表单。
@@ -165,23 +173,22 @@ RESERVED／PENDING_RECONCILIATION 预留；运行中的预留不允许人工提�
 - 展示账户 charged／held／available，并在待对账记录中按原调用展示预留、币种、挂起时间及处理入口。held 包含执行中资金，不能全部标为待对账。
 - 当前没有自动供应商账单适配器；无证据继续待核对，不按超时自动补零或释放。人工核对仍需要当前权限、实际金额、证据和执行结束确认。
 - 旧核对按原调用 ID 有条件释放占用，不切换上下文候选、不修改后续已受理输入、不影响新调用；响应丢失查询原回执或按原键恢复，不能重复结算。
--
 
 ER-2 已验证普通文本 UNKNOWN 正常释放 gate、重新生成另行预留，以及旧费用核对不清除新调用占用；费用查询／核对请求和账本规则保持不变。历史／页面／管理核对等剩余目标按阶段实施。验证证据见专项
 §9.3，整体验收见[会话异常恢复专项](../../ARTE%20AI%20会话异常恢复需求及设计.md)
 的 ER-AC14～ER-AC24。
 
-### V1.1 核对责任与受限管理接口（新增目标，待实施）
+### ER-5 核对责任与受限管理接口（已实现）
 
 本人接口仍只处理当前 owner；V1.1 为普通用户增加可达的核对责任路径，不能通过替换管理员身份上下文来操作其他账户。 后端以
 scope、真实 owner 及 budgetRef 解析稳定 accountRef，在既有公共账户资源授权记录上指定主核对责任人，并审计指派与接替。 公共动作是
 budget-account:assign-reconciler 和 budget-account:reconcile；工作空间管理员、模型创建者和 ai:budget:admin 均不自动拥有目标账户权限。
 
-目标本人账户读取增加 accountRef 和 reconciliationHandling，后者含 status（SELF_SERVICE／ASSIGNED／UNASSIGNED）及
+本人账户读取增加 accountRef 和 reconciliationHandling，后者含 status（SELF_SERVICE／ASSIGNED／UNASSIGNED）及
 responsible；ASSIGNED 提供获授权可见的主责任人 subjectId／displayName，其他状态可为 null。
 它只是定位和责任展示，不是授权令牌。无责任人时指向有账户指派权的治理流程，不假称管理员已经能够代办。
 
-| 目标路径                                       | 请求与授权                                                                                                    |
+| POST 路径                                      | 请求与授权                                                                                                    |
 |------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | `/ai-new/budget/managedPendingReconciliations` | scope、accountRef、分页；当前 ai:read 加目标账户 budget-account:reconcile，仅读最小财务记录                   |
 | `/ai-new/budget/confirmManagedReconciliation`  | scope、accountRef、既有核对字段及 Idempotency-Key；上述权限再加 ai:budget:admin，核验目标调用／预留／账户归属 |
@@ -190,10 +197,24 @@ responsible；ASSIGNED 提供获授权可见的主责任人 subjectId／displayN
 管理操作的真实 actor 是核对人，账本 owner 是被明确授权的目标账户；两者分别审计。复用原版本／金额／证据／幂等及不可覆盖结算规则，跨入口或接替也不能重复扣费。
 授权不开放聊天正文、模型凭据、其他账户、额度或费率修改。本人、责任人、指派人三种身份和撤权必须分别验收。
 
+accountRef 格式为 `{"tenantId":"example-tenant","type":"budget-account","resourceId":"example-budget"}`，资源 ID 等于实际
+budgetRef。管理查询使用平铺 `current`／`size`，与本人列表相同；返回相同 PendingPage，管理记录的 conversationId 为
+null，不用于加载目标用户会话。管理确认在本人确认 JSON 基础上加 accountRef，仍保留预算、调用及预留逐项匹配；管理回执请求为
+`{scope,accountRef,invocationId,key}`，不另传 budgetRef。
+
+SELF_SERVICE 要求本人具体账户授权及当前独立费用操作；ASSIGNED 仅表示一名有效、当前有完整处理资格的主责任人；其余情况
+UNASSIGNED。没有独立可见显示名目录时 responsible.displayName 为 null，前端回退
+subjectId。失去当前成员、账户授权或独立操作资格的旧责任人不作为已有可达处理人。
+
+责任指派复用 `/arte/resource/access/` 下的 `getResourceAccess`、`listResourceGrants`、`grantResourceAccess`、
+`revokeResourceGrant` 公共接口，须账户 `assign-reconciler`；写命令包含预期 ACL／授权版本和原幂等键。仅允许 SUBJECT
+主责任人；接替同事务撤销旧有效核对授权。明确预算准备只创建空授权根，不自动授予 owner、管理员或任何默认角色。独立 RBAC
+定义与初始治理授权步骤见[ER-5 部署说明](../arte-app/docs/BUDGET_RECONCILIATION_ER5.md)。
+
 账户使用者／凭据持有人协助提供可归属账单，核对责任人跟进并核验；运维协助安全诊断，不替代账单或取得结算权。
 汇总余额、日总消费、模型已恢复均不足以证明单次费用。无法取得归属证据时明确保留待核对资金这一已知限制，不自动补零、释放或提供未设计的垫付／冲销。
-管理接口和责任派生字段均尚未实现；普通用户场景须有实际可达处理路径方可验收。完整边界及 ER-AC29～ER-AC31
-见[专项 §6.3.1](../../ARTE%20AI%20会话异常恢复需求及设计.md#631-核对责任授权与管理核对契约待实施)。
+管理接口和责任派生字段已实现，权限撤销在读取及最终结算事务重新检查；无宿主账户授权能力时管理入口拒绝执行。隔离测试及未执行部署边界见[专项 §9.6](../../ARTE%20AI%20会话异常恢复需求及设计.md)
+。ER-6 普通用户整体验收仍须实际验证可达处理路径。
 
 ER-3 已验证费用仍 RESERVED／PENDING_RECONCILIATION 时，合格普通文本失败轮不进入后续输入；旧核对提交不会改变新调用实际快照、候选和
 gate。此行为不证明旧调用免费，不释放原预留，也不改变现有核对证据或权限契约。验证见异常恢复专项 §9.4。

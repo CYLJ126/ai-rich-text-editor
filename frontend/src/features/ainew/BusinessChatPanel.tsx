@@ -28,6 +28,7 @@ import {type ConfigurationRejected} from './configurationInvalidation';
 import {hasAvailableBudget, isActive, isUserStoppedGeneration, useChatSession} from './useChatSession';
 import MarkdownText, {copyText} from './MarkdownText';
 import ReconciliationPanel from './ReconciliationPanel';
+import BudgetReconciliationManager from './BudgetReconciliationManager';
 import {useLocatedHistory} from './useLocatedHistory';
 import type {LocatedHistory} from './searchNavigation';
 import {
@@ -185,6 +186,7 @@ export default function BusinessChatPanel({
   const [notice, setNotice] = useState('');
   const [fees, setFees] = useState(false);
   const [unsafeReconciliation, setUnsafeReconciliation] = useState(false);
+  const [unsafeManagedReconciliation, setUnsafeManagedReconciliation] = useState(false);
   const scroll = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const anchor = useRef<{ height: number; top: number } | null>(null);
@@ -220,9 +222,9 @@ export default function BusinessChatPanel({
     onInteraction({
       pending: toolPending || toolCommand.busy || !!toolCommand.stop || pending || !!chat.pendingStop || chat.submitting || chat.stopping,
       active: runBusy || chat.activeIds.length > 0,
-      unsafeToLeave: (chat.recoveryBlocked && !chat.recoveryIsolated) || toolCommand.storageError || unsafeReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
+      unsafeToLeave: (chat.recoveryBlocked && !chat.recoveryIsolated) || toolCommand.storageError || unsafeReconciliation || unsafeManagedReconciliation || (!!chat.storageWarning && (pending || !!chat.pendingStop))
     });
-  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy, chat.recoveryBlocked, chat.recoveryIsolated]);
+  }, [pending, chat.pendingStop, chat.submitting, chat.stopping, chat.activeIds.length, chat.storageWarning, unsafeReconciliation, unsafeManagedReconciliation, toolPending, toolCommand.busy, toolCommand.stop, toolCommand.storageError, runBusy, chat.recoveryBlocked, chat.recoveryIsolated]);
 
   const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
   const visibleViews = located.active ? located.views : chat.invocations;
@@ -616,11 +618,22 @@ export default function BusinessChatPanel({
           {key: 'charged', label: '已扣', children: chat.budget.charged},
         ]}/>}
         {error(chat.budgetError, () => void chat.loadBudget())}
+        {chat.budget?.reconciliationHandling &&
+          <Alert type="info" title={t(`reconciliation.handling.${chat.budget.reconciliationHandling.status}`)}
+                 description={<>{chat.budget.reconciliationHandling.responsible && <Typography.Paragraph>
+                   {chat.budget.reconciliationHandling.responsible.displayName ?? chat.budget.reconciliationHandling.responsible.subjectId}
+                 </Typography.Paragraph>}<Typography.Paragraph>{t('reconciliation.evidenceUnavailable')}</Typography.Paragraph>
+                   <Typography.Text copyable>{chat.budget.accountRef.resourceId}</Typography.Text></>}/>}
         <ReconciliationPanel key={config.budgetRef} context={context} config={config} t={t} writable={writable}
                              onUnsafeToLeave={setUnsafeReconciliation}
                              onPendingCount={count => setPendingFees({budgetRef: config.budgetRef, count})}
                              onConfirmed={chat.refreshAfterReconciliation}/>
       </> : <Typography.Paragraph>选择兼容预算后可查看费用。</Typography.Paragraph>}
+      <BudgetReconciliationManager context={context} config={readingConfig} t={t}
+                                   onUnsafeToLeave={setUnsafeManagedReconciliation}
+                                   onChanged={() => {
+                                     void chat.loadBudget(true);
+                                   }}/>
       <Typography.Paragraph>单次最终费用未由状态接口提供，不能用余额差推算。未知费用不会补零。</Typography.Paragraph>
     </Drawer>
   </Flex>;

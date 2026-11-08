@@ -54,6 +54,10 @@
         OR i.workspace_snapshot LIKE '%"state":"FAILED"%' OR i.workspace_snapshot LIKE '%"state":"CANCELLED"%'
         OR i.workspace_snapshot LIKE '%"state":"TIMED_OUT"%' OR i.workspace_snapshot LIKE '%"state":"INTERRUPTED"%')
     </sql>
+    <select id="pendingSettlementSnapshots" resultType="java.lang.String" useCache="false">
+        SELECT workspace_snapshot FROM arte_ai_settlement WHERE evidence_kind='UNKNOWN_COST' AND reservation_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </select>
     <select id="countPending" resultType="java.lang.Long" useCache="false">
         SELECT COUNT(*)
         <include refid="pendingFrom"/>

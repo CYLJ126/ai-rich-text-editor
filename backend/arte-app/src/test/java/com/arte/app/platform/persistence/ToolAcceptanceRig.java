@@ -133,7 +133,7 @@ final class ToolAcceptanceRig implements AutoCloseable {
                 new NewAiToolSubmissionController(c.getBeanProvider(ToolAdmissionService.class), http, c.getBean(NewAiProperties.class)),
                 new NewAiInvocationController(c.getBean(ExecutionControl.class),
                         c.getBean(ExecutionEventService.class), http, c.getBean(NewAiProperties.class),
-                        c.getBean(InvocationBudgetStatusResolver.class)),
+                        c.getBean(InvocationBudgetStatusResolver.class), c.getBean(com.arte.ainew.application.conversation.ConversationExecutionPolicy.class)),
                 new NewAiToolInvocationController(c.getBean(ExecutionControl.class), http, c.getBean(NewAiProperties.class)))
                 .setControllerAdvice(new ToolManagementExceptionHandler(), new ConversationExceptionHandler()).setValidator(validator);
         if (observed) builder.addFilters(new com.arte.app.diagnostics.NewAiHttpObservationFilter());

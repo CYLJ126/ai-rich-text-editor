@@ -6,7 +6,7 @@ import com.arte.core.pojo.access.Action;
  * 详细设计首版动作名
  * <p>
  * 常量不是允许记录或权限判定，后续规则实现必须通过受信 ActionRegistry 校验。
- * AI 专有执行、凭据和预算动作继续由 AI 定义，本包不复制其执行授权类型。
+ * AI 执行作用域及凭据动作继续由 AI 定义；本包只登记公共账户资源治理，不复制 ai:budget:admin 等执行授权类型。
  */
 public final class PlatformActions {
     /**
@@ -75,6 +75,12 @@ public final class PlatformActions {
     public static final Action ASSISTANT_DISABLE = new Action("assistant:disable");
     public static final Action ASSISTANT_SHARE = new Action("assistant:share");
     public static final Action ASSISTANT_USE = new Action("assistant:use");
+
+    /**
+     * 账户动作只由具体账户的公共授权授予，角色不隐式继承。
+     */
+    public static final Action BUDGET_ACCOUNT_ASSIGN_RECONCILER = new Action("budget-account:assign-reconciler");
+    public static final Action BUDGET_ACCOUNT_RECONCILE = new Action("budget-account:reconcile");
 
     private PlatformActions() {
     }

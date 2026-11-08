@@ -111,6 +111,8 @@ beforeEach(() => {
   vi.mocked(api.listConversations).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(result({
     budgetRef: 'budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
     currency: 'CNY',
     limit: '100',
     held: '0',
@@ -982,7 +984,12 @@ it('explains insufficient available funds as held money while leaving the record
   const messages = (await import('@/locales/zh-CN/aiChat')).default;
   const uiT = (key: string) => messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
   vi.mocked(api.getBudget).mockResolvedValue(result({
-    budgetRef: 'budget', currency: 'CNY', limit: '10', held: '10',
+    budgetRef: 'budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
+    currency: 'CNY',
+    limit: '10',
+    held: '10',
     charged: '0', available: '0', rateVersion: {type: 'rate', id: 'rate', version: 'v1'}, version: 1
   }));
   render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}

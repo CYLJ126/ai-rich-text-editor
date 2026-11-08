@@ -18,7 +18,7 @@ const id = z.string().min(1).max(256);
 const scopeSchema = z.object({tenantId: id, workspaceId: id});
 const ref = z.object({type: id, id, version: id});
 const version = z.number().int().nonnegative();
-const schemas = {
+const baseSchemas = {
   'assistant-command': assistantCommandSchema,
   'workspace-ai-governance': z.discriminatedUnion('kind', [
     z.object({
@@ -118,6 +118,23 @@ const schemas = {
     evidenceRef: id, note: z.string().min(1).max(2000), executionEnded: z.boolean()
   }),
 };
+const schemas = {
+  ...baseSchemas,
+  'budget-responsibility': z.object({
+    scope: scopeSchema, accountRef: z.object({tenantId: id, type: z.literal('budget-account'), resourceId: id}),
+    kind: z.enum(['assign', 'revoke']), expectedAclVersion: version, subjectId: id.optional(),
+    grantId: id.optional(), grantVersion: version.optional()
+  }).refine(value => value.accountRef.tenantId === value.scope.tenantId &&
+    (value.kind === 'assign' ? !!value.subjectId : !!value.grantId && value.grantVersion !== undefined)),
+  'reconcile-managed': baseSchemas.reconcile.extend({
+    accountRef: z.object({
+      tenantId: id,
+      type: z.literal('budget-account'),
+      resourceId: id
+    })
+  })
+    .refine(request => request.accountRef.tenantId === request.scope.tenantId && request.accountRef.resourceId === request.budgetRef)
+};
 export type OperationKind = keyof typeof schemas;
 
 export interface Operation<T> {
@@ -190,7 +207,7 @@ export function readOperation<T>(context: BrowserContext | undefined, kind: Oper
   };
   const request = parsed.data.request;
   if ((kind === 'send' && 'conversationId' in request && request.conversationId !== target)
-    || (kind === 'reconcile' && 'budgetRef' in request && request.budgetRef !== target)) return {
+    || (['reconcile', 'reconcile-managed'].includes(kind) && 'budgetRef' in request && request.budgetRef !== target)) return {
     value: null,
     warning: RECOVERY_WARNING, knownId
   };

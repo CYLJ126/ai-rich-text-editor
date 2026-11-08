@@ -150,6 +150,8 @@ beforeEach(() => {
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({
     budgetRef: 'budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
     currency: 'CNY',
     limit: '100',
     held: '0',

@@ -18,9 +18,28 @@ public final class Reconciliation {
     private Reconciliation() {
     }
 
+    /**
+     * 财务核对所需的最小调用／预留关联，不包含正文、模型结果或密钥。
+     *
+     * @param invocationId       原调用标识
+     * @param conversationId     本人读取可见的关联会话；管理读取置空
+     * @param state              本地执行状态
+     * @param invocationVersion  原调用的条件确认版本
+     * @param reservationId      原预留标识
+     * @param reservationVersion 预留条件确认版本
+     * @param budgetRef          精确账户标识
+     * @param reserved           实际预留金额及币种
+     * @param remoteRequestId    可用的远端安全关联标识
+     * @param acceptedAt         原调用受理时间
+     * @param pendingSince       最早待核对结算事实时间；尚未结算处理的终态预留使用本地终态时间
+     */
     public record Pending(String invocationId, String conversationId, Invocation.State state, long invocationVersion,
                           String reservationId, long reservationVersion, String budgetRef, Money reserved,
-                          String remoteRequestId, Instant acceptedAt) {
+                          String remoteRequestId, Instant acceptedAt, Instant pendingSince) {
+        public Pending(String invocationId, String conversationId, Invocation.State state, long invocationVersion,
+                       String reservationId, long reservationVersion, String budgetRef, Money reserved, String remoteRequestId, Instant acceptedAt) {
+            this(invocationId, conversationId, state, invocationVersion, reservationId, reservationVersion, budgetRef, reserved, remoteRequestId, acceptedAt, null);
+        }
     }
 
     public record Confirm(ExecutionOwner owner, ExecutionPrincipal reviewer, String traceId, String key,
@@ -31,7 +50,7 @@ public final class Reconciliation {
             Objects.requireNonNull(owner);
             Objects.requireNonNull(reviewer);
             Objects.requireNonNull(charge);
-            ContractChecks.require(owner.subjectId().equals(reviewer.subjectId()), "Reviewer must be current owner");
+
             ContractChecks.id(traceId, "traceId");
             ContractChecks.id(key, "key");
             ContractChecks.id(budgetRef, "budgetRef");
@@ -47,10 +66,21 @@ public final class Reconciliation {
 
     /**
      * 不可变核对回执，与费用、执行收敛、门闩及事件在同一事务保存。
+     * targetOwner 记录真实目标，reviewer 始终记录真实操作者；authorizationRef 保存具体账户授权依据。
+     * 旧回执缺少新增审计字段时保留原事实，不推造历史授权。
      */
     public record Receipt(String key, String invocationId, String reservationId, String budgetRef, Money charge,
                           String evidenceRef, String note, ExecutionPrincipal reviewer, String traceId,
                           Invocation.State state, long invocationVersion, long reservationVersion,
-                          Instant confirmedAt) {
+                          Instant confirmedAt, ExecutionOwner targetOwner, String authorizationRef) {
+        /**
+         * 保留旧内部调用构造方式；新核对路径总是记录真实目标和授权依据。
+         */
+        public Receipt(String key, String invocationId, String reservationId, String budgetRef, Money charge,
+                       String evidenceRef, String note, ExecutionPrincipal reviewer, String traceId,
+                       Invocation.State state, long invocationVersion, long reservationVersion, Instant confirmedAt) {
+            this(key, invocationId, reservationId, budgetRef, charge, evidenceRef, note, reviewer, traceId, state,
+                    invocationVersion, reservationVersion, confirmedAt, null, null);
+        }
     }
 }

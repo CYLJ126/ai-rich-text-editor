@@ -67,4 +67,31 @@ public class NewAiReconciliationController {
                         context -> manualReconciliationService.receipt(request.budgetRef(), request.invocationId(), request.key(), context))
                 .map(value -> ResultContext.success(ReconciliationResponses.Receipt.from(value), ResultCodeEnum.SUCCESS, locale));
     }
+
+    @PostMapping("/managedPendingReconciliations")
+    public Mono<ResultContext<ReconciliationResponses.PendingPage>> managedPending(
+            @Valid @RequestBody ReconciliationRequests.ManagedQuery request, Locale locale) {
+        return newAiHttpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, true,
+                        actor -> manualReconciliationService.managedPending(request.accountRef().ref(), request.current(), request.size(), actor))
+                .map(value -> ResultContext.success(ReconciliationResponses.PendingPage.from(value), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/confirmManagedReconciliation")
+    public Mono<ResultContext<ReconciliationResponses.Receipt>> confirmManaged(
+            @Valid @RequestBody ReconciliationRequests.ManagedConfirm request, @RequestHeader("Idempotency-Key") String key, Locale locale) {
+        return newAiHttpContext.create(request.scope(), Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN), timeout, null, key)
+                .flatMap(actor -> manualReconciliationService.confirmManaged(request.accountRef().ref(), request.budgetRef(), request.invocationId(),
+                        request.invocationVersion(), request.reservationId(), request.reservationVersion(),
+                        new Money(new BigDecimal(request.actualCharge()), Currency.getInstance(request.currency())), request.evidenceRef(),
+                        request.note(), request.executionEnded(), actor))
+                .map(value -> ResultContext.success(ReconciliationResponses.Receipt.from(value), ResultCodeEnum.SUCCESS, locale));
+    }
+
+    @PostMapping("/managedReconciliationReceipt")
+    public Mono<ResultContext<ReconciliationResponses.Receipt>> managedReceipt(
+            @Valid @RequestBody ReconciliationRequests.ManagedReceipt request, Locale locale) {
+        return newAiHttpContext.read(request.scope(), Set.of(AdmissionAuthorization.READ), timeout, true,
+                        actor -> manualReconciliationService.managedReceipt(request.accountRef().ref(), request.invocationId(), request.key(), actor))
+                .map(value -> ResultContext.success(ReconciliationResponses.Receipt.from(value), ResultCodeEnum.SUCCESS, locale));
+    }
 }

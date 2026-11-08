@@ -250,8 +250,10 @@ public class NewAiAdmissionConfiguration {
      * 授权预算账户查询门面；注册 Bean 不读账本、不初始化账户。
      */
     @Bean("newAiBudgetAccountQueryService")
-    BudgetAccountQueryService budgetQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, MybatisExecutionPersistence store) {
-        return new BudgetAccountQueryService(definitions, authorization, store);
+    BudgetAccountQueryService budgetQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, MybatisExecutionPersistence store, ObjectProvider<com.arte.ainew.spi.auth.BudgetReconciliationAccess> access) {
+        var service = new BudgetAccountQueryService(definitions, authorization, store);
+        service.accountAccess(access.getIfAvailable());
+        return service;
     }
 
     /**
@@ -376,8 +378,10 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiManualReconciliationService")
     com.arte.ainew.application.budget.ManualReconciliationService manualReconciliationService(
-            AdmissionAuthorization authorization, BudgetAccountQueryService accounts, MybatisExecutionPersistence executions) {
-        return new com.arte.ainew.application.budget.ManualReconciliationService(authorization, accounts, executions);
+            AdmissionAuthorization authorization, BudgetAccountQueryService accounts, MybatisExecutionPersistence executions, ObjectProvider<com.arte.ainew.spi.auth.BudgetReconciliationAccess> access) {
+        var service = new com.arte.ainew.application.budget.ManualReconciliationService(authorization, accounts, executions);
+        service.accountAccess(access.getIfAvailable());
+        return service;
     }
 
     /**

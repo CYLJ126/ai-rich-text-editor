@@ -13,6 +13,8 @@ public final class PlatformResourceTypes {
     public static final ResourceType MODEL = new ResourceType("model");
     public static final ResourceType ASSISTANT = new ResourceType("assistant");
 
+    public static final ResourceType BUDGET_ACCOUNT = new ResourceType("budget-account");
+
     private PlatformResourceTypes() {
     }
 }

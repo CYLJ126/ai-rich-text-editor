@@ -66,4 +66,74 @@ public final class ReconciliationRequests {
                                @NotBlank @Size(max = 256) String budgetRef,
                                @NotBlank @Size(max = 256) String invocationId, @NotBlank @Size(max = 256) String key) {
     }
+
+    /**
+     * 管理财务读取，只接受公共账户定位引用；引用本身不授予权限。
+     *
+     * @param scope      当前使用范围
+     * @param accountRef 后端预算读取返回的具体账户资源引用
+     * @param current    页码
+     * @param size       每页数量
+     */
+    public record ManagedQuery(@NotNull @Valid ConversationRequests.Scope scope,
+                               @NotNull @Valid AccountRef accountRef,
+                               @NotNull @Min(1) Long current, @NotNull @Min(1) @Max(100) Long size) {
+    }
+
+    /**
+     * 账户资源定位键，实际 owner 只能从账本解析。
+     *
+     * @param tenantId   资源租户
+     * @param type       固定 budget-account
+     * @param resourceId 精确预算账户标识
+     */
+    public record AccountRef(@NotBlank @Size(max = 256) String tenantId,
+                             @NotBlank @Pattern(regexp = "budget-account") String type,
+                             @NotBlank @Size(max = 256) String resourceId) {
+        public com.arte.core.pojo.access.ResourceRef ref() {
+            return new com.arte.core.pojo.access.ResourceRef(tenantId, new com.arte.core.pojo.access.ResourceType(type), resourceId);
+        }
+    }
+
+    /**
+     * 管理核对复用本人金额、证据、版本及幂等规则。
+     *
+     * @param scope              当前范围
+     * @param accountRef         获明确授权的具体账户
+     * @param budgetRef          须与目标账户、调用和预留逐项匹配
+     * @param invocationId       原调用 ID
+     * @param invocationVersion  原调用版本
+     * @param reservationId      原预留 ID
+     * @param reservationVersion 原预留版本
+     * @param actualCharge       已核实的实际费用
+     * @param currency           币种
+     * @param evidenceRef        可归属于本次调用的账单证据
+     * @param note               核对说明
+     * @param executionEnded     远端结束事实已核实
+     */
+    public record ManagedConfirm(@NotNull @Valid ConversationRequests.Scope scope,
+                                 @NotNull @Valid AccountRef accountRef, @NotBlank @Size(max = 256) String budgetRef,
+                                 @NotBlank @Size(max = 256) String invocationId,
+                                 @NotNull @Min(0) @Max(Long.MAX_VALUE - 1) Long invocationVersion,
+                                 @NotBlank @Size(max = 256) String reservationId,
+                                 @NotNull @Min(0) @Max(Long.MAX_VALUE - 1) Long reservationVersion,
+                                 @NotBlank @Pattern(regexp = "[0-9]{1,20}(\\.[0-9]{1,18})?") String actualCharge,
+                                 @NotBlank @Pattern(regexp = "[A-Z]{3}") String currency,
+                                 @NotBlank @Size(max = 256) String evidenceRef,
+                                 @NotBlank @Size(max = 2000) String note, @NotNull @AssertTrue Boolean executionEnded) {
+    }
+
+    /**
+     * 管理原回执读取，不触发结算。
+     *
+     * @param scope        当前范围
+     * @param accountRef   目标账户公共资源
+     * @param invocationId 原调用 ID
+     * @param key          原核对键
+     */
+    public record ManagedReceipt(@NotNull @Valid ConversationRequests.Scope scope,
+                                 @NotNull @Valid AccountRef accountRef,
+                                 @NotBlank @Size(max = 256) String invocationId,
+                                 @NotBlank @Size(max = 256) String key) {
+    }
 }

@@ -40,6 +40,11 @@ public interface BudgetMapper {
             @Param("evidenceKind") String evidenceKind,
             @Param("evidenceRef") String evidenceRef);
 
+    /**
+     * 当前页预留对应的未知费用处理时间，不从账户余额或受理时间推算。
+     */
+    List<String> pendingSettlementSnapshots(@Param("keys") List<String> keys);
+
     long countPending(@Param("accountKey") String accountKey, @Param("ownerKey") String ownerKey);
 
     List<String> pendingSnapshots(@Param("accountKey") String accountKey, @Param("ownerKey") String ownerKey,

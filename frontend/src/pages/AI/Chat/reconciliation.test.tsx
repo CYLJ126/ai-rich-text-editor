@@ -38,6 +38,7 @@ const item: PendingReconciliation = {
   reserved: {amount: '1.25', currency: 'CNY'},
   remoteRequestId: 'remote-123',
   acceptedAt: '2026-10-08T01:00:00Z',
+  pendingSince: '2026-10-08T01:01:00Z',
 };
 const t = (key: string) =>
   messages[`app.aiChat.${key}` as keyof typeof messages] ?? key;
@@ -162,7 +163,7 @@ describe('费用核对', () => {
         charge: {amount: original[0].actualCharge, currency: 'CNY'},
         evidenceRef: 'bill-123',
         note: '执行结束，账单核实',
-        reviewer: {subjectId: 'admin', subjectName: 'admin', kind: 'USER'},
+        reviewer: {subjectId: 'admin', displayName: null, kind: 'USER'},
         traceId: 'trace',
         state: 'CANCELLED',
         invocationVersion: 5,

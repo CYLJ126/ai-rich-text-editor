@@ -62,6 +62,8 @@ const conversation: ConversationResponse = {
 };
 const budget: BudgetAccountResponse = {
   budgetRef: 'budget',
+  accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+  reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
   currency: 'CNY',
   limit: '100.00000000',
   held: '0',

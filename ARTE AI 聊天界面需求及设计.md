@@ -614,21 +614,27 @@ AI HTTP 调用使用 `src/services/arte-ai`；公共空间使用 `src/services/p
 和语言拦截器。以下为当前实际接口，公共前缀 `/arte/ai-new`；均为
 POST，SSE 使用 fetch 流读取。
 
-| 页面操作           | 接口后缀                                            | 关键契约                                                                                |
-|--------------------|-----------------------------------------------------|-----------------------------------------------------------------------------------------|
-| 可用模型与预算发现 | configuration/discoverChatOptions                   | scope；ResultContext.data.modelOptions                                                  |
-| 创建会话           | conversation/createConversation                     | scope、title，Idempotency-Key；profile 为空、resources 为空                             |
-| 会话列表           | conversation/listConversations                      | scope、page；records/current/size/total 在顶层                                          |
-| 会话详情           | conversation/getConversation                        | scope、conversationId；取得真实 version                                                 |
-| 历史轮次           | conversation/queryTurnsOfConversation               | scope、conversationId、expectedVersion、page                                            |
-| 新问题             | chat/turnsForChat                                   | 本轮 text、固定引用、额度与预算、expectedVersion；202 返回 invocationId                 |
-| 重新生成           | chat/regenerate                                     | originalInvocationId、expectedConversationVersion、timeoutSeconds；202 返回 executionId |
-| 停止               | invocation/cancelInvocation                         | scope、invocationId，Idempotency-Key；返回 ControlReceipt                               |
-| 执行状态／结果     | invocation/getInvocationStatus、getInvocationResult | scope、invocationId；分别管理事实与结果                                                 |
-| 耐久事件／流式     | invocation/invocationEvent、watchInvocation         | 排他游标 afterSequence；事件查询另带 limit                                              |
-| 预算               | budget/getBudget                                    | scope、budgetRef；金额为十进制字符串                                                    |
-| 待对账             | budget/pendingReconciliations                       | scope、budgetRef、current、size；data 内含 page、canReconcile                           |
-| 核对及回执         | budget/confirmReconciliation、reconciliationReceipt | 确认带两种版本及 Idempotency-Key；回执查询带原 key                                      |
+| 页面操作           | 接口后缀                                                          | 关键契约                                                                                |
+|--------------------|-------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| 可用模型与预算发现 | configuration/discoverChatOptions                                 | scope；ResultContext.data.modelOptions                                                  |
+| 创建会话           | conversation/createConversation                                   | scope、title，Idempotency-Key；profile 为空、resources 为空                             |
+| 会话列表           | conversation/listConversations                                    | scope、page；records/current/size/total 在顶层                                          |
+| 会话详情           | conversation/getConversation                                      | scope、conversationId；取得真实 version                                                 |
+| 历史轮次           | conversation/queryTurnsOfConversation                             | scope、conversationId、expectedVersion、page                                            |
+| 新问题             | chat/turnsForChat                                                 | 本轮 text、固定引用、额度与预算、expectedVersion；202 返回 invocationId                 |
+| 重新生成           | chat/regenerate                                                   | originalInvocationId、expectedConversationVersion、timeoutSeconds；202 返回 executionId |
+| 停止               | invocation/cancelInvocation                                       | scope、invocationId，Idempotency-Key；返回 ControlReceipt                               |
+| 执行状态／结果     | invocation/getInvocationStatus、getInvocationResult               | scope、invocationId；分别管理事实与结果                                                 |
+| 耐久事件／流式     | invocation/invocationEvent、watchInvocation                       | 排他游标 afterSequence；事件查询另带 limit                                              |
+| 预算               | budget/getBudget                                                  | scope、budgetRef；十进制金额及 accountRef／reconciliationHandling                       |
+| 待对账             | budget/pendingReconciliations                                     | scope、budgetRef、current、size；data 内含 page、canReconcile                           |
+| 核对及回执         | budget/confirmReconciliation、reconciliationReceipt               | 确认带两种版本及 Idempotency-Key；回执查询带原 key                                      |
+| 管理待核对         | budget/managedPendingReconciliations                              | scope、accountRef、current、size；当前具体账户核对授权，最小财务信息                    |
+| 管理确认／回执     | budget/confirmManagedReconciliation、managedReconciliationReceipt | 真实 actor，目标 owner 由账本解析；提交另需独立费用操作，复用原版本／证据／键           |
+
+ER-5
+已接入费用区责任状态、具体账户管理核对及具名主责任人指派／接替。账户指派权与核对权分开，空间管理员或全局操作不自动授予任何具体账户动作；无账单证据时保留挂起资金。部署材料及本轮测试边界见[预算接口说明](backend/arte-ai/BUDGET_HTTP_API.md)
+与[异常恢复专项 §9.6](ARTE%20AI%20会话异常恢复需求及设计.md)。ER-6 整体验收、时延及用户试用仍待完成。
 
 上表保留既有聊天路径。会话栏已接入 `createDefaultConversation`、`queryConversationWindow`、`listConversationsCursor`、
 `getConversationMetadata`、`renameConversation`、`setConversationPinned` 和 `getMetadataCommandReceipt`；

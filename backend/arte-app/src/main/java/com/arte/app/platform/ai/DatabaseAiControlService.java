@@ -93,6 +93,12 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
     private final JacksonExecutionRecordCodec codec = new JacksonExecutionRecordCodec();
     private ObjectProvider<ModelPublicationRuntime> resourceModels;
     private ObjectProvider<ModelGateway> modelGateways;
+    private ObjectProvider<PlatformBudgetAccountAccess> budgetAccounts;
+
+    @Autowired
+    void budgetAccounts(ObjectProvider<PlatformBudgetAccountAccess> budgetAccounts) {
+        this.budgetAccounts = budgetAccounts;
+    }
 
     private WorkspaceAiGovernanceService workspaceAi;
 
@@ -294,11 +300,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
                 requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-read"));
-        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN)) {
-            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-read"));
-        }
+        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN) && !catalogPermissions.snapshot(name).contains(AdmissionAuthorization.BUDGET_ADMIN))
+            throw new AccessDeniedException("Independent budget operation denied");
         int requiredActions = requests.size();
-        int policyAction = requested.contains(AdmissionAuthorization.BUDGET_ADMIN) ? 1 : -1;
+        int policyAction = -1;
         int invokeAction = requested.contains(AdmissionAuthorization.INVOKE) ? 0 : -1;
         if (includeConfiguration && policyAction < 0) {
             policyAction = requests.size();
@@ -334,7 +339,7 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         if (settings.enabled() && decisions.get(invokeAction).allowed()) {
             permissions.add(AdmissionAuthorization.INVOKE);
         }
-        if (decisions.get(policyAction).allowed()) {
+        if (catalogPermissions.snapshot(name).contains(AdmissionAuthorization.BUDGET_ADMIN)) {
             permissions.add(AdmissionAuthorization.BUDGET_ADMIN);
         }
         Catalog catalog = published(true).catalog();
@@ -431,10 +436,10 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
                 requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-write"));
-        if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN)) {
-            requests.add(DefaultAuthorizationService.workspaceRequest(scope, WORKSPACE_POLICY_WRITE, "database-ai-write"));
-        }
+
         return guards.getObject().inCurrentTransaction(actor, requests, () -> {
+            if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN) && !catalogPermissions.current(name).contains(AdmissionAuthorization.BUDGET_ADMIN))
+                throw new AccessDeniedException("Independent budget operation denied");
             WorkspaceConfiguration settings = ownConfiguration(scope);
             if (!settings.enabled() && requested.contains(AdmissionAuthorization.INVOKE)) {
                 throw new AccessDeniedException("Workspace AI disabled");
@@ -572,6 +577,11 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     check(mapper.replaceBudget(row, expected) == 1);
                     check(mapper.replaceAccount(key, ownerKey, codec.encode(new BudgetCommands.Account(account.budgetRef(), owner, item.limit(), account.held(), account.charged(), account.rateVersion(), Math.incrementExact(account.version())))) == 1);
                 }
+            }
+            if (budgetAccounts != null) {
+                var access = budgetAccounts.getIfAvailable();
+                if (access != null)
+                    access.registerInCurrentTransaction(codec.decode(mapper.account(key, ownerKey), BudgetCommands.Account.class));
             }
         }
     }

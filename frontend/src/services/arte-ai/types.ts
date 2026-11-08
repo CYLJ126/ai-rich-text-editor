@@ -468,7 +468,19 @@ export interface BudgetQuery {
 }
 
 /** 金额为十进制字符串，available 可以为负数；不要转为 JS number。 */
+export interface BudgetAccountRef {
+  tenantId: string;
+  type: 'budget-account';
+  resourceId: string
+}
+
+export interface ReconciliationHandling {
+  status: 'SELF_SERVICE' | 'ASSIGNED' | 'UNASSIGNED';
+  responsible: { subjectId: string; displayName: string | null } | null;
+}
 export interface BudgetAccountResponse {
+  accountRef: BudgetAccountRef;
+  reconciliationHandling: ReconciliationHandling;
   budgetRef: string;
   currency: string;
   limit: string;
@@ -504,6 +516,7 @@ export interface PendingReconciliation {
   reserved: { amount: string; currency: string };
   remoteRequestId: string | null;
   acceptedAt: string;
+  pendingSince: string | null;
 }
 
 export interface PendingReconciliationResponse {
@@ -533,7 +546,7 @@ export interface ReconciliationReceipt {
   charge: { amount: string; currency: string };
   evidenceRef: string;
   note: string;
-  reviewer: { subjectId: string; subjectName: string; kind: 'USER' | 'SERVICE' };
+  reviewer: { subjectId: string; displayName: string | null; kind: 'USER' | 'SERVICE' };
   traceId: string;
   state: InvocationStatusResponse['state'];
   invocationVersion: number;

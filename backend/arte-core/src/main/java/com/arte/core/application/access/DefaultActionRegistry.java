@@ -46,6 +46,7 @@ public final class DefaultActionRegistry implements ActionRegistry {
         add(definitions, MODEL, false, MODEL_VALIDATE, MODEL_PUBLISH, MODEL_DISABLE, MODEL_SHARE);
         add(definitions, ASSISTANT, true, ASSISTANT_READ, ASSISTANT_EDIT, ASSISTANT_USE);
         add(definitions, ASSISTANT, false, ASSISTANT_PUBLISH, ASSISTANT_DISABLE, ASSISTANT_SHARE);
+        add(definitions, BUDGET_ACCOUNT, false, BUDGET_ACCOUNT_ASSIGN_RECONCILER, BUDGET_ACCOUNT_RECONCILE);
         definitions.add(new ActionDefinition(RESOURCE_ACCESS_MANAGE,
                 Set.of(TENANT, WORKSPACE, ARTICLE, COLLECTION, MODEL, ASSISTANT), false));
         return new DefaultActionRegistry(definitions);

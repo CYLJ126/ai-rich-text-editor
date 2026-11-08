@@ -2,7 +2,6 @@ package com.arte.app.platform.persistence;
 
 import com.arte.ainew.api.conversation.ConversationService;
 import com.arte.ainew.application.auth.AdmissionAuthorization;
-import com.arte.ainew.application.control.BudgetAccountQueryService;
 import com.arte.ainew.application.control.ChatConfigurationQueryService;
 import com.arte.ainew.common.execution.ExecutionContext;
 import com.arte.ainew.common.execution.ExecutionPrincipal;
@@ -78,6 +77,8 @@ class DatabaseAiControlIntegrationTest {
                 ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             }
         }
+        f.jdbc.execute("CREATE TABLE IF NOT EXISTS arte_rbac_relation(source VARCHAR(256),binding_type VARCHAR(64),target VARCHAR(256))");
+        f.jdbc.execute("CREATE TABLE IF NOT EXISTS arte_rbac_role(role_code VARCHAR(64),status VARCHAR(10))");
         allowOrigins("https://api.deepseek.com");
     }
 
@@ -403,7 +404,7 @@ class DatabaseAiControlIntegrationTest {
             var first = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(firstContext, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
             var next = c.getBean(com.arte.ainew.spi.control.BudgetDefinitionProvider.class).available(secondContext, com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst();
             assertNotEquals(first.budgetRef(), next.budgetRef());
-            var accounts = c.getBean(BudgetAccountQueryService.class);
+            var accounts = c.getBean(com.arte.ainew.application.control.BudgetAccountQueryService.class);
             assertEquals(money("100"), accounts.account(first.budgetRef(), firstContext).block(WAIT).limit());
             assertEquals(money("100"), accounts.account(next.budgetRef(), secondContext).block(WAIT).limit());
             var conversations = c.getBean(ConversationService.class);
@@ -482,7 +483,7 @@ class DatabaseAiControlIntegrationTest {
                         .available(execution(db, scope, Set.of(AdmissionAuthorization.READ), null), com.arte.ainew.spi.control.BudgetDefinitionProvider.Operation.READ).block(WAIT).getFirst().budgetRef();
                 recorded.sql.clear();
                 http.read(target, Set.of(AdmissionAuthorization.READ), WAIT, true,
-                        ctx -> c.getBean(BudgetAccountQueryService.class).account(budgetRef, ctx)).block(WAIT);
+                        ctx -> c.getBean(com.arte.ainew.application.control.BudgetAccountQueryService.class).account(budgetRef, ctx)).block(WAIT);
                 recorded.assertNoLocks();
                 org.mockito.Mockito.verify(source).readSnapshot("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.READ), true);
                 assertEquals(1, recorded.sql.stream().filter(q -> q.contains("FROM arte_ai_budget_definition")).count());
@@ -699,8 +700,8 @@ class DatabaseAiControlIntegrationTest {
             com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec codec = new com.arte.ainew.persistence.codec.JacksonExecutionRecordCodec();
             BudgetCommands.Account account = codec.decode(f.jdbc.queryForObject("SELECT workspace_snapshot FROM arte_ai_account", String.class), BudgetCommands.Account.class);
             f.jdbc.update("UPDATE arte_ai_account SET workspace_snapshot=?", codec.encode(new BudgetCommands.Account(account.budgetRef(), account.owner(), account.limit(), money("3"), money("7"), account.rateVersion(), 2)));
-            f.jdbc.execute("CREATE TABLE arte_rbac_relation(source VARCHAR(256),binding_type VARCHAR(96),target VARCHAR(256))");
-            f.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(96),status VARCHAR(8))");
+            f.jdbc.execute("CREATE TABLE IF NOT EXISTS arte_rbac_relation(source VARCHAR(256),binding_type VARCHAR(96),target VARCHAR(256))");
+            f.jdbc.execute("CREATE TABLE IF NOT EXISTS arte_rbac_role(role_code VARCHAR(96),status VARCHAR(8))");
             List<AiControlData.BudgetPreset> rules = List.of(new AiControlData.BudgetPreset(ref("rate", "text-price"), money("200")));
             assertThrows(com.arte.core.exception.platform.PlatformException.class, () -> governance.updateRules(f.actor, meta("denied"), scope, initial.workspaceVersion(), 0, rules));
             f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation','aiConfiguration:manage')");
@@ -741,8 +742,14 @@ class DatabaseAiControlIntegrationTest {
             c.getBean(com.arte.app.platform.ai.WorkspaceAiGovernanceService.class).update(f.actor, meta("disable"), scope, view.workspaceVersion(), view.configuration().version(), false, List.of());
             assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.INVOKE)).block(WAIT));
             assertNotNull(db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT));
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> execution(db, scope, Set.of(AdmissionAuthorization.BUDGET_ADMIN), null));
+            f.jdbc.update("INSERT INTO arte_rbac_relation VALUES('alice','user_to_operation',?)", AdmissionAuthorization.BUDGET_ADMIN);
             var adminContext = execution(db, scope, Set.of(AdmissionAuthorization.BUDGET_ADMIN), null);
             f.jdbc.update("UPDATE arte_platform_workspace_member SET role=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
+            // 独立核对操作不由空间 owner 角色决定；撤销操作授权才使其失效。
+            assertNotNull(db.grant(adminContext));
+            f.jdbc.update("DELETE FROM arte_rbac_relation WHERE source='alice' AND target=?", AdmissionAuthorization.BUDGET_ADMIN);
             assertThrows(org.springframework.security.access.AccessDeniedException.class, () -> db.grant(adminContext));
             f.jdbc.update("UPDATE arte_platform_workspace_member SET state=1,version=version+1 WHERE workspace_id=?", scope.workspaceId());
             assertThrows(Exception.class, () -> db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.CONVERSATION)).block(WAIT));
@@ -866,5 +873,31 @@ class DatabaseAiControlIntegrationTest {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
             com.arte.core.pojo.UserContext.clear();
         }
+    }
+
+    @Test
+    void accountAccessAssemblyRegistersEmptyRootsWithoutGrantingWorkspaceOwner() throws Exception {
+        var scope = f.initialize().value().workspace().scope();
+        String sql = Files.readString(Path.of("scripts/arte-platform-resource-acl-ddl-mysql.sql"));
+        if (f.mysql == null) sql = sql.replaceAll("(?i)CHARACTER SET [a-z0-9_]+ COLLATE [a-z0-9_]+", "")
+                .replaceAll("(?i)ENGINE=InnoDB", "").replaceAll("(?im)^SET\\s+[^;]*;", "");
+        try (var connection = f.source.getConnection()) {
+            ScriptUtils.executeSqlScript(connection, new ByteArrayResource(sql.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+        context().withUserConfiguration(com.arte.app.platform.ai.PlatformBudgetReconciliationConfiguration.class).run(c -> {
+            assertNull(c.getStartupFailure());
+            assertNotNull(c.getBean(com.arte.ainew.spi.auth.BudgetReconciliationAccess.class));
+            var db = c.getBean(DatabaseAiControlService.class);
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("catalog-for-accounts"));
+            DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope);
+            var actor = execution(db, scope, Set.of(AdmissionAuthorization.READ), null);
+            var budgetRef = db.grant(actor).budgetRefs().iterator().next();
+            var view = c.getBean(com.arte.ainew.application.control.BudgetAccountQueryService.class).view(budgetRef, actor).block(WAIT);
+            assertEquals("UNASSIGNED", view.handling().status());
+            var ref = com.arte.ainew.application.control.BudgetAccountQueryService.accountRef(view.account());
+            var grants = c.getBean(com.arte.core.spi.access.ResourceGrantStore.class);
+            assertTrue(grants.findAccess(ref).isPresent());
+            assertEquals(0, grants.findGrants(ref, new com.arte.core.pojo.platform.PageQuery(1, 100)).total());
+        });
     }
 }

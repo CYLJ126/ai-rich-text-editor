@@ -28,6 +28,41 @@ public final class BudgetAccountQueryService {
         this.budgets = budgets;
     }
 
+    private com.arte.ainew.spi.auth.BudgetReconciliationAccess access;
+
+    /**
+     * 组合模块安装账户责任及公共授权投影。
+     */
+    public void accountAccess(com.arte.ainew.spi.auth.BudgetReconciliationAccess access) {
+        this.access = access;
+    }
+
+    public static com.arte.core.pojo.access.ResourceRef accountRef(BudgetCommands.Account account) {
+        return new com.arte.core.pojo.access.ResourceRef(account.owner().tenantId(),
+                com.arte.core.constant.platform.PlatformResourceTypes.BUDGET_ACCOUNT, account.budgetRef());
+    }
+
+    public Mono<com.arte.ainew.spi.auth.BudgetReconciliationAccess.Handling> handling(BudgetCommands.Account account, ExecutionContext actor) {
+        return authorization.isOperationConfigured(actor, AdmissionAuthorization.BUDGET_ADMIN).flatMap(admin -> access == null
+                ? Mono.just(new com.arte.ainew.spi.auth.BudgetReconciliationAccess.Handling(admin ? "SELF_SERVICE" : "UNASSIGNED", null))
+                : access.handling(account, actor, admin));
+    }
+
+    /**
+     * 本人预算与处理责任的只读组合。
+     *
+     * @param account  已按当前身份核验的账本
+     * @param handling 当前可达处理责任，不授予操作权
+     */
+    public record View(BudgetCommands.Account account,
+                       com.arte.ainew.spi.auth.BudgetReconciliationAccess.Handling handling) {
+    }
+
+    public Mono<View> view(String budgetRef, ExecutionContext actor) {
+        return account(budgetRef, actor).flatMap(account -> handling(account, actor).map(handling ->
+                new View(account, handling)));
+    }
+
     public Mono<BudgetCommands.Account> account(String budgetRef, ExecutionContext context) {
         ContractChecks.id(budgetRef, "budgetRef");
         return authorization.require(context, AdmissionAuthorization.READ).flatMap(current -> {

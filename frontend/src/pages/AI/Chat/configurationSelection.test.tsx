@@ -24,6 +24,8 @@ const model: ChatModelOption = {
 };
 const account = {
   budgetRef: 'a',
+  accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'a'},
+  reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
   currency: 'CNY',
   limit: '100',
   held: '0',

@@ -52,6 +52,30 @@ public interface ReconciliationStore {
     Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command);
 
     /**
+     * 在最终同库事务内复核具体账户许可，不能将外层初检视为永久授权。
+     */
+    default Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command,
+                                                                             com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit) {
+        return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
+    }
+
+    /**
+     * 财务读取与当前授权使用同一事务，不读取聊天正文或模型结果。
+     */
+    default Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(
+            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, long current, long size) {
+        return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
+    }
+
+    /**
+     * 原回执读取仍受目标账户当前授权约束。
+     */
+    default Mono<Reconciliation.Receipt> reconciliationReceipt(
+            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, String invocationId, String key) {
+        return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
+    }
+
+    /**
      * 按原人工对账幂等键读取已持久化的回执，供结果核验及网络不确定后的查询使用。
      * 仅查询历史确认结果，不触发新的对账、费用结算或模型调用。
      *

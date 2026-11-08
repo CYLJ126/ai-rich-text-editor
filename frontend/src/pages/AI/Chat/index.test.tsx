@@ -74,6 +74,8 @@ const valid = {
 };
 const account = {
   budgetRef: 'budget-1',
+  accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget-1'},
+  reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
   currency: 'CNY',
   limit: '100',
   held: '0',

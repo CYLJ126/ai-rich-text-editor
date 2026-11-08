@@ -127,4 +127,26 @@ S4-06 的观察、恢复与三种后续动作见 [界面说明](../../../../back
 仅有界重读。失败耗尽后手动刷新；隐藏页面取消读取和退避，重新可见重读。十秒观察兜底只查询占用，变化后才重读必要历史。所有写请求继续沿用各自显式确认与原幂等键规则。
 
 阶段证据及未完成验收见 [会话异常恢复需求及设计第 9.5 节](../../../../ARTE%20AI%20会话异常恢复需求及设计.md)
-。管理核对、时延测量及用户任务试用尚未交付。
+。时延测量及用户任务试用仍待 ER-6 验收；管理核对见下节。
+
+## 具体账户责任与管理核对（ER-5）
+
+`getBudget` 必须返回匹配当前租户／budgetRef 的 `accountRef:{tenantId,type:'budget-account',resourceId}` 及
+`reconciliationHandling:{status,responsible}`。状态为 SELF_SERVICE／ASSIGNED／UNASSIGNED；ASSIGNED 须有实际有效责任人的稳定
+subjectId，displayName 没有获授权显示名时为 null。缺少或不匹配的契约报错，不推断管理员已有资格。
+
+`managedPendingReconciliations({scope,accountRef,current,size})`、
+`confirmManagedReconciliation({...原核对字段,accountRef}, originalKey)` 和
+`managedReconciliationReceipt({scope,accountRef,invocationId,key})` 仅访问明确获授权账户的必要财务信息。管理列表的
+conversationId 为 null，不据此读取目标用户会话、模型结果或密钥。核对表单显示 pendingSince，而非用请求 acceptedAt 冒充挂起时间。
+
+管理读取需要当前 scope／`ai:read`／账户 `budget-account:reconcile`；提交另需独立 `ai:budget:admin`。账户标识本身不授予权限。公开回执
+reviewer 使用 subjectId／nullable displayName／kind，不返回登录名 subjectName。
+
+`BudgetReconciliationManager` 复用 `ReconciliationPanel`，分别保存本人和管理核对原操作；指派使用
+`services/platform/budgetAccount.ts` 的公共授权命令和独立恢复记录。指派需要该账户 `budget-account:assign-reconciler`，按当前
+ACL 版本具名接替；不会自动补授独立操作、空间资格或执行财务确认。所有写操作都须明确点击，不自动重放或换键。
+
+金额、证据和远端结束确认均不可省略；证据不可得继续保留挂起费用。服务端最终事务重新验证当前授权，原键重放保留原
+actor／回执，不重复结算。部署材料与未执行边界见[ER-5 部署说明](../../../../backend/arte-app/docs/BUDGET_RECONCILIATION_ER5.md)
+，本轮定向证据见[专项 §9.6](../../../../ARTE%20AI%20会话异常恢复需求及设计.md)。

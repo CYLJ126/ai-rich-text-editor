@@ -27,11 +27,11 @@ public final class ReconciliationResponses {
 
     public record Pending(String invocationId, String conversationId, Invocation.State state, long invocationVersion,
                           String reservationId, long reservationVersion, String budgetRef, Amount reserved,
-                          String remoteRequestId, Instant acceptedAt) {
+                          String remoteRequestId, Instant acceptedAt, Instant pendingSince) {
         static Pending from(Reconciliation.Pending value) {
             return new Pending(value.invocationId(), value.conversationId(), value.state(), value.invocationVersion(),
                     value.reservationId(), value.reservationVersion(), value.budgetRef(), Amount.from(value.reserved()),
-                    value.remoteRequestId(), value.acceptedAt());
+                    value.remoteRequestId(), value.acceptedAt(), value.pendingSince());
         }
     }
 
@@ -43,13 +43,26 @@ public final class ReconciliationResponses {
         }
     }
 
+    /**
+     * 可公开的核对人标识，不公开可能是邮箱或手机号的登录名。
+     *
+     * @param subjectId   真实操作者稳定标识
+     * @param displayName 获授权显示名；没有独立可见目录时为空
+     * @param kind        主体类型
+     */
+    public record Reviewer(String subjectId, String displayName, ExecutionPrincipal.Kind kind) {
+        static Reviewer from(ExecutionPrincipal value) {
+            return new Reviewer(value.subjectId(), null, value.kind());
+        }
+    }
+
     public record Receipt(String key, String invocationId, String reservationId, String budgetRef, Amount charge,
-                          String evidenceRef, String note, ExecutionPrincipal reviewer, String traceId,
+                          String evidenceRef, String note, Reviewer reviewer, String traceId,
                           Invocation.State state, long invocationVersion, long reservationVersion,
                           Instant confirmedAt) {
         public static Receipt from(Reconciliation.Receipt value) {
             return new Receipt(value.key(), value.invocationId(), value.reservationId(), value.budgetRef(), Amount.from(value.charge()),
-                    value.evidenceRef(), value.note(), value.reviewer(), value.traceId(), value.state(), value.invocationVersion(),
+                    value.evidenceRef(), value.note(), Reviewer.from(value.reviewer()), value.traceId(), value.state(), value.invocationVersion(),
                     value.reservationVersion(), value.confirmedAt());
         }
     }

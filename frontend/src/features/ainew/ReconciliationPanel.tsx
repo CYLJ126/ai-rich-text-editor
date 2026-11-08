@@ -16,8 +16,12 @@ import {
 import React, {useEffect, useId, useRef, useState} from 'react';
 import {
   AiApiError,
+  type BudgetAccountRef,
+  confirmManagedReconciliation,
   confirmReconciliation,
   type ConfirmReconciliationRequest,
+  managedPendingReconciliations,
+  managedReconciliationReceipt,
   type PendingReconciliation,
   pendingReconciliations,
   reconciliationReceipt,
@@ -37,6 +41,7 @@ export default function ReconciliationPanel({
                                               writable = true,
                                               onUnsafeToLeave,
                                               onPendingCount,
+                                              accountRef,
                                             }: {
   config: ChatTestConfig;
   t: (key: string) => string;
@@ -45,9 +50,12 @@ export default function ReconciliationPanel({
   writable?: boolean;
   onUnsafeToLeave?: (unsafe: boolean) => void;
   onPendingCount?: (count: number) => void;
+  accountRef?: BudgetAccountRef;
 }) {
   const formId = useId();
-  const [restored] = useState(() => readOperation<ConfirmReconciliationRequest>(context, 'reconcile', config.budgetRef));
+  type Command = ConfirmReconciliationRequest & { accountRef?: BudgetAccountRef };
+  const operationKind = accountRef ? 'reconcile-managed' : 'reconcile';
+  const [restored] = useState(() => readOperation<Command>(context, operationKind, config.budgetRef));
   const [storageWarning, setStorageWarning] = useState<string | null>(restored.warning);
   const [open, setOpen] = useState(!!restored.value);
   const [records, setRecords] = useState<PendingReconciliation[]>([]);
@@ -65,7 +73,7 @@ export default function ReconciliationPanel({
   const [receipt, setReceipt] = useState<ReconciliationReceipt | null>(null);
   const [pending, setPending] = useState<{
     key: string;
-    request: ConfirmReconciliationRequest;
+    request: Command;
   } | null>(restored.value);
   const pendingRef = useRef<typeof pending>(restored.value);
   const reads = useRef<AbortController | null>(null);
@@ -105,7 +113,9 @@ export default function ReconciliationPanel({
     setError(null);
     const settings = currentSettings.current;
     try {
-      const {body} = await recoveryRead(signal => pendingReconciliations(
+      const {body} = await recoveryRead(signal => (accountRef ? managedPendingReconciliations({
+        scope: {tenantId: settings.tenantId, workspaceId: settings.workspaceId}, accountRef, current, size: 10
+      }, {signal}) : pendingReconciliations(
         {
           scope: {
             tenantId: settings.tenantId,
@@ -116,7 +126,7 @@ export default function ReconciliationPanel({
           size: 10,
         },
         {signal},
-      ), controller.signal);
+      )), controller.signal);
       if (controller.signal.aborted || !alive.current) return;
       onPendingCount?.(body.data.page.total);
       setRecords(body.data.page.records);
@@ -157,7 +167,10 @@ export default function ReconciliationPanel({
     writes.current = controller;
     setSaving(true);
     try {
-      const {body} = await recoveryRead(signal => reconciliationReceipt({
+      const {body} = await recoveryRead(signal => snapshot.request.accountRef ? managedReconciliationReceipt({
+        scope: snapshot.request.scope, accountRef: snapshot.request.accountRef,
+        invocationId: snapshot.request.invocationId, key: snapshot.key
+      }, {signal}) : reconciliationReceipt({
         scope: snapshot.request.scope,
         budgetRef: snapshot.request.budgetRef,
         invocationId: snapshot.request.invocationId,
@@ -167,7 +180,7 @@ export default function ReconciliationPanel({
       setReceipt(body.data);
       setPending(null);
       pendingRef.current = null;
-      if (!saveOperation(context, 'reconcile', config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
+      if (!saveOperation(context, operationKind, config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
       await Promise.all([load(), onConfirmed(body.data.invocationId)]);
     } catch (failure) {
       if (!controller.signal.aborted && alive.current) setError(failure);
@@ -196,6 +209,7 @@ export default function ReconciliationPanel({
       snapshot = {
         key: crypto.randomUUID(),
         request: {
+          ...(accountRef ? {accountRef} : {}),
           scope: {
             tenantId: settings.tenantId,
             workspaceId: settings.workspaceId,
@@ -214,20 +228,18 @@ export default function ReconciliationPanel({
       };
     }
     pendingRef.current = snapshot;
-    if (!saveOperation(context, 'reconcile', config.budgetRef, snapshot)) setStorageWarning(STORAGE_WARNING);
+    if (!saveOperation(context, operationKind, config.budgetRef, snapshot)) setStorageWarning(STORAGE_WARNING);
     setPending(snapshot);
     setSaving(true);
     setError(null);
     const controller = new AbortController();
     writes.current = controller;
     try {
-      const {body} = await confirmReconciliation(
-        snapshot.request,
-        snapshot.key,
-        {signal: controller.signal},
-      );
+      const {body} = await (snapshot.request.accountRef ? confirmManagedReconciliation(
+        {...snapshot.request, accountRef: snapshot.request.accountRef}, snapshot.key, {signal: controller.signal}
+      ) : confirmReconciliation(snapshot.request, snapshot.key, {signal: controller.signal}));
       if (controller.signal.aborted || !alive.current) return;
-      if (!saveOperation(context, 'reconcile', config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
+      if (!saveOperation(context, operationKind, config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
       pendingRef.current = null;
       setPending(null);
       setReceipt(body.data);
@@ -243,7 +255,7 @@ export default function ReconciliationPanel({
         failure.httpStatus < 500 &&
         failure.httpStatus !== 408 && failure.code !== '205027'
       ) {
-        if (!saveOperation(context, 'reconcile', config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
+        if (!saveOperation(context, operationKind, config.budgetRef, null)) setStorageWarning(STORAGE_WARNING);
         pendingRef.current = null;
         setPending(null);
         if (failure.httpStatus === 409) {
@@ -270,7 +282,7 @@ export default function ReconciliationPanel({
           void load();
         }}
       >
-        {t('reconciliation.open')}
+        {t(accountRef ? 'reconciliation.managedOpen' : 'reconciliation.open')}
       </Button>
       <Drawer
         title={t('reconciliation.title')}
@@ -280,6 +292,9 @@ export default function ReconciliationPanel({
       >
         <Flex vertical gap={12} className="ai-management-panel">
           <Alert type="info" title={t('reconciliation.help')}/>
+          <Alert type="info" title={t('reconciliation.evidenceUnavailable')}/>
+          {accountRef &&
+            <Typography.Paragraph>{t('reconciliation.managedAccount')}：{accountRef.resourceId}</Typography.Paragraph>}
           {storageWarning && <Alert type="warning" title={storageWarning}/>}
           {pending && <Flex component="section" vertical gap={8} aria-label="恢复原核对操作">
             <Typography.Paragraph>待确认原核对：{pending.request.actualCharge} {pending.request.currency} · {pending.request.invocationId}</Typography.Paragraph>
@@ -289,7 +304,7 @@ export default function ReconciliationPanel({
                                   onClick={() => void confirm()}>{t('reconciliation.retry')}</Button>}
             </Flex>
           </Flex>}
-          <Button loading={loading} onClick={() => void load(page)}>
+          <Button aria-label={t('refreshBudget')} loading={loading} onClick={() => void load(page)}>
             {t('refreshBudget')}
           </Button>
           {error != null && (
@@ -317,6 +332,11 @@ export default function ReconciliationPanel({
                   <Flex vertical gap={8}>
                     <Descriptions column={1} size="small" className="ai-management-info" items={[
                       {key: 'invocation', label: t('invocationId'), children: item.invocationId},
+                      {
+                        key: 'pendingSince',
+                        label: t('reconciliation.pendingSince'),
+                        children: item.pendingSince ?? t('reconciliation.pendingTimeUnknown')
+                      },
                       {key: 'state', label: '执行状态', children: <Tag>{t(`execution.${item.state}`)}</Tag>},
                       {
                         key: 'reserved',
@@ -434,7 +454,11 @@ export default function ReconciliationPanel({
                     label: t('reconciliation.amount'),
                     children: `${receipt.charge.amount} ${receipt.charge.currency}`
                   },
-                  {key: 'reviewer', label: '审核人', children: receipt.reviewer.subjectName},
+                  {
+                    key: 'reviewer',
+                    label: '审核人',
+                    children: receipt.reviewer.displayName ?? receipt.reviewer.subjectId
+                  },
                   {key: 'time', label: '确认时间', children: receipt.confirmedAt},
                   {key: 'evidence', label: t('reconciliation.evidence'), children: receipt.evidenceRef},
                   {key: 'note', label: t('reconciliation.note'), children: receipt.note},

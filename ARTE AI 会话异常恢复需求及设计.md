@@ -1,7 +1,7 @@
 # ARTE AI 会话异常恢复需求及设计
 
-> 版本：V1.5；更新日期：2026-11-08。
-> 状态：ER-1～ER-4 已实施并完成定向验证；ER-5～ER-6 待实施，整体异常恢复尚未交付。
+> 版本：V1.6；更新日期：2026-11-08。
+> 状态：ER-1～ER-5 已实施并完成定向验证；ER-6 整体验收待完成，整体异常恢复尚未交付。
 > 范围：普通文本会话的异常恢复。不考虑历史数据兼容、已有记录修复、配置迁移或新增配置开关。
 
 本文补充[聊天界面主文档](ARTE%20AI%20聊天界面需求及设计.md)的发送、重新生成、上下文和费用恢复规则。 涉及普通文本 `UNKNOWN`
@@ -269,7 +269,7 @@ ResultContext。 返回结构固定为：
 - 核对成功只更新旧调用及对应账目，刷新相关视图。前端刷新失败恢复读取，核对响应丢失查询原回执或沿用原键，不能再次扣费。
 - 核对责任和有限管理核对按第 6.3.1 节实施；不新增通用跨主体账本管理、外部自动通知、充值或额度调整能力。
 
-### 6.3.1 核对责任、授权与管理核对契约（待实施）
+### 6.3.1 核对责任、授权与管理核对契约（ER-5 已实施）
 
 现有本人核对接口继续限定当前 owner，不能把管理员的 ExecutionContext 伪装为另一个账户本人。 V1.1
 为解决普通用户无处理路径的问题，增加具体账户授权的核对责任和管理入口：
@@ -286,7 +286,7 @@ ResultContext。 返回结构固定为：
 自动产生资格。 公共账户资源动作定义为 `budget-account:assign-reconciler`（指派／接替）和 `budget-account:reconcile`
 （该账户必要财务读取及核对）。 复用公共授权治理命令登记具体账户的授予与撤销，单独审计责任指派；不因本专项给所有空间管理员或普通用户自动补授权限。
 
-目标新增三个只对明确账户授权生效的管理端点，复用本人核对的金额、证据、版本及幂等规则：
+已新增三个只对明确账户授权生效的管理端点，复用本人核对的金额、证据、版本及幂等规则：
 
 | 路径                                           | 请求／行为                                                                              |
 |------------------------------------------------|-----------------------------------------------------------------------------------------|
@@ -301,7 +301,7 @@ ResultContext。 返回结构固定为：
 - 管理读取只提供本次核对必需的金额、时间、状态、安全关联标识和证据引用；不自动返回聊天输入、完整模型响应或密钥。核对操作不允许改账户限额或费率。
 - 同一原核对键的操作命名空间沿用目标调用，跨提交入口也不能重复结算；更换处理人不取得覆盖已结算结果的资格。审计分别记录目标
   owner、真实 actor、授权依据、账单证据和 trace。
-- 本人预算读取目标返回用于定位的 `accountRef` 及派生 `reconciliationHandling`，后者含 `status` 和 `responsible`。status 为
+- 本人预算读取返回用于定位的 `accountRef` 及派生 `reconciliationHandling`，后者含 `status` 和 `responsible`。status 为
   SELF_SERVICE（本人已有合法核对权）、ASSIGNED（已指定有权主责任人）、UNASSIGNED（尚无可达处理人）；ASSIGNED 时 responsible
   提供主责任人的 subjectId 和获授权可见的 displayName，其余状态可为 null。可展示已有预算治理入口，不暴露个人联系方式，字段本身不授予权限。
 - UNASSIGNED 时明确提示“未指定核对责任人”，由具备账户指派权的治理人员处理；不假装已有接单人。面向普通用户开放本专项验收必须覆盖责任指派及管理端核对路径，不能只验有权本人。
@@ -367,7 +367,7 @@ ResultContext。 返回结构固定为：
 
 ## 7. 实施落点与顺序
 
-ER-1～ER-4 已完成，后续阶段仍为待实施项；验证证据见第 9.2～9.5 节。
+ER-1～ER-5 已完成，ER-6 整体验收待完成；验证证据见第 9.2～9.6 节。
 
 | 阶段           | 主要落点                                                                               | 修改内容与退出条件                                                                         |
 |----------------|----------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
@@ -375,7 +375,7 @@ ER-1～ER-4 已完成，后续阶段仍为待实施项；验证证据见第 9.2�
 | ER-2（已完成） | `MybatisExecutionPersistence.completeLocked/stopExpired/acceptLocked`、会话受理事务    | 所有合格终止路径正常释放，只放宽合法重新生成来源；事务和并发测试通过                       |
 | ER-3（已完成） | `ChatHistoryLoader.completed`、`DefaultChatService.regenerate/regenerationSubmission`  | 跳过无完整候选的失败轮；复用原快照和新候选流程；不因旧费用改变上下文                       |
 | ER-4（已完成） | `useChatSession.ts`、`BusinessChatPanel.tsx`、浏览器恢复记录、多语言文案               | 分开三类状态；补充复制草稿、损坏信息分流／隔离、上下文标记及有限自动读取                   |
-| ER-5           | 公共账户资源授权、预算核对应用服务、管理核对接口、`ReconciliationPanel.tsx` 和预算展示 | 补齐责任指派与目标账户核对，不模拟 owner；本人／责任人／治理人权限及证据不可得路径通过验证 |
+| ER-5（已完成） | 公共账户资源授权、预算核对应用服务、管理核对接口、`ReconciliationPanel.tsx` 和预算展示 | 补齐责任指派与目标账户核对，不模拟 owner；本人／责任人／治理人权限及证据不可得路径通过验证 |
 | ER-6           | 现有会话／生成／核对集成测试、前端恢复测试及浏览器验收                                 | 覆盖第 8 节及恢复时延／用户任务试用，补齐证据后才能宣布交付                                |
 
 优先复用 `RegenerationReconciliationIntegrationTest`、`ConversationHttpIntegrationTest`、生成／上下文相关集成测试及前端
@@ -431,8 +431,8 @@ ER-1～ER-4 已完成，后续阶段仍为待实施项；验证证据见第 9.2�
 
 - V1.1 文档交付：补齐需求、产品决策、状态语义、架构职责、目标接口、实现落点及验收场景。
 - ER-1 已完成集中资格／占用判定、状态投影、会话级一致性只读接口和前端读取基础；ER-2 已完成终态释放和来源受理事务；ER-3
-  已完成历史跳过、实际快照核验及重新生成／回执分流。ER-4 已完成页面状态分离、复制草稿、恢复信息分流／隔离及有限读取。 ER-5～ER-6
-  待实施。ER-AC01～ER-AC38 整体验收仍待执行；第 6.5 节数值未测，第
+  已完成历史跳过、实际快照核验及重新生成／回执分流。ER-4 已完成页面状态分离、复制草稿、恢复信息分流／隔离及有限读取。ER-5
+  已完成具体账户授权、责任指派及管理核对，证据见第 9.6 节。 ER-6 待完成。ER-AC01～ER-AC38 整体验收仍待执行；第 6.5 节数值未测，第
   6.6 节试用未开展。
 - ER-3 修改历史加载及重新生成应用服务，不修改页面放行及预算扣费规则；未新增表、配置开关或历史迁移，未执行真实模型调用、部署或真实费用核对。
 - 编码时同步聊天／执行／预算接口说明及前端恢复文档，删除相应“目标、待实施”标识须附新增验证证据，保留历史验收事实。
@@ -603,3 +603,56 @@ npm test -- src/features/ainew/recoveryRead.test.ts src/features/ainew/recovery.
 
 上述为模拟 API、浏览器组件和计时器测试，未执行真实模型调用、真实费用核对或部署；未新增数据库迁移、后台管理授权或恢复开关。ER-5
 尚未实施；第 6.5 节的至少三十次时延测量、第 6.6 节用户任务试用及整体 ER-AC01～ER-AC38 验收仍属 ER-6，不能以组件测试代替。
+
+### 9.6 ER-5 实施记录（V1.6，2026-11-08）
+
+#### 已实施范围
+
+- 以 `ResourceRef{tenantId,type:"budget-account",resourceId:budgetRef}` 定位具体账户。宿主从耐久账本解析真实
+  owner，校验租户／空间、调用、预留、币种和版本；不创建目标 owner 的伪造身份上下文。三个管理接口均已实现。
+- 公共动作 `budget-account:assign-reconciler` 和 `budget-account:reconcile` 分别控制治理与财务处理；空间角色、模型创建者及全局操作均不隐含具体账户授权。提交另需独立
+  `ai:budget:admin` 操作；本人核对在完整宿主装配下也检查具体账户核对授权。缺少宿主账户授权适配器时管理接口拒绝执行。
+- 公共资源授予／撤销命令复用当前身份、成员代次、ACL 版本、原幂等键、审计及
+  Outbox。核对人只接受具名主体；接替时同事务撤销旧有效核对授权，保留历史。账户不开放可见性修改、角色批量核对授权或通用资源管理动作兜底。
+- 预算显式准备只登记空的 EXPLICIT
+  账户授权根，不自动指定核对人。初始治理授权和全局操作登记的部署材料见[ER-5 部署说明](backend/arte-app/docs/BUDGET_RECONCILIATION_ER5.md)
+  ；它们不自动修改用户、角色或账本费用。
+- 最终确认按公共 scope
+  锁、Invocation、Attempt、账户及预留的顺序进入同库事务，并在锁内重新验证真实身份、当前成员／账户授权及独立操作。核对、不可变回执和公共审计同事务提交；审计失败全部回滚。本人／管理入口共享原调用核对键，同内容重放保留原
+  actor 和回执，不重复结算或追加审计。
+- 回执耐久事实分别记录目标 owner、实际 actor 和授权依据；公开回执只提供稳定 subjectId、主体类型及安全显示名，不公开可能含联系方式的登录名。无获授权显示名目录时
+  displayName 为 null。
+- 本人预算返回 `accountRef` 和实时派生的
+  SELF_SERVICE／ASSIGNED／UNASSIGNED；离任、撤权、过期及失去独立费用操作资格的责任人不被宣称为可达处理人。挂起时间使用该预留最早未知费用记录时间，尚无该记录时用本地终态更新时间；不冒充请求受理时间。
+- 费用抽屉增加具体账户管理核对、当前授权读取、主责任人指派／接替和撤销。原财务与治理写操作各自保存原目标、内容、版本和键，只在显式确认时提交；响应不确定时保留原操作。管理核对不触发他人聊天历史或结果读取；失权后清理无权财务内容。
+- 金额不预填零，须提供可归属账单及执行结束确认。证据不可得时明确保留资金挂起；不会因聊天继续、换责任人或供应商恢复而释放资金。
+
+#### 验证与边界
+
+| 验证               | ER-5 本轮结果                                                                                                                                            |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 后端定向回归       | 5 组共 98 项全部通过：BudgetHttp 14、RegenerationReconciliation 34、DatabaseAiControl 18、BudgetAccountAccess 6、ResourceAcl 26；0 跳过                  |
+| 授权／事务         | 无具体账户授权拒绝、指派与核对分权、接替撤销旧人、离任／全局操作撤销、错误账户／scope、只读许可拒绝结算、真实 actor／owner、跨入口原键重放及审计回滚通过 |
+| 宿主装配／部署材料 | 实际条件装配及预算准备只建空授权根通过；生成 SQL 的公共 JSON／摘要契约由 Java 测试验证，Python 生成器另有 3 项测试通过；未对真实 MySQL 执行授权 SQL      |
+| 扩展前端回归       | 40 个文件、467 项全部通过，覆盖管理财务、责任指派、原键恢复、权限清理及既有会话恢复；不含 ER-4 已确认失败的既有布局基线文件                              |
+| TypeScript         | 仍为 ER-4 的 107 项既有诊断，逐项规范化对比无新增；全项目类型检查尚未通过                                                                                |
+| 差异检查           | 本阶段修改的 `git diff --check` 通过                                                                                                                     |
+
+后端使用 JDK 21 和本机 Mockito Java agent（用于 final 身份适配器测试替身），在仓库根目录执行：
+
+```bash
+mvn -o -f backend/pom.xml -pl arte-app -am \
+  "-DargLine=-javaagent:$MOCKITO_AGENT_JAR" \
+  -Dtest=BudgetAccountAccessIntegrationTest,ResourceAclIntegrationTest,DatabaseAiControlIntegrationTest,RegenerationReconciliationIntegrationTest,BudgetHttpIntegrationTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+python3 -B -m unittest discover -s backend/arte-app/scripts/tests -p 'test_budget_reconciliation_bootstrap.py'
+```
+
+前端在 `frontend` 执行：
+
+```bash
+npm test -- src/services/arte-ai src/services/platform/budgetAccount.test.ts src/features/ainew src/pages/AI/ChatNew src/pages/AI/Chat/chatSession.test.tsx src/pages/AI/Chat/reconciliation.test.tsx src/pages/AI/Chat/configurationSelection.test.tsx --exclude src/features/ainew/ChatWorkspaceLayout.test.tsx --maxWorkers=2 --reporter=dot
+```
+
+上述为新建隔离 H2、MVC／公共授权事务及模拟 API 组件验证。没有执行真实供应商调用、真实账单核对、业务数据库授权或部署；未新增持久化表、历史费用修复或恢复开关。ER-6
+的浏览器整体验收、至少三十次时延测量、五人用户任务试用仍未完成，ER-5 测试通过不代表整体异常恢复已交付。

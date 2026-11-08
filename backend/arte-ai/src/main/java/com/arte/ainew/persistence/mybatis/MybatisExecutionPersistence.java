@@ -2027,30 +2027,63 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
 
     @Override
     public Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(ExecutionOwner owner, String budgetRef, long current, long size) {
+        pageOffset(current, size);
+        return tx(() -> pendingReconciliationsLocked(owner, budgetRef, current, size));
+    }
+
+    private ConversationPage<Reconciliation.Pending> pendingReconciliationsLocked(ExecutionOwner owner, String budgetRef, long current, long size) {
         long offset = pageOffset(current, size);
-        return tx(() -> {
             var account = workspaceSnapshot(budget.accountSnapshot(hash(budgetRef), false), BudgetCommands.Account.class);
             require(account != null && account.owner().equals(owner), OWNER_MISMATCH);
-            var records = budget.pendingSnapshots(hash(budgetRef), ownerKey(owner), size, offset).stream().map(encoded -> {
-                var reservation = codec.decode(encoded, BudgetReservation.class);
+        var reservations = budget.pendingSnapshots(hash(budgetRef), ownerKey(owner), size, offset).stream()
+                .map(encoded -> codec.decode(encoded, BudgetReservation.class)).toList();
+        var pendingTimes = new HashMap<String, Instant>();
+        if (!reservations.isEmpty())
+            for (String encoded : budget.pendingSettlementSnapshots(reservations.stream().map(r -> hash(r.reservationId())).toList())) {
+                var settlement = codec.decode(encoded, BudgetSettlement.class);
+                if (settlement.state() == BudgetSettlement.State.PENDING_RECONCILIATION)
+                    pendingTimes.merge(settlement.reservationId(), settlement.recordedAt(), (a, b) -> a.isBefore(b) ? a : b);
+            }
+        var records = reservations.stream().map(reservation -> {
                 var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(reservation.invocationId()), false), Invocation.class);
                 var attempt = workspaceSnapshot(execution.attemptSnapshot(hash(reservation.attemptId()), false), Attempt.class);
                 return new Reconciliation.Pending(id(invocation), invocation.conversation() == null ? null : invocation.conversation().conversationId(),
                         invocation.state(), invocation.version(), reservation.reservationId(), reservation.version(), reservation.budgetRef(),
-                        reservation.reserved(), attempt == null ? null : attempt.remoteRequestId(), invocation.acceptedAt());
+                        reservation.reserved(), attempt == null ? null : attempt.remoteRequestId(), invocation.acceptedAt(),
+                        pendingTimes.getOrDefault(reservation.reservationId(), invocation.updatedAt()));
             }).toList();
             return new ConversationPage<>(current, size, budget.countPending(hash(budgetRef), ownerKey(owner)), records);
-        });
     }
 
     @Override
     public Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command) {
+        return confirmReconciliation(command, null);
+    }
+
+    @Override
+    public Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command,
+                                                                            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit) {
         return outcome(() -> {
+            String authority = "self:ai:budget:admin";
+            if (permit == null) {
+                require(command.owner().subjectId().equals(command.reviewer().subjectId()), OWNER_MISMATCH);
+            } else {
+                require(permit.allowsConfirmation(), INVALID_STATE);
+                require(permit.account().owner().equals(command.owner()) && permit.account().budgetRef().equals(command.budgetRef()), OWNER_MISMATCH);
+                permit.lockScopeInCurrentTransaction();
+            }
             var invocation = invocation(new Version(command.owner(), command.invocationId(), command.invocationVersion()));
+            Attempt authorizedAttempt = null;
+            if (permit != null) {
+                // 公共门控已经取得；沿用调用→Attempt→账户的业务锁顺序，不能让账户授权倒置账本锁序。
+                if (invocation.activeAttemptId() != null)
+                    authorizedAttempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+                authority = permit.requireInCurrentTransaction();
+            }
             var key = operationKey("manual-bill", command.key());
             var digest = hash(command.budgetRef(), command.invocationId(), Long.toString(command.invocationVersion()), command.reservationId(),
                     Long.toString(command.reservationVersion()), command.charge().toString(), command.evidenceRef(), command.note(),
-                    command.reviewer().toString(), Boolean.toString(command.executionEnded()));
+                    Boolean.toString(command.executionEnded()));
             var previous = operation(invocation, key);
             if (previous != null) {
                 require(digest.equals(previous.digest()), IDEMPOTENCY_CONFLICT);
@@ -2064,7 +2097,7 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
                     && reservation.attemptId().equals(invocation.activeAttemptId())
                     && reservation.budgetRef().equals(command.budgetRef())
                     && reservation.budgetRef().equals(invocation.request().context().budgetRef()), OWNER_MISMATCH);
-            var recordedAttempt = workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class);
+            var recordedAttempt = permit == null ? workspaceSnapshot(execution.attemptSnapshot(hash(invocation.activeAttemptId()), true), Attempt.class) : authorizedAttempt;
             require(recordedAttempt != null && command.reservationId().equals(recordedAttempt.budgetReservationId()), INVALID_STATE);
             long firstSequence = event.nextSequence(hash(id(invocation))) + 1;
             // 实际账单可以高于预留：保留真实费用，余额不足时后续请求由预留入口拒绝。
@@ -2092,21 +2125,44 @@ public final class MybatisExecutionPersistence implements ToolBillingStore, Exec
             }
             var receipt = new Reconciliation.Receipt(command.key(), id(invocation), reservation.reservationId(), reservation.budgetRef(), command.charge(),
                     command.evidenceRef(), command.note(), command.reviewer(), command.traceId(), invocation.state(), invocation.version(),
-                    settled.value().version(), now());
+                    settled.value().version(), now(), command.owner(), authority);
             execution.insertVerifiedCompletion(hash(id(invocation)), key, digest, firstSequence,
                     Math.toIntExact(event.nextSequence(hash(id(invocation))) - firstSequence + 1), codec.encode(receipt), command.evidenceRef());
+            if (permit != null) permit.auditInCurrentTransaction(receipt);
             return StoreOutcome.applied(receipt);
         });
     }
 
     @Override
-    public Mono<Reconciliation.Receipt> reconciliationReceipt(ExecutionOwner owner, String invocationId, String key) {
+    public Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(
+            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, long current, long size) {
         return tx(() -> {
-            var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
-            if (invocation == null || !ExecutionOwners.from(invocation.request().context()).equals(owner)) return null;
-            var saved = operation(invocation, operationKey("manual-bill", key));
-            return saved == null ? null : codec.decode(saved.resultSnapshot(), Reconciliation.Receipt.class);
+            permit.requireInCurrentTransaction();
+            return pendingReconciliationsLocked(permit.account().owner(), permit.account().budgetRef(), current, size);
         });
+    }
+
+    @Override
+    public Mono<Reconciliation.Receipt> reconciliationReceipt(
+            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, String invocationId, String key) {
+        return tx(() -> {
+            permit.requireInCurrentTransaction();
+            var account = permit.account();
+            var value = reconciliationReceiptLocked(account.owner(), invocationId, key);
+            return value != null && value.budgetRef().equals(account.budgetRef()) ? value : null;
+        });
+    }
+
+    @Override
+    public Mono<Reconciliation.Receipt> reconciliationReceipt(ExecutionOwner owner, String invocationId, String key) {
+        return tx(() -> reconciliationReceiptLocked(owner, invocationId, key));
+    }
+
+    private Reconciliation.Receipt reconciliationReceiptLocked(ExecutionOwner owner, String invocationId, String key) {
+        var invocation = workspaceSnapshot(execution.invocationSnapshot(hash(invocationId), false), Invocation.class);
+        if (invocation == null || !ExecutionOwners.from(invocation.request().context()).equals(owner)) return null;
+        var saved = operation(invocation, operationKey("manual-bill", key));
+        return saved == null ? null : codec.decode(saved.resultSnapshot(), Reconciliation.Receipt.class);
     }
 
     /**

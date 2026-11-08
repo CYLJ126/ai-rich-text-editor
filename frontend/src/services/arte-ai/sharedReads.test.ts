@@ -40,7 +40,12 @@ it('shares equal reads; one cancellation preserves the other; fulfilled data is 
   first.abort();
   await cancelled;
   expect(transport.aborted).toBe(false);
-  pending.resolve(response({budgetRef: 'budget', version: 2}));
+  pending.resolve(response({
+    budgetRef: 'budget',
+    version: 2,
+    accountRef: {tenantId: scope.tenantId, type: 'budget-account', resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED', responsible: null}
+  }));
   expect((await b).body.data.version).toBe(2);
   await getBudget({scope, budgetRef: 'budget'});
   expect(request).toHaveBeenCalledTimes(2);

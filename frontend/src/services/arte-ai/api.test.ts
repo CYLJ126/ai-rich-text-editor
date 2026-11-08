@@ -181,6 +181,19 @@ describe('新 AI 接口封装', () => {
     async ({path, data, key, call, paged}) => {
       if (paged)
         vi.mocked(request).mockResolvedValue({status: 200, data: page});
+      if (path === 'budget/getBudget') vi.mocked(request).mockResolvedValue({
+        status: 200,
+        data: {
+          ...metadata,
+          data: {
+            accountRef: {
+              tenantId: budgetQuery.scope.tenantId,
+              type: 'budget-account',
+              resourceId: budgetQuery.budgetRef
+            }, reconciliationHandling: {status: 'UNASSIGNED', responsible: null}
+          }
+        }
+      });
       if (path === 'invocation/getInvocationStatus') vi.mocked(request).mockResolvedValue({
         status: 200,
         data: {...metadata, data: {...invocationQuery, blocksConversation: true}}
@@ -307,6 +320,8 @@ describe('新 AI 接口封装', () => {
   it('预算金额保持十进制字符串，包括负余额', async () => {
     const budget = {
       budgetRef: 'budget-1',
+      accountRef: {tenantId: budgetQuery.scope.tenantId, type: 'budget-account', resourceId: 'budget-1'},
+      reconciliationHandling: {status: 'UNASSIGNED', responsible: null},
       currency: 'USD',
       limit: '9999999999999999.123456789',
       held: '1.00',

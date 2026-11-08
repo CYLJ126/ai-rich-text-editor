@@ -89,7 +89,7 @@ public final class DefaultResourceAccessService implements ResourceAccessService
     public ResourceAccessViews.AccessView getAccess(TrustedActor actor, Scope scope, ResourceRef ref) {
         return tx.required(() -> {
             lock(actor, scope, null);
-            require(actor, scope, ref, RESOURCE_ACCESS_MANAGE);
+            require(actor, scope, ref, ref.type().equals(BUDGET_ACCOUNT) ? BUDGET_ACCOUNT_ASSIGN_RECONCILER : RESOURCE_ACCESS_MANAGE);
             return view(current(scope, ref));
         });
     }
@@ -98,7 +98,7 @@ public final class DefaultResourceAccessService implements ResourceAccessService
     public PageResult<ResourceAccessViews.GrantView> listGrants(TrustedActor actor, Scope scope, ResourceRef ref, PageQuery query) {
         return tx.required(() -> {
             lock(actor, scope, null);
-            require(actor, scope, ref, RESOURCE_ACCESS_MANAGE);
+            require(actor, scope, ref, ref.type().equals(BUDGET_ACCOUNT) ? BUDGET_ACCOUNT_ASSIGN_RECONCILER : RESOURCE_ACCESS_MANAGE);
             current(scope, ref);
             PageResult<ResourceGrant> page = store.findCurrentGrants(ref, query);
             if (page.records().stream().anyMatch(g -> !g.resource().equals(ref))) {
@@ -144,6 +144,15 @@ public final class DefaultResourceAccessService implements ResourceAccessService
                     // 检查分享目标种类的政策上限，并拒绝已到期的授权期限。
                     requireSharePolicy(actor, command.scope(), target);
                     expiry(command.expiresAt());
+                    if (command.resource().type().equals(BUDGET_ACCOUNT)) {
+                        if (!(command.recipient() instanceof GrantRecipient.Subject))
+                            throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
+                        // 具体账户只设一位主责任人；接替与新授权在同一 CAS 事务保留撤销历史。
+                        if (command.actions().contains(BUDGET_ACCOUNT_RECONCILE))
+                            for (ResourceGrant grant : acl.grants(command.resource(), true))
+                                if (grant.action().equals(BUDGET_ACCOUNT_RECONCILE) && grant.state() == GrantStateEnum.ACTIVE)
+                                    revokeRecord(grant);
+                    }
                     ArrayList<ResourceAccessViews.GrantView> result = new ArrayList<>();
                     for (Action action : command.actions().stream().sorted(Comparator.comparing(Action::value)).toList()) {
                         // 插入数据库，为每个动作分别保存管理或分享来源的授权，保留独立来源。
@@ -153,7 +162,8 @@ public final class DefaultResourceAccessService implements ResourceAccessService
                     ResourceAccess next = advance(old, old.visibility());
                     check(store.replaceAccess(next, old.aclVersion()));
                     // 同步推进归属范围的授权代次，并记录审计和 Outbox 事件。
-                    bump(actor, command.scope(), next, "resource:granted", operation);
+                    bump(actor, command.scope(), next, command.resource().type().equals(BUDGET_ACCOUNT)
+                            ? command.actions().contains(BUDGET_ACCOUNT_RECONCILE) ? "budget-account:reconciler-assigned" : "budget-account:governor-granted" : "resource:granted", operation);
                     // 将逐项授权结果及新的 ACL 版本写入命令回执。
                     return new DefaultCommandExecutor.Result<>(new ResourceAccessViews.GrantResult(result, next.aclVersion()), next.aclVersion());
                 });
@@ -186,7 +196,8 @@ public final class DefaultResourceAccessService implements ResourceAccessService
                     revokeRecord(grant);
                     ResourceAccess next = advance(old, old.visibility());
                     check(store.replaceAccess(next, old.aclVersion()));
-                    bump(actor, command.scope(), next, "resource:revoked", operation);
+                    bump(actor, command.scope(), next, command.resource().type().equals(BUDGET_ACCOUNT)
+                            ? grant.action().equals(BUDGET_ACCOUNT_RECONCILE) ? "budget-account:responsibility-revoked" : "budget-account:governor-revoked" : "resource:revoked", operation);
                     return new DefaultCommandExecutor.Result<Void>(null, next.aclVersion());
                 });
     }
@@ -204,6 +215,7 @@ public final class DefaultResourceAccessService implements ResourceAccessService
      */
     @Override
     public CommandReceipt<ResourceAccessViews.AccessView> changeVisibility(TrustedActor actor, ResourceAccessCommands.ChangeVisibility command) {
+        if (command.resource().type().equals(BUDGET_ACCOUNT)) throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
         List<String> fields = fields(command.scope(), command.resource(), command.expectedAclVersion());
         fields.add(command.visibility().name());
         // 列表次序不是语义；排序后的每项仍按长度前缀展开，保留重复项用于明确拒绝。
@@ -361,6 +373,12 @@ public final class DefaultResourceAccessService implements ResourceAccessService
      * @return true 表示具有 ACL 管理资格，false 表示仅通过分享资格校验；校验不通过时抛出异常。
      */
     private boolean requireManagerOrShare(TrustedActor actor, Scope scope, ResourceRef ref, Set<Action> requested) {
+        if (ref.type().equals(BUDGET_ACCOUNT)) {
+            if (!Set.of(BUDGET_ACCOUNT_RECONCILE, BUDGET_ACCOUNT_ASSIGN_RECONCILER).containsAll(requested))
+                throw error(PlatformErrorCodeEnum.ACCESS_DENIED);
+            require(actor, scope, ref, BUDGET_ACCOUNT_ASSIGN_RECONCILER);
+            return true;
+        }
         boolean manager = authorization.checkCurrent(actor, new AccessRequest(scope, ref, RESOURCE_ACCESS_MANAGE, "resource-acl")).allowed();
         // 没有 ACL 管理资格时，必须具有该资源的分享资格。
         if (!manager) {
@@ -385,6 +403,10 @@ public final class DefaultResourceAccessService implements ResourceAccessService
      * @param command 撤销命令，提供资源、当前范围和待撤销授权记录 ID。
      */
     private void revokePermission(TrustedActor actor, ResourceAccessCommands.RevokeGrant command) {
+        if (command.resource().type().equals(BUDGET_ACCOUNT)) {
+            require(actor, command.scope(), command.resource(), BUDGET_ACCOUNT_ASSIGN_RECONCILER);
+            return;
+        }
         if (authorization.checkCurrent(actor, new AccessRequest(command.scope(), command.resource(), RESOURCE_ACCESS_MANAGE, "resource-acl")).allowed()) {
             return;
         }

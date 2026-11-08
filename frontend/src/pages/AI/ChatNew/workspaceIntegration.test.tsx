@@ -161,6 +161,8 @@ beforeEach(() => {
   vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page());
   vi.mocked(api.getBudget).mockResolvedValue(reply({
     budgetRef: 'budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
     currency: 'CNY',
     limit: '100',
     held: '0',
@@ -451,7 +453,14 @@ it('aborts the old history and budget reads even when the target space has the s
     }) : Promise.resolve(page()));
   vi.mocked(api.getBudget).mockImplementation(() => new Promise(resolve => {
     finishBudgets.push(() => resolve(reply({
-      budgetRef: 'budget', currency: 'CNY', limit: '999', held: '0', charged: '0', available: '999',
+      budgetRef: 'budget',
+      accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+      reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
+      currency: 'CNY',
+      limit: '999',
+      held: '0',
+      charged: '0',
+      available: '999',
       rateVersion: {type: 'rate', id: 'rate', version: 'v1'}, version: 1,
     })));
   }));

@@ -28,7 +28,14 @@ it('keeps a newly published single model unapplied when refreshing an initially 
   const reply = <T, >(data: T) => ({httpStatus: 200, body: {success: true as const, code: '200', desc: 'OK', data}});
   vi.mocked(discoverChatOptions).mockResolvedValueOnce(reply({modelOptions: []})).mockResolvedValueOnce(reply({modelOptions: [model]}));
   vi.mocked(getBudget).mockResolvedValue(reply({
-    budgetRef: 'budget', currency: 'CNY', limit: '100', held: '0', charged: '0', available: '100',
+    budgetRef: 'budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
+    currency: 'CNY',
+    limit: '100',
+    held: '0',
+    charged: '0',
+    available: '100',
     rateVersion: {type: 'rate', id: 'rate', version: 'v1'}, version: 0
   }));
   const props = {
@@ -61,7 +68,14 @@ const usageReply = <T, >(data: T) => ({httpStatus: 200, body: {success: true as 
 
 function usageProps() {
   vi.mocked(getBudget).mockResolvedValue(usageReply({
-    budgetRef: 'prepared-budget', currency: 'CNY', limit: '10', held: '0', charged: '0', available: '10',
+    budgetRef: 'prepared-budget',
+    accountRef: {tenantId: 'tenant', type: 'budget-account' as const, resourceId: 'prepared-budget'},
+    reconciliationHandling: {status: 'UNASSIGNED' as const, responsible: null},
+    currency: 'CNY',
+    limit: '10',
+    held: '0',
+    charged: '0',
+    available: '10',
     rateVersion: {type: 'rate', id: 'rate', version: 'v2'}, version: 0
   }));
   return {
