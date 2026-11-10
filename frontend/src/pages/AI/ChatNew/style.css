@@ -1005,6 +1005,21 @@
   opacity: 1;
 }
 
+.ainew-directory-menu .ant-dropdown-menu {
+  min-width: 84px;
+  padding: 6px 4px;
+  border-radius: 10px;
+}
+
+.ainew-directory-menu .ant-dropdown-menu-item {
+  padding: 5px 10px;
+}
+
+.ainew-directory-menu .ant-dropdown-menu-item-danger.ant-dropdown-menu-item-disabled {
+  color: var(--ant-color-error, #ff4d4f);
+  opacity: 0.55;
+}
+
 .ainew-directory-edit-actions.ant-flex {
   margin-top: 6px;
 }

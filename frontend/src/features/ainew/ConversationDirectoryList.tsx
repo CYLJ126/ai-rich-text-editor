@@ -118,20 +118,34 @@ const DirectoryRow = memo(function DirectoryRow({
         {/* 会话日期 */}
         <time dateTime={item.lastMessageGeneratedAt ?? undefined}>{dateLabel(item.lastMessageGeneratedAt)}</time>
         {/* 会话下拉操作列表 */}
-        <Dropdown trigger={['click']} open={menuOpen} onOpenChange={open => onMenu(open ? item.conversationId : null)}
+        <Dropdown trigger={['click']} placement="bottomRight" classNames={{root: 'ainew-directory-menu'}}
+                  open={menuOpen} onOpenChange={open => onMenu(open ? item.conversationId : null)}
                   menu={{
                     items: [
                       {
-                        key: 'pin', label: item.pinned ? '取消置顶' : pinFull ? '置顶（已达7个上限）' : '置顶',
+                        key: 'pin', label: item.pinned ? '取消置顶' : '置顶',
+                        icon: <DynamicIcon iconName={item.pinned ? 'PushpinFilled' : 'PushpinOutlined'}/>,
+                        title: !item.pinned && pinFull ? '置顶已达7个上限，请先取消一个置顶。' : undefined,
                         disabled: !writable || busy || (!item.pinned && pinFull)
                       },
-                      {key: 'group', label: '分组（暂未开放）', disabled: true},
-                      {key: 'archive', label: '归档（暂未开放）', disabled: true},
-                      {key: 'delete', label: '删除（暂未开放）', disabled: true},
+                      {
+                        key: 'edit', label: '编辑', icon: <DynamicIcon iconName="EditOutlined"/>,
+                        disabled: !writable || busy
+                      },
+                      {
+                        key: 'archive', label: '归档', icon: <DynamicIcon iconName="InboxOutlined"/>,
+                        title: '归档（暂未开放）', disabled: true
+                      },
+                      {type: 'divider'},
+                      {
+                        key: 'delete', label: '删除', icon: <DynamicIcon iconName="DeleteOutlined"/>,
+                        title: '删除（暂未开放）', danger: true, disabled: true
+                      },
                     ], onClick: ({key, domEvent}) => {
                       domEvent.stopPropagation();
                       onMenu(null);
                       if (key === 'pin') actions.current.pin(item);
+                      if (key === 'edit') actions.current.edit(item.conversationId);
                     }
                   }}>
           {/* 会话操作...图标，悬浮展示下拉操作列表 */}

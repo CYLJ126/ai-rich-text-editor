@@ -228,6 +228,34 @@ it('disables title mutation in a read-only workspace but keeps conversation read
   expect(api.getConversationMetadata).not.toHaveBeenCalled();
   expect(api.changeConversationMetadata).not.toHaveBeenCalled();
 });
+
+it('edits a title through the conversation menu without opening or changing the conversation', async () => {
+  await load();
+  fireEvent.click(screen.getByRole('button', {name: '会话操作：会话0'}));
+  const menu = await screen.findByRole('menu');
+  expect(within(menu).getAllByRole('menuitem').map(entry => entry.textContent)).toEqual(['置顶', '编辑', '归档', '删除']);
+  expect(within(menu).getByRole('menuitem', {name: '归档'})).toHaveAttribute('aria-disabled', 'true');
+  expect(within(menu).getByRole('menuitem', {name: '删除'})).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(within(menu).getByRole('menuitem', {name: '编辑'}));
+  expect(await screen.findByLabelText('会话名称：c0')).toHaveValue('会话0');
+  await waitFor(() => expect(current.editor?.ready).toBe(true));
+  expect(api.getConversation).not.toHaveBeenCalled();
+  expect(api.changeConversationMetadata).not.toHaveBeenCalled();
+});
+
+it('keeps menu mutations disabled in a read-only workspace', async () => {
+  render(<Harness writable={false}/>);
+  fireEvent.click(await screen.findByRole('button', {name: '会话操作：会话0'}));
+  const menu = await screen.findByRole('menu');
+  for (const entry of within(menu).getAllByRole('menuitem')) {
+    expect(entry).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(entry);
+  }
+  expect(screen.queryByLabelText('会话名称：c0')).not.toBeInTheDocument();
+  expect(api.getConversationMetadata).not.toHaveBeenCalled();
+  expect(api.changeConversationMetadata).not.toHaveBeenCalled();
+});
+
 it('uses blur submission for a recovered draft outside the current window', async () => {
   writeValue(storageKey(context, 'title-editor'), {
     target: item(200), draft: '恢复后失焦保存', touched: true,
