@@ -343,7 +343,8 @@ export default function BusinessChatPanel({
     }}>返回最新聊天</Button>}/>}
 
     <Flex vertical className="ainew-history-panel">
-      <Flex align="flex-start" gap={8} className="ainew-chat-tools" role="toolbar" aria-label="聊天操作">
+      <Flex align="flex-start" gap={8} className={`ainew-chat-tools${toolsExpanded ? '' : ' is-collapsed'}`}
+            role="toolbar" aria-label="聊天操作">
         <Button type="text" aria-label={toolsExpanded ? '收起聊天操作' : '展开聊天操作'}
                 title={toolsExpanded ? '收起聊天操作' : '展开聊天操作'} aria-expanded={toolsExpanded}
                 icon={toolsExpanded ? <MenuFoldOutlined/> : <MenuUnfoldOutlined/>}
