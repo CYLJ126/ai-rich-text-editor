@@ -62,7 +62,7 @@ public interface ReconciliationStore {
     /**
      * 财务读取与当前授权使用同一事务，不读取聊天正文或模型结果。
      */
-    default Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(Permit permit, long current, long size) {
+    default Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(BudgetReconciliationAccess.Permit permit, long current, long size) {
         return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
     }
 

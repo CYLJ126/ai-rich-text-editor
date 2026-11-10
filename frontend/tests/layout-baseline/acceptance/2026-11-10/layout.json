@@ -1,0 +1,387 @@
+{
+  "status": "PASS",
+  "recordedAt": "2026-11-10T02:51:40.047Z",
+  "sourceHashes": {
+    "src/features/ainew/useChatLayout.ts": "6b14d3f20aea539acdf058180b12e6d18daf8a1c7ec1164033816ebfc344034b",
+    "src/features/ainew/ChatWorkspaceLayout.tsx": "5db71186e527fb10717619b95785fddd4ad981a196c42107efd268af1ab39f18",
+    "tests/layout-baseline/browser.tsx": "8334331e364e5d04b7c9a93e784951c602b79c43b76a21ba21491bbf07e6086e",
+    "tests/layout-baseline/run.mjs": "1c891f67afa08467acad103602474f1312c8cfb319429de788a85ea31e5d16ee"
+  },
+  "baseRevision": "edadece8b7d3b9f9e7bd43b4c415b03ee8183354",
+  "scope": "隔离真实布局组件，无业务后端、账户或供应商",
+  "checks": [
+    "区域切换与双栏互斥、焦点转移、跨模式保留三份草稿和组件挂载",
+    "真实鼠标拖动 Splitter 保持聊天下限及侧栏上限"
+  ],
+  "samples": [
+    {
+      "width": 1920,
+      "mode": "three",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        1220,
+        350
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": true
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1366,
+      "mode": "three",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        666,
+        350
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": true
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1180,
+      "mode": "three",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        480,
+        350
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": true
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1179.75,
+      "mode": "two",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        829.75,
+        0
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1180,
+      "mode": "three",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        480,
+        350
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": true
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1179,
+      "mode": "two",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        829,
+        0
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1080,
+      "mode": "two",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        730,
+        0
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 830,
+      "mode": "two",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        480,
+        0
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 829.75,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        829.75,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 830,
+      "mode": "two",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        350,
+        480,
+        0
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 829,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        829,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 780,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        780,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 375,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        375,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 350,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        350,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": null,
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 349,
+      "mode": "single",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        0,
+        349,
+        0
+      ],
+      "visible": {
+        "list": false,
+        "chat": true,
+        "settings": false
+      },
+      "notice": "聊天区域至少需要 350px 宽度，请展开页面。",
+      "drafts": [
+        "名称稿",
+        "保留的消息",
+        "512"
+      ],
+      "focusedRegion": null
+    },
+    {
+      "width": 1920,
+      "mode": "three",
+      "mounts": 1,
+      "unmounts": 0,
+      "panels": [
+        960,
+        610,
+        350
+      ],
+      "visible": {
+        "list": true,
+        "chat": true,
+        "settings": true
+      },
+      "notice": null,
+      "drafts": [
+        "保留标题",
+        "跨模式保留草稿",
+        "2048"
+      ],
+      "focusedRegion": null
+    }
+  ],
+  "pageErrors": []
+}

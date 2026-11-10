@@ -1,0 +1,455 @@
+{
+  "status": "FAIL_EXISTING_DIAGNOSTICS",
+  "comparison": "ER-6 2026-11-08 留存日志，按文件和错误内容比较，忽略行列变化",
+  "previousCount": 107,
+  "currentCount": 107,
+  "added": [],
+  "removed": [],
+  "diagnostics": [
+    {
+      "file": "scripts/search-s5-browser/main.tsx",
+      "message": "error TS2559: Type 'true' has no properties in common with type '{ prefix?: string | undefined; key?: string | undefined; }'.",
+      "count": 1
+    },
+    {
+      "file": "src/app.tsx",
+      "message": "error TS2339: Property 'data' does not exist on type 'CurrentUser'.",
+      "count": 1
+    },
+    {
+      "file": "src/app.tsx",
+      "message": "error TS2339: Property 'userName' does not exist on type 'CurrentUser'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/components/sidebar/CatalogTreeSidebar.tsx",
+      "message": "error TS2322: Type 'number | undefined' is not assignable to type 'number'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/components/sidebar/CatalogTreeSidebar.tsx",
+      "message": "error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyArticleInfoRef.ts",
+      "message": "error TS2339: Property 'myArticleInfoRef' does not exist on type 'Storage'.",
+      "count": 4
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/MentionList.tsx",
+      "message": "error TS7006: Parameter 'index' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/MentionList.tsx",
+      "message": "error TS7006: Parameter 'item' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/MentionList.tsx",
+      "message": "error TS7006: Parameter 'props' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/MentionList.tsx",
+      "message": "error TS7031: Binding element 'event' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/index.ts",
+      "message": "error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7005: Variable 'component' implicitly has an 'any' type.",
+      "count": 6
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7006: Parameter 'editor' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7006: Parameter 'element' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7006: Parameter 'props' implicitly has an 'any' type.",
+      "count": 3
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7031: Binding element 'query' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/MyMention/suggestion.ts",
+      "message": "error TS7034: Variable 'component' implicitly has type 'any' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/ai-completion/AiCompletionPlugin.ts",
+      "message": "error TS2339: Property 'near' does not exist on type 'Function'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/canvas/canvas-ai-dialog.tsx",
+      "message": "error TS2339: Property 'userName' does not exist on type 'CurrentUser'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/canvas/canvas-ai-dialog.tsx",
+      "message": "error TS7005: Variable 'attachments' implicitly has an 'any[]' type.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/canvas/canvas-ai-dialog.tsx",
+      "message": "error TS7034: Variable 'attachments' implicitly has type 'any[]' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/subscript.ts",
+      "message": "error TS2322: Type '(node: any, helpers: any) => string | undefined' is not assignable to type '(node: JSONContent, helpers: MarkdownRendererHelpers, ctx: RenderContext) => string'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/Article/extension/superscript.ts",
+      "message": "error TS2322: Type '(node: any, helpers: any) => string | undefined' is not assignable to type '(node: JSONContent, helpers: MarkdownRendererHelpers, ctx: RenderContext) => string'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/RightContent/ThemeSwitch.tsx",
+      "message": "error TS2322: Type '{ className: string; initialColorOptions: string[]; value: string | undefined; notify: (color: string) => void; }' is not assignable to type 'IntrinsicAttributes & MyColorPickerProps'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/FieldRenderer.tsx",
+      "message": "error TS2322: Type '{ value: any; onChange: (val: any) => void; placeholder: string | undefined; format: string | undefined; disabled: boolean | undefined; size: SizeType; onFocus: ((e: any) => void) | undefined; onBlur: ((e: any) => void) | undefined; allowClear: boolean; style: { ...; }; } | { ...; }' is not assignable to type 'IntrinsicAttributes & Omit<RangePickerProps<Dayjs>, \"classNames\" | \"generateConfig\" | \"hideHeader\" | \"locale\" | \"styles\"> & { ...; } & RefAttributes<...>'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/FieldRenderer.tsx",
+      "message": "error TS2322: Type '{ value: any; onChange: (val: any) => void; placeholder: string | undefined; format: string | undefined; disabled: boolean | undefined; size: SizeType; onFocus: ((e: any) => void) | undefined; onBlur: ((e: any) => void) | undefined; checked: any; }' is not assignable to type 'SwitchProps'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/FieldRenderer.tsx",
+      "message": "error TS2322: Type '{ value: any; onChange: (val: any) => void; placeholder: string | undefined; format: string | undefined; disabled: boolean | undefined; size: SizeType; onFocus: ((e: any) => void) | undefined; onBlur: ((e: any) => void) | undefined; }' is not assignable to type 'RateProps'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/FieldRenderer.tsx",
+      "message": "error TS2322: Type '{ value: any; onChange: (val: any) => void; placeholder: string | undefined; format: string | undefined; disabled: boolean | undefined; size: SizeType; onFocus: ((e: any) => void) | undefined; onBlur: ((e: any) => void) | undefined; }' is not assignable to type '{ [key: `data-${string}`]: string; mode?: ModeType[] | ModeType | undefined; value?: ColorValueType | undefined; defaultValue?: ColorValueType | undefined; ... 22 more ...; disabledFormat?: boolean | undefined; }'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/FieldRenderer.tsx",
+      "message": "error TS2345: Argument of type 'SizeType' is not assignable to parameter of type '\"large\" | \"middle\" | \"small\" | undefined'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/SearchForm/index.tsx",
+      "message": "error TS2345: Argument of type '\"large\" | \"medium\" | \"middle\" | \"small\"' is not assignable to parameter of type '\"large\" | \"middle\" | \"small\" | undefined'.",
+      "count": 1
+    },
+    {
+      "file": "src/components/ui/calendar.tsx",
+      "message": "error TS2353: Object literal may only specify known properties, and 'table' does not exist in type 'Partial<ClassNames>'.",
+      "count": 1
+    },
+    {
+      "file": "src/features/ainew/ConnectionManager.tsx",
+      "message": "error TS2322: Type 'string' is not assignable to type '\"deepseek\"'.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7006: Parameter 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7006: Parameter 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7006: Parameter 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7031: Binding element 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7031: Binding element 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7031: Binding element 'onClick' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AddIcon.tsx",
+      "message": "error TS7031: Binding element 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7006: Parameter 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7006: Parameter 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7006: Parameter 'margin' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7006: Parameter 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7031: Binding element 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7031: Binding element 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7031: Binding element 'margin' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7031: Binding element 'onClick' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/AiIcon.tsx",
+      "message": "error TS7031: Binding element 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ArrowRightIcon.tsx",
+      "message": "error TS7031: Binding element 'className' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ArrowRightIcon.tsx",
+      "message": "error TS7031: Binding element 'onClick' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/SuccessIcon.tsx",
+      "message": "error TS7006: Parameter 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/SuccessIcon.tsx",
+      "message": "error TS7006: Parameter 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/SuccessIcon.tsx",
+      "message": "error TS7006: Parameter 'margin' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/SuccessIcon.tsx",
+      "message": "error TS7006: Parameter 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'color' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'isUp' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'margin' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'onClick' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/icons/ThumbsUp.tsx",
+      "message": "error TS7031: Binding element 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS2322: Type '{ span: number; align: string; children: Element; }' is not assignable to type 'IntrinsicAttributes & ColProps & RefAttributes<HTMLDivElement>'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS2339: Property 'id' does not exist on type 'never'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS2339: Property 'offsetWidth' does not exist on type 'Element'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS2339: Property 'style' does not exist on type 'Element'.",
+      "count": 3
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<undefined>'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/HomePage/WebsiteInfos.tsx",
+      "message": "error TS7031: Binding element 'tagName' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/User/login/index.tsx",
+      "message": "error TS2339: Property 'data' does not exist on type 'LoginResult'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/User/login/index.tsx",
+      "message": "error TS2339: Property 'success' does not exist on type 'LoginResult'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/account/center/index.tsx",
+      "message": "error TS2339: Property 'userName' does not exist on type 'CurrentUser'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/account/settings/components/ChangePasswordModal.tsx",
+      "message": "error TS2339: Property 'userName' does not exist on type 'CurrentUser'.",
+      "count": 2
+    },
+    {
+      "file": "src/pages/account/settings/components/security.tsx",
+      "message": "error TS2339: Property 'mobile' does not exist on type 'CurrentUser'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/dashboard/workplace/index.tsx",
+      "message": "error TS2339: Property 'userName' does not exist on type '{ link?: string | undefined; name: string; avatar: string; }'.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/table-list/index.tsx",
+      "message": "error TS2306: File '/Users/cylj126/Workspace/my_project/arte_dev/frontend/src/pages/table-list/components/CreateForm.tsx' is not a module.",
+      "count": 1
+    },
+    {
+      "file": "src/pages/table-list/index.tsx",
+      "message": "error TS2306: File '/Users/cylj126/Workspace/my_project/arte_dev/frontend/src/pages/table-list/components/UpdateForm.tsx' is not a module.",
+      "count": 1
+    },
+    {
+      "file": "src/requestErrorConfig.ts",
+      "message": "error TS2339: Property 'code' does not exist on type '{}'.",
+      "count": 1
+    },
+    {
+      "file": "src/requestErrorConfig.ts",
+      "message": "error TS2339: Property 'desc' does not exist on type '{}'.",
+      "count": 1
+    },
+    {
+      "file": "src/requestErrorConfig.ts",
+      "message": "error TS2339: Property 'success' does not exist on type '{}'.",
+      "count": 1
+    },
+    {
+      "file": "src/services/share.ts",
+      "message": "error TS2307: Cannot find module '@/types/RichTextType' or its corresponding type declarations.",
+      "count": 1
+    },
+    {
+      "file": "src/services/share.ts",
+      "message": "error TS2459: Module '\"@/components/Article/utitilies/permissionUtil\"' declares 'ArticlePermission' locally, but it is not exported.",
+      "count": 1
+    },
+    {
+      "file": "src/services/share.ts",
+      "message": "error TS2459: Module '\"@/components/Article/utitilies/permissionUtil\"' declares 'CatalogPermission' locally, but it is not exported.",
+      "count": 1
+    },
+    {
+      "file": "src/utils/ClipboardUtil.ts",
+      "message": "error TS2774: This condition will always return true since this function is always defined. Did you mean to call it instead?",
+      "count": 2
+    },
+    {
+      "file": "src/utils/stringUtil.ts",
+      "message": "error TS7006: Parameter 'char' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/utils/stringUtil.ts",
+      "message": "error TS7006: Parameter 'str' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/utils/textHandler.ts",
+      "message": "error TS7006: Parameter '_' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/utils/textHandler.ts",
+      "message": "error TS7006: Parameter 'content' implicitly has an 'any' type.",
+      "count": 3
+    },
+    {
+      "file": "src/utils/textHandler.ts",
+      "message": "error TS7006: Parameter 'index' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "file": "src/utils/textHandler.ts",
+      "message": "error TS7006: Parameter 'line' implicitly has an 'any' type.",
+      "count": 3
+    },
+    {
+      "file": "src/utils/textHandler.ts",
+      "message": "error TS7006: Parameter 'tabs' implicitly has an 'any' type.",
+      "count": 1
+    }
+  ]
+}

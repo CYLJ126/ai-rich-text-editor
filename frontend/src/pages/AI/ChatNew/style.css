@@ -468,6 +468,16 @@
   flex: 0 0 28px;
 }
 
+.ainew-directory-tools .ant-btn .anticon {
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.ainew-directory-tools .ant-btn:not(:disabled):hover .anticon,
+.ainew-directory-tools .ant-btn:focus-visible .anticon {
+  opacity: 1;
+}
+
 .ainew-settings .ant-tabs-nav {
   max-width: 100%;
 }
@@ -855,8 +865,13 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
   overflow-anchor: none;
   padding-bottom: 44px;
+}
+
+.ainew-directory-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* 列表和状态提示保持自然高度，避免纵向 Flex 压缩内容、改变滚动范围。 */

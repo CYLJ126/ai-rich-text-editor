@@ -79,7 +79,7 @@ export default function ChatWorkspaceLayout({layout, list, settings, children}: 
                 icon={<DynamicIcon iconName="SettingOutlined"/>} onClick={() => openRegion('settings')}/>
       </Tooltip>}
       {layout.width < SIDE_MIN &&
-        <p className="ainew-width-notice" role="status">聊天区域至少需要 300px 宽度，请展开页面。</p>}
+        <p className="ainew-width-notice" role="status">聊天区域至少需要 {SIDE_MIN}px 宽度，请展开页面。</p>}
     </div>
   </div>;
 }

@@ -182,3 +182,61 @@ ChatNew相关2个测试文件、27项通过。模拟浏览器实测：720px视�
 - 旧 `WorkspacePicker`、其中的管理 Modal 及专用状态已删除；隔离浏览器验收脚本同步使用共享的空间详情表单。
 
 此前记录的“从管理工作空间下拉打开目录”的验收行为已由以上入口替代。
+
+## 2026-11-10 布局基线修复与验收
+
+本批限定 ChatNew 已确认的布局缺口、相关聊天回归及类型基线核对。保留原有工作区改动，不执行业务数据库操作、授权调整或部署。ER-6
+的五人试用及目标环境验收仍按原记录待完成。
+
+### 修复内容
+
+- 并排侧栏默认及最小宽度维持 350px、聊天至少 480px；双栏／三栏断点从旧的 780／1080px 修正为 830／1180px，由宽度约束计算。
+- 低于 350px 时提示准确的最低支持宽度。350～829px 单区域、830～1179px 双栏、1180px 起三栏；单区域继续保留三份组件树和草稿。
+- 不再忽略小于 0.5px 的有效测量变化，避免 829.75→830、1179.75→1180 及反向变化漏掉模式切换。
+- 更新旧的 300px 测试预期，并覆盖收缩、重新展开、拖动后的聊天下限及侧栏 50% 上限。没有通过删除或排除既有失败用例取得通过。
+
+### 本轮结果与证据
+
+证据目录：[2026-11-10](../../../../tests/layout-baseline/acceptance/2026-11-10/)。布局入口在 1920×900 的 Chrome
+窗口内调整实际容器宽度，使用真实 `ChatWorkspaceLayout`、`useChatLayout`、Ant Design Splitter、ResizeObserver 和页面
+CSS；内部以简单输入框验证尺寸、焦点和草稿，不装载整站或业务后端。
+
+| 检查             | 本轮结果                                                                                                                                     | 证据                                                                                                                                                                                                                                                                                                                                           |
+|------------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 布局定向回归     | 17 项全部通过；原有 3 项失败已修复                                                                                                           | `ChatWorkspaceLayout.test.tsx`；同时纳入下行完整相关回归                                                                                                                                                                                                                                                                                       |
+| 相关聊天回归     | 41 文件、484 项全部通过，无跳过；包含布局、模型、助手、搜索导航、费用核对及恢复                                                              | [回归日志](../../../../tests/layout-baseline/acceptance/2026-11-10/regression.txt)                                                                                                                                                                                                                                                             |
+| Chrome 布局      | 15 次宽度测量及 1 次真实鼠标拖动通过；覆盖 349／350／375／780／829／830／1080／1179／1180／1366／1920px 和小数边界，切换保留草稿、焦点及挂载 | [原始样本与源码摘要](../../../../tests/layout-baseline/acceptance/2026-11-10/layout.json)，[375px](../../../../tests/layout-baseline/acceptance/2026-11-10/layout-375.png)、[830px](../../../../tests/layout-baseline/acceptance/2026-11-10/layout-830.png)、[1180px](../../../../tests/layout-baseline/acceptance/2026-11-10/layout-1180.png) |
+| ER-6 Chrome 回归 | 三类终态事实各 10 次，30／30 通过；终态至可发送 P95 113.2ms；无 SSE 的兜底 10055.2ms                                                         | [本轮恢复样本](../../../../tests/layout-baseline/acceptance/2026-11-10/recovery.json)                                                                                                                                                                                                                                                          |
+| TypeScript       | **全仓仍未通过**，107 项诊断；按文件和错误内容与 ER-6 留存日志比较，无新增／消除，本批文件无诊断                                             | [规范化诊断及对比](../../../../tests/layout-baseline/acceptance/2026-11-10/typecheck.json)                                                                                                                                                                                                                                                     |
+| Biome 定向 lint  | 通过，原布局测试保留 10 条非空断言警告；新增浏览器入口无警告                                                                                 | 下面命令可复验                                                                                                                                                                                                                                                                                                                                 |
+| 生产构建         | 沙箱外执行 `npm run build`，退出码 0，耗时 10.8 秒；ChatNew 及其他路由产物生成成功                                                           | [构建日志](../../../../tests/layout-baseline/acceptance/2026-11-10/build.txt)                                                                                                                                                                                                                                                                  |
+
+类型诊断清单是本次现状记录，不是新增诊断的豁免规则。测试日志仍包含 React `act`
+提示，本轮没有通过过滤提示、延长超时或放宽断言取得通过。首次布局浏览器尝试被沙箱禁止监听本机端口；允许本机监听后成功，模拟服务仅绑定
+`127.0.0.1`，使用独立临时 Chrome profile，结束后清理。
+
+前次沙箱内生产构建及临时钩子日志未取得完整退出结果，后续被聊天中断；这些尝试不计为通过。恢复工作后在沙箱外以相同项目配置重跑，并为进程组设置
+240 秒超时，10.8 秒正常结束，未安装或升级依赖。构建成功不代表 TypeScript 全仓检查通过。
+
+### 复验方式
+
+在 `frontend` 执行：
+
+```bash
+npm test -- src/features/ainew/ChatWorkspaceLayout.test.tsx --maxWorkers=2 --reporter=dot
+npm test -- src/services/arte-ai src/services/platform/budgetAccount.test.ts src/features/ainew src/pages/AI/ChatNew src/pages/AI/Chat/chatSession.test.tsx src/pages/AI/Chat/reconciliation.test.tsx src/pages/AI/Chat/configurationSelection.test.tsx --maxWorkers=2 --reporter=dot
+node tests/layout-baseline/run.mjs
+node tests/er6/run.mjs
+npm run tsc
+./node_modules/.bin/biome lint src/features/ainew/useChatLayout.ts src/features/ainew/ChatWorkspaceLayout.tsx src/features/ainew/ChatWorkspaceLayout.test.tsx tests/layout-baseline/browser.tsx tests/layout-baseline/run.mjs
+npm run build
+```
+
+布局浏览器入口使用已安装的 Chrome、Vite 和前端依赖，不下载浏览器。默认结果写系统临时目录的 `arte-layout-baseline/`；可用
+`LAYOUT_OUTPUT_DIR` 指定输出目录，`LAYOUT_CHROME` 指定 Chrome 可执行文件。每次运行移除该输出目录中上一轮的已知报告与截图，失败写
+`failure.json`，避免沿用旧的通过结果。
+
+### 仍待完成
+
+本轮没有执行后端测试、完整应用双浏览器标签并发、服务进程重启、目标数据库、真实供应商／账单或五人任务试用。隔离浏览器恢复不替代这些项目；ER-6
+及整体异常恢复的正式交付状态保持未完成。107 项全仓类型诊断仍需独立治理，搜索新鲜度也不因本批布局修复改变结论。

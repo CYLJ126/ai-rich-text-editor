@@ -4,7 +4,9 @@ export type ChatRegion = 'list' | 'chat' | 'settings';
 export type ChatLayoutMode = 'three' | 'two' | 'single';
 export const SIDE_MIN = 350;
 export const CHAT_MIN = 480;
-export const layoutMode = (width: number): ChatLayoutMode => width >= 1080 ? 'three' : width >= 780 ? 'two' : 'single';
+const TWO_COLUMN_MIN = SIDE_MIN + CHAT_MIN;
+const THREE_COLUMN_MIN = SIDE_MIN * 2 + CHAT_MIN;
+export const layoutMode = (width: number): ChatLayoutMode => width >= THREE_COLUMN_MIN ? 'three' : width >= TWO_COLUMN_MIN ? 'two' : 'single';
 
 export interface ChatLayoutState {
   width: number;
@@ -21,7 +23,7 @@ type Action = { type: 'measure'; width: number } | { type: 'open' | 'close'; reg
   | { type: 'resize'; sizes: number[] };
 const clamp = (value: number, max: number) => Math.max(SIDE_MIN, Math.min(value, max));
 
-export function initialChatLayout(width = 1080): ChatLayoutState {
+export function initialChatLayout(width = THREE_COLUMN_MIN): ChatLayoutState {
   const mode = layoutMode(width);
   return {
     width, mode, left: SIDE_MIN, right: SIDE_MIN, leftOpen: mode !== 'single', rightOpen: mode === 'three',
@@ -42,7 +44,7 @@ function constrain(value: ChatLayoutState): ChatLayoutState {
 
 export function chatLayoutReducer(state: ChatLayoutState, action: Action): ChatLayoutState {
   if (action.type === 'measure') {
-    if (!Number.isFinite(action.width) || action.width <= 0 || Math.abs(action.width - state.width) < 0.5) return state;
+    if (!Number.isFinite(action.width) || action.width <= 0 || action.width === state.width) return state;
     const mode = layoutMode(action.width);
     if (mode === state.mode) return constrain({...state, width: action.width});
     return constrain({

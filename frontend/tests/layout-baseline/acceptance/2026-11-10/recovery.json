@@ -1,0 +1,411 @@
+{
+  "recordedAt": "2026-11-10T02:47:50.405Z",
+  "baseRevision": "edadece8b7d3b9f9e7bd43b4c415b03ee8183354",
+  "viewport": {
+    "width": 1365,
+    "height": 1000
+  },
+  "status": "PASS",
+  "failures": [],
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+  "visibility": "visible",
+  "clock": "performance.now, real timers",
+  "scope": "Real Chrome + production React/services; isolated simulated HTTP/SSE; no live provider or database",
+  "samples": [
+    {
+      "index": 1,
+      "mode": "HTTP_500",
+      "eventReceived": 472.19999980926514,
+      "readStarted": 529.7999999523163,
+      "readCompleted": 566.5999999046326,
+      "uiUsable": 575.5,
+      "refreshStartMs": 57.60000014305115,
+      "uiRecoveryMs": 8.900000095367432,
+      "totalMs": 103.30000019073486,
+      "automaticWrites": 0
+    },
+    {
+      "index": 2,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 925.1999998092651,
+      "readStarted": 983.7999999523163,
+      "readCompleted": 1025.8999998569489,
+      "uiUsable": 1034.8999998569489,
+      "refreshStartMs": 58.60000014305115,
+      "uiRecoveryMs": 9,
+      "totalMs": 109.70000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 3,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 1368.0999999046326,
+      "readStarted": 1424.7999999523163,
+      "readCompleted": 1455.7999999523163,
+      "uiUsable": 1465.2999999523163,
+      "refreshStartMs": 56.700000047683716,
+      "uiRecoveryMs": 9.5,
+      "totalMs": 97.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 4,
+      "mode": "HTTP_500",
+      "eventReceived": 1795.7999999523163,
+      "readStarted": 1853.0999999046326,
+      "readCompleted": 1891.5999999046326,
+      "uiUsable": 1898.0999999046326,
+      "refreshStartMs": 57.299999952316284,
+      "uiRecoveryMs": 6.5,
+      "totalMs": 102.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 5,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 2260.7999999523163,
+      "readStarted": 2318.399999856949,
+      "readCompleted": 2365,
+      "uiUsable": 2374,
+      "refreshStartMs": 57.59999990463257,
+      "uiRecoveryMs": 9,
+      "totalMs": 113.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 6,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 2698.2999999523163,
+      "readStarted": 2756,
+      "readCompleted": 2788.399999856949,
+      "uiUsable": 2796.7999999523163,
+      "refreshStartMs": 57.700000047683716,
+      "uiRecoveryMs": 8.400000095367432,
+      "totalMs": 98.5,
+      "automaticWrites": 0
+    },
+    {
+      "index": 7,
+      "mode": "HTTP_500",
+      "eventReceived": 3090.5999999046326,
+      "readStarted": 3148.5,
+      "readCompleted": 3163.7999999523163,
+      "uiUsable": 3171.7999999523163,
+      "refreshStartMs": 57.90000009536743,
+      "uiRecoveryMs": 8,
+      "totalMs": 81.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 8,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 3504,
+      "readStarted": 3560.699999809265,
+      "readCompleted": 3592.7999999523163,
+      "uiUsable": 3600.199999809265,
+      "refreshStartMs": 56.69999980926514,
+      "uiRecoveryMs": 7.3999998569488525,
+      "totalMs": 96.19999980926514,
+      "automaticWrites": 0
+    },
+    {
+      "index": 9,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 3921.0999999046326,
+      "readStarted": 3978.699999809265,
+      "readCompleted": 4009.899999856949,
+      "uiUsable": 4017.199999809265,
+      "refreshStartMs": 57.59999990463257,
+      "uiRecoveryMs": 7.299999952316284,
+      "totalMs": 96.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 10,
+      "mode": "HTTP_500",
+      "eventReceived": 4337.099999904633,
+      "readStarted": 4394.5,
+      "readCompleted": 4420.5,
+      "uiUsable": 4427.199999809265,
+      "refreshStartMs": 57.40000009536743,
+      "uiRecoveryMs": 6.699999809265137,
+      "totalMs": 90.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 11,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 4781.199999809265,
+      "readStarted": 4839.399999856949,
+      "readCompleted": 4869.099999904633,
+      "uiUsable": 4875.799999952316,
+      "refreshStartMs": 58.200000047683716,
+      "uiRecoveryMs": 6.700000047683716,
+      "totalMs": 94.60000014305115,
+      "automaticWrites": 0
+    },
+    {
+      "index": 12,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 5191.5,
+      "readStarted": 5242.099999904633,
+      "readCompleted": 5261,
+      "uiUsable": 5265.299999952316,
+      "refreshStartMs": 50.59999990463257,
+      "uiRecoveryMs": 4.299999952316284,
+      "totalMs": 73.79999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 13,
+      "mode": "HTTP_500",
+      "eventReceived": 5588.799999952316,
+      "readStarted": 5645.799999952316,
+      "readCompleted": 5672.399999856949,
+      "uiUsable": 5679.399999856949,
+      "refreshStartMs": 57,
+      "uiRecoveryMs": 7,
+      "totalMs": 90.59999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 14,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 5998.199999809265,
+      "readStarted": 6055.5,
+      "readCompleted": 6086.099999904633,
+      "uiUsable": 6093.099999904633,
+      "refreshStartMs": 57.30000019073486,
+      "uiRecoveryMs": 7,
+      "totalMs": 94.90000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 15,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 6403.5,
+      "readStarted": 6460.799999952316,
+      "readCompleted": 6487.199999809265,
+      "uiUsable": 6493.899999856949,
+      "refreshStartMs": 57.299999952316284,
+      "uiRecoveryMs": 6.700000047683716,
+      "totalMs": 90.39999985694885,
+      "automaticWrites": 0
+    },
+    {
+      "index": 16,
+      "mode": "HTTP_500",
+      "eventReceived": 6807,
+      "readStarted": 6864.799999952316,
+      "readCompleted": 6893,
+      "uiUsable": 6899.799999952316,
+      "refreshStartMs": 57.799999952316284,
+      "uiRecoveryMs": 6.799999952316284,
+      "totalMs": 92.79999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 17,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 7218.199999809265,
+      "readStarted": 7275.899999856949,
+      "readCompleted": 7294,
+      "uiUsable": 7298.399999856949,
+      "refreshStartMs": 57.700000047683716,
+      "uiRecoveryMs": 4.3999998569488525,
+      "totalMs": 80.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 18,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 7637.699999809265,
+      "readStarted": 7695.5,
+      "readCompleted": 7733.799999952316,
+      "uiUsable": 7742.199999809265,
+      "refreshStartMs": 57.80000019073486,
+      "uiRecoveryMs": 8.399999856948853,
+      "totalMs": 104.5,
+      "automaticWrites": 0
+    },
+    {
+      "index": 19,
+      "mode": "HTTP_500",
+      "eventReceived": 8067.799999952316,
+      "readStarted": 8124.399999856949,
+      "readCompleted": 8156.799999952316,
+      "uiUsable": 8164.699999809265,
+      "refreshStartMs": 56.59999990463257,
+      "uiRecoveryMs": 7.8999998569488525,
+      "totalMs": 96.89999985694885,
+      "automaticWrites": 0
+    },
+    {
+      "index": 20,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 8502,
+      "readStarted": 8552.5,
+      "readCompleted": 8587.299999952316,
+      "uiUsable": 8594.699999809265,
+      "refreshStartMs": 50.5,
+      "uiRecoveryMs": 7.3999998569488525,
+      "totalMs": 92.69999980926514,
+      "automaticWrites": 0
+    },
+    {
+      "index": 21,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 8917.899999856949,
+      "readStarted": 8974.199999809265,
+      "readCompleted": 9004.799999952316,
+      "uiUsable": 9012.099999904633,
+      "refreshStartMs": 56.299999952316284,
+      "uiRecoveryMs": 7.299999952316284,
+      "totalMs": 94.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 22,
+      "mode": "HTTP_500",
+      "eventReceived": 9315.199999809265,
+      "readStarted": 9372.599999904633,
+      "readCompleted": 9391.099999904633,
+      "uiUsable": 9395.099999904633,
+      "refreshStartMs": 57.40000009536743,
+      "uiRecoveryMs": 4,
+      "totalMs": 79.90000009536743,
+      "automaticWrites": 0
+    },
+    {
+      "index": 23,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 9737,
+      "readStarted": 9794.299999952316,
+      "readCompleted": 9825.299999952316,
+      "uiUsable": 9833.199999809265,
+      "refreshStartMs": 57.299999952316284,
+      "uiRecoveryMs": 7.8999998569488525,
+      "totalMs": 96.19999980926514,
+      "automaticWrites": 0
+    },
+    {
+      "index": 24,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 10158.799999952316,
+      "readStarted": 10217,
+      "readCompleted": 10248.299999952316,
+      "uiUsable": 10255.899999856949,
+      "refreshStartMs": 58.200000047683716,
+      "uiRecoveryMs": 7.599999904632568,
+      "totalMs": 97.09999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 25,
+      "mode": "HTTP_500",
+      "eventReceived": 10575.299999952316,
+      "readStarted": 10632.599999904633,
+      "readCompleted": 10664.5,
+      "uiUsable": 10672.599999904633,
+      "refreshStartMs": 57.299999952316284,
+      "uiRecoveryMs": 8.099999904632568,
+      "totalMs": 97.29999995231628,
+      "automaticWrites": 0
+    },
+    {
+      "index": 26,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 11001.899999856949,
+      "readStarted": 11058.299999952316,
+      "readCompleted": 11107.899999856949,
+      "uiUsable": 11116.099999904633,
+      "refreshStartMs": 56.40000009536743,
+      "uiRecoveryMs": 8.200000047683716,
+      "totalMs": 114.20000004768372,
+      "automaticWrites": 0
+    },
+    {
+      "index": 27,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 11427.399999856949,
+      "readStarted": 11484.899999856949,
+      "readCompleted": 11506,
+      "uiUsable": 11510,
+      "refreshStartMs": 57.5,
+      "uiRecoveryMs": 4,
+      "totalMs": 82.60000014305115,
+      "automaticWrites": 0
+    },
+    {
+      "index": 28,
+      "mode": "HTTP_500",
+      "eventReceived": 11832.799999952316,
+      "readStarted": 11890.299999952316,
+      "readCompleted": 11920.399999856949,
+      "uiUsable": 11928.399999856949,
+      "refreshStartMs": 57.5,
+      "uiRecoveryMs": 8,
+      "totalMs": 95.59999990463257,
+      "automaticWrites": 0
+    },
+    {
+      "index": 29,
+      "mode": "CONNECTION_LOST",
+      "eventReceived": 12270,
+      "readStarted": 12327.899999856949,
+      "readCompleted": 12362.099999904633,
+      "uiUsable": 12370,
+      "refreshStartMs": 57.89999985694885,
+      "uiRecoveryMs": 7.900000095367432,
+      "totalMs": 100,
+      "automaticWrites": 0
+    },
+    {
+      "index": 30,
+      "mode": "MODEL_TIMEOUT",
+      "eventReceived": 12705.5,
+      "readStarted": 12762.799999952316,
+      "readCompleted": 12802.299999952316,
+      "uiUsable": 12810.599999904633,
+      "refreshStartMs": 57.299999952316284,
+      "uiRecoveryMs": 8.299999952316284,
+      "totalMs": 105.09999990463257,
+      "automaticWrites": 0
+    }
+  ],
+  "fallbackMs": 10055.200000047684,
+  "copy": {
+    "preserved": true,
+    "defaultFocus": true,
+    "returnedFocus": true,
+    "writes": 0
+  },
+  "keyboard": {
+    "shiftEnterWrites": 0,
+    "composingEnterWrites": 0,
+    "costsReturnedFocus": true
+  },
+  "counters": {
+    "writes": 0,
+    "forbiddenReads": 0,
+    "streams": 0
+  },
+  "summary": {
+    "sampleCount": 30,
+    "refreshStartMs": {
+      "p50": 57.40000009536743,
+      "p95": 58.200000047683716,
+      "max": 58.60000014305115
+    },
+    "uiRecoveryMs": {
+      "p50": 7.3999998569488525,
+      "p95": 9,
+      "max": 9.5
+    },
+    "totalMs": {
+      "p50": 96.09999990463257,
+      "p95": 113.20000004768372,
+      "max": 114.20000004768372
+    }
+  }
+}
