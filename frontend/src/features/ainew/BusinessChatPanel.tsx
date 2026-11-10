@@ -15,6 +15,7 @@ import {
   Tag,
   Typography
 } from 'antd';
+import {MenuFoldOutlined, MenuUnfoldOutlined, RobotOutlined, UserOutlined} from '@ant-design/icons';
 import {
   AiApiError,
   type ChatMessage,
@@ -43,6 +44,18 @@ import ToolChatSettings from './ToolChatSettings';
 import {useToolChatCommand} from './useToolChatCommand';
 
 const messageText = (message: ChatMessage) => message.content.map(part => 'text' in part ? part.text : `[${part.modality}]`).join('\n');
+
+function MessageRow({role, children}: { role: 'user' | 'assistant'; children: React.ReactNode }) {
+  const avatar = <span className={`ainew-message-avatar is-${role}`} role="img"
+                       aria-label={role === 'user' ? '用户头像' : '助手头像'}>
+    {role === 'user' ? <UserOutlined aria-hidden/> : <RobotOutlined aria-hidden/>}
+  </span>;
+  return <Flex align="flex-end" gap={8} className={`ainew-message-row is-${role}`}>
+    {role === 'assistant' && avatar}
+    {children}
+    {role === 'user' && avatar}
+  </Flex>;
+}
 
 export interface ChatInteractionState {
   pending: boolean;
@@ -185,6 +198,7 @@ export default function BusinessChatPanel({
   const olderTurns = olderCache.version === conversation.version ? olderCache.turns : [];
   const [notice, setNotice] = useState('');
   const [fees, setFees] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(true);
   const [unsafeReconciliation, setUnsafeReconciliation] = useState(false);
   const [unsafeManagedReconciliation, setUnsafeManagedReconciliation] = useState(false);
   const scroll = useRef<HTMLDivElement>(null);
@@ -323,7 +337,18 @@ export default function BusinessChatPanel({
 
   return <Flex component="section" vertical className="ainew-chat" aria-label="聊天内容">
     {confirmationContext}
-    <Flex align="center" gap={8} wrap className="ainew-chat-tools">
+    {located.active && <Alert type="info" title="正在浏览定位的历史消息" action={<Button onClick={() => {
+      located.dismiss();
+      onReturnLatest?.();
+    }}>返回最新聊天</Button>}/>}
+
+    <Flex vertical className="ainew-history-panel">
+      <Flex align="flex-start" gap={8} className="ainew-chat-tools" role="toolbar" aria-label="聊天操作">
+        <Button type="text" aria-label={toolsExpanded ? '收起聊天操作' : '展开聊天操作'}
+                title={toolsExpanded ? '收起聊天操作' : '展开聊天操作'} aria-expanded={toolsExpanded}
+                icon={toolsExpanded ? <MenuFoldOutlined/> : <MenuUnfoldOutlined/>}
+                onClick={() => setToolsExpanded(value => !value)}/>
+        {toolsExpanded && <Flex align="center" gap={8} wrap className="ainew-chat-tools-actions">
       <Button loading={located.active ? located.loading : chat.historyLoading} onClick={() => {
         if (located.active) {
           captureLocatedAnchor();
@@ -336,11 +361,8 @@ export default function BusinessChatPanel({
       <Button loading={chat.executionLoading} onClick={chat.resume}>{t('recovery.refresh')}</Button>
       <Button onClick={() => setFees(true)}>查看费用</Button>
       <Typography.Text>{chat.budget ? `可用余额 ${chat.budget.available} ${chat.budget.currency}` : '可用余额待查询'}</Typography.Text>
+        </Flex>}
     </Flex>
-    {located.active && <Alert type="info" title="正在浏览定位的历史消息" action={<Button onClick={() => {
-      located.dismiss();
-      onReturnLatest?.();
-    }}>返回最新聊天</Button>}/>}
 
     {/* 消息记录列表 */}
     <Flex vertical ref={scroll} className="ainew-messages" aria-label="消息历史" onScroll={() => {
@@ -402,9 +424,13 @@ export default function BusinessChatPanel({
         const waitingForReply = !invocation?.status ? chat.historyLoading : isActive(invocation.status);
 
         return <Flex component="article" vertical className="ainew-turn" key={turn.turnId} data-turn-id={turn.turnId}>
-          <Flex vertical className={`ainew-user${highlight === turn.userMessage.messageId ? ' is-search-target' : ''}`}
-                data-message-id={turn.userMessage.messageId}><Typography.Text>你</Typography.Text>
-            <Typography.Paragraph>{messageText(turn.userMessage)}</Typography.Paragraph></Flex>
+          <MessageRow role="user">
+            <Flex vertical
+                  className={`ainew-user${highlight === turn.userMessage.messageId ? ' is-search-target' : ''}`}
+                  data-message-id={turn.userMessage.messageId}>
+              <Typography.Paragraph>{messageText(turn.userMessage)}</Typography.Paragraph></Flex>
+          </MessageRow>
+          <MessageRow role="assistant">
           <Flex vertical className="ainew-answer">
             <Flex align="center" gap={8} wrap className="ainew-answer-heading"><Typography.Text
               strong>助手</Typography.Text>
@@ -496,9 +522,13 @@ export default function BusinessChatPanel({
             {latestRun && latestRun.executionId !== runCandidate?.executionId &&
               <div hidden>{renderRun(latestRun.executionId, false)}</div>}
           </Flex>
+          </MessageRow>
         </Flex>;
       })}
-      {toolCommand.saved?.acceptedId && !allTurns.some(turn => turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === toolCommand.saved?.acceptedId)) && renderRun(toolCommand.saved.acceptedId, false)}
+      {toolCommand.saved?.acceptedId && !allTurns.some(turn => turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === toolCommand.saved?.acceptedId)) &&
+        <MessageRow role="assistant">
+          <div className="ainew-answer">{renderRun(toolCommand.saved.acceptedId, false)}</div>
+        </MessageRow>}
       {runGateIds.filter(id => id !== toolCommand.saved?.acceptedId && !allTurns.some(turn => turnCandidates(turn).some(c => c.kind === 'TOOL_CHAT_RUN' && c.executionId === id))).map(id =>
         <div hidden key={id}>{renderRun(id, false)}</div>)}
       {located.active && located.after && <Button loading={located.loading} onClick={() => {
@@ -506,10 +536,12 @@ export default function BusinessChatPanel({
         void located.load('after');
       }}>加载定位历史的较晚消息</Button>}
       {!located.active && current?.streamText && !allTurns.some(turn => chat.invocationId && turn.invocationIds.includes(chat.invocationId)) &&
-        <Flex component="article" vertical className="ainew-answer"><Typography.Text strong>助手 ·
+        <MessageRow role="assistant"><Flex component="article" vertical className="ainew-answer"><Typography.Text
+          strong>助手 ·
           生成中</Typography.Text><MarkdownText text={current.streamText}
                                                 invocationId={chat.invocationId ?? undefined}
-                                                streaming/></Flex>}
+                                                streaming/></Flex></MessageRow>}
+    </Flex>
     </Flex>
     {!located.active && newContent && <Button className="ainew-follow" onClick={() => {
       following.current = true;
@@ -566,7 +598,8 @@ export default function BusinessChatPanel({
                                                              onClick={() => chat.setDraft(example + '\n\n')}>填入示例 {index + 1}</Button>)}
         </Flex>}
       <Input.TextArea ref={composer} aria-label="输入问题" placeholder="输入问题，Enter 发送，Shift+Enter 换行"
-                      autoSize={{minRows: 2, maxRows: 7}} maxLength={1_000_000} value={chat.draft}
+                      className="ainew-composer-input" autoSize={{minRows: 3, maxRows: 10}}
+                      maxLength={1_000_000} value={chat.draft}
                       onChange={event => chat.setDraft(event.target.value)} onCompositionStart={() => {
         composing.current = true;
       }} onCompositionEnd={() => {

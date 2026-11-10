@@ -311,6 +311,26 @@ it('keeps Shift+Enter and composing Enter from sending, then allows ordinary Ent
   await waitFor(() => expect(api.turnsForChat).toHaveBeenCalledTimes(1));
 });
 
+it('collapses chat operations to one expand button and preserves the draft without submitting', async () => {
+  render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]} dirty={false}
+                            t={t} onUpdated={vi.fn()} onConfigurationRejected={vi.fn()} onChooseModel={vi.fn()}
+                            onInteraction={vi.fn()} onOpenToolSettings={vi.fn()}/>);
+  const input = screen.getByLabelText('输入问题');
+  fireEvent.change(input, {target: {value: '收起工具栏时保留的草稿'}});
+  await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).not.toBeDisabled());
+  fireEvent.click(screen.getByRole('button', {name: '收起聊天操作'}));
+  expect(screen.getByRole('button', {name: '展开聊天操作'})).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('button', {name: '刷新历史'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '查看费用'})).not.toBeInTheDocument();
+  expect(input).toHaveValue('收起工具栏时保留的草稿');
+  fireEvent.click(screen.getByRole('button', {name: '展开聊天操作'}));
+  expect(screen.getByRole('button', {name: '收起聊天操作'})).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('button', {name: '刷新历史'})).toBeVisible();
+  expect(screen.getByRole('button', {name: '查看费用'})).toBeVisible();
+  expect(input).toHaveValue('收起工具栏时保留的草稿');
+  expect(api.turnsForChat).not.toHaveBeenCalled();
+});
+
 it('shares sidebar tool settings with the composer and submission, then resets them for another conversation', async () => {
   vi.mocked(discoverToolChat).mockResolvedValue(result({enabled: true}));
   vi.mocked(listToolBindings).mockResolvedValue(result({

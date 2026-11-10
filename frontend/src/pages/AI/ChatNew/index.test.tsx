@@ -270,6 +270,7 @@ async function searchReady() {
 it('locates an old partial candidate and each output anchor while preserving search, scroll and draft across layout changes', async () => {
   render(<ChatNewPage/>);
   await chooseConversation();
+  expect(screen.queryByRole('heading', {name: '我的会话'})).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '保留聊天草稿'}});
   vi.mocked(api.getInvocationSnapshot).mockResolvedValue(oldSnapshot());
   const input = await searchReady();
@@ -327,11 +328,12 @@ it('keeps the current chat and results when lower preparation fails, and scrubs 
   }));
   render(<ChatNewPage/>);
   await chooseConversation();
+  fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '保留当前会话草稿'}});
   await searchReady();
   vi.mocked(api.getConversation).mockRejectedValueOnce(new TypeError('network'));
   fireEvent.click(screen.getAllByRole('button', {name: '打开会话并退出搜索：搜索中的会话'})[0]);
   await screen.findByText(/读取暂时失败/);
-  expect(screen.getByRole('heading', {name: '我的会话'})).toBeInTheDocument();
+  expect(screen.getByLabelText('输入问题')).toHaveValue('保留当前会话草稿');
   expect(document.querySelectorAll('.ainew-search-row')).toHaveLength(2);
   vi.mocked(api.getConversation).mockRejectedValueOnce(new api.AiApiError(404, {code: '205016'}));
   fireEvent.click(screen.getAllByRole('button', {name: '打开会话并退出搜索：搜索中的会话'})[0]);

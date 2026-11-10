@@ -669,14 +669,6 @@ function WorkspaceChat({
 
   // 中间栏：消息列表 + 输入框
   const content = <Flex component="section" vertical className="ainew-main">
-    <Flex component="header" align="center" justify="space-between" gap={8} wrap className="ainew-conversation-header">
-      <Flex vertical className="ainew-conversation-heading">
-        <Typography.Title level={2}>{conversations.selected?.title ?? 'AI 聊天（新版）'}</Typography.Title>
-        <Typography.Text type="secondary" className="ainew-muted">
-          {profile ? (assistantSummary?.displayName ?? '助手') + ' · v' + profile.version : '通用文本聊天'}
-        </Typography.Text>
-      </Flex>
-    </Flex>
     {assistantUnavailable && <Alert type="warning"
                                     title={assistantIdentity.value?.disabled ? '此助手已停用。' : '当前账号已失去此助手的使用资格。'}
                                     description="可以查看旧会话，也可以从助手目录开启其他会话。"
