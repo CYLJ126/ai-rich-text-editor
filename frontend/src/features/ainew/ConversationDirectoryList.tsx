@@ -348,8 +348,9 @@ export default function ConversationDirectoryList({directory, writable, readBloc
                                                       className="ainew-directory-status ainew-muted">前部会话可返回顶部重新读取。</Typography.Paragraph>}
     </Flex>
     {/* 返回顶部按钮 */}
-    <Button className="ainew-directory-backtop" shape="circle" aria-label="返回会话顶部" loading={directory.listLoading}
-            icon={<DynamicIcon iconName="VerticalAlignTopOutlined" size={20}/>}
+    <Button className="ainew-directory-backtop ainew-scroll-button" shape="circle" aria-label="返回会话顶部"
+            title="返回顶部" loading={directory.listLoading}
+            icon={<DynamicIcon iconName="ArrowUpOutlined" size={14}/>}
             onClick={() => void directory.refreshFirst()}/>
   </Flex>;
 }

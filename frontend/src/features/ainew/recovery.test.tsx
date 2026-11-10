@@ -456,6 +456,110 @@ describe('progressive history and asynchronous notification refresh', () => {
     userMessage: {messageId: 'message', role: 'USER', content: [{text: '先显示问题'}], toolCalls: [], toolCallId: null},
     createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
   };
+  it('pins streamed text and late layout growth to the bottom, then preserves manual reading after completion', async () => {
+    const originalObserver = globalThis.ResizeObserver;
+    const observations: { callback: ResizeObserverCallback; targets: Set<Element>; disconnected: boolean }[] = [];
+    globalThis.ResizeObserver = class {
+      record: typeof observations[number];
+
+      constructor(callback: ResizeObserverCallback) {
+        this.record = {callback, targets: new Set(), disconnected: false};
+        observations.push(this.record);
+      }
+
+      observe(target: Element) {
+        this.record.targets.add(target);
+      }
+
+      unobserve(target: Element) {
+        this.record.targets.delete(target);
+      }
+
+      disconnect() {
+        this.record.disconnected = true;
+      }
+    };
+    vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));
+    vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+      invocationId: 'inv',
+      status: {...completed, state: 'RUNNING', version: 1, budgetState: 'RESERVED', blocksConversation: true},
+      result: null,
+      missing: false
+    });
+    const view = render(<BusinessChatPanel config={config} context={context} conversation={conversation} options={[]}
+                                           dirty={false} t={t} onUpdated={vi.fn()} onConfigurationRejected={vi.fn()}
+                                           onChooseModel={vi.fn()} onInteraction={vi.fn()}
+                                           onOpenToolSettings={vi.fn()}/>);
+    try {
+      await waitFor(() => expect(api.watchInvocation).toHaveBeenCalledOnce());
+      const node = screen.getByLabelText('消息历史');
+      let height = 1200, viewport = 240, top = 0;
+      Object.defineProperties(node, {
+        clientHeight: {configurable: true, get: () => viewport},
+        scrollHeight: {configurable: true, get: () => height},
+        scrollTop: {
+          configurable: true, get: () => top, set: (value: number) => {
+            top = Math.max(0, Math.min(value, height - viewport));
+          }
+        }
+      });
+      const resize = () => {
+        const observation = observations.findLast(value => value.targets.has(node) && !value.disconnected);
+        if (!observation) throw new Error('Message resize observer is not attached');
+        observation.callback([], {} as ResizeObserver);
+      };
+      await act(async () => resize());
+      await waitFor(() => expect(top).toBe(height - viewport));
+      node.scrollTop = 100;
+      fireEvent.scroll(node);
+      expect(top).toBe(height - viewport);
+
+      height += 400;
+      const text = vi.mocked(api.watchInvocation).mock.calls[0][2].onText;
+      if (!text) throw new Error('Streaming text handler is not attached');
+      await act(async () => text({executionId: 'inv', attemptId: 'attempt', offset: 0, text: '最新上屏的内容'}));
+      await screen.findByText('最新上屏的内容');
+      expect(top).toBe(height - viewport);
+
+      // 无 React 更新的异步排版，以及输入框增高引起的视口变化，也必须继续跟随。
+      height += 300;
+      await act(async () => resize());
+      await waitFor(() => expect(top).toBe(height - viewport));
+      viewport = 180;
+      await act(async () => resize());
+      await waitFor(() => expect(top).toBe(height - viewport));
+
+      vi.mocked(api.getInvocationSnapshot).mockResolvedValue({
+        invocationId: 'inv',
+        status: completed,
+        result: null,
+        missing: false
+      });
+      await act(async () => vi.mocked(api.watchInvocation).mock.calls[0][1]({
+        executionId: 'inv',
+        sequence: 2,
+        kind: 'TERMINAL'
+      }));
+      await screen.findByText('execution.SUCCEEDED');
+      node.scrollTop = 100;
+      fireEvent.scroll(node);
+      expect(screen.getByRole('button', {name: '回到底部'})).toBeVisible();
+      height += 200;
+      await act(async () => {
+        resize();
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      });
+      expect(top).toBe(100);
+      fireEvent.click(screen.getByRole('button', {name: '回到底部'}));
+      expect(top).toBe(height - viewport);
+      expect(screen.queryByRole('button', {name: '回到底部'})).not.toBeInTheDocument();
+      expect(api.turnsForChat).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      globalThis.ResizeObserver = originalObserver;
+    }
+  });
+
   it('shows questions while snapshots are pending and prevents submitting with unverified history', async () => {
     let finish!: (value: api.InvocationSnapshotResponse) => void;
     vi.mocked(api.queryTurnsOfConversation).mockResolvedValue(page([historyTurn]));

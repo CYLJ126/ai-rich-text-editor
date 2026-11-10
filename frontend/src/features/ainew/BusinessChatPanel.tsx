@@ -13,9 +13,10 @@ import {
   Select,
   Spin,
   Tag,
+  Tooltip,
   Typography
 } from 'antd';
-import {MenuFoldOutlined, MenuUnfoldOutlined, RobotOutlined, UserOutlined} from '@ant-design/icons';
+import {ArrowDownOutlined, MenuFoldOutlined, MenuUnfoldOutlined, RobotOutlined, UserOutlined} from '@ant-design/icons';
 import {
   AiApiError,
   type ChatMessage,
@@ -26,7 +27,13 @@ import {
 import {type ChatTestConfig, DEFAULT_CHAT_CONFIG, modelOptionKey} from './config';
 import {type BrowserContext} from './storage';
 import {type ConfigurationRejected} from './configurationInvalidation';
-import {hasAvailableBudget, isActive, isUserStoppedGeneration, useChatSession} from './useChatSession';
+import {
+  hasAvailableBudget,
+  HISTORY_PAGE_SIZE,
+  isActive,
+  isUserStoppedGeneration,
+  useChatSession
+} from './useChatSession';
 import MarkdownText, {copyText} from './MarkdownText';
 import ReconciliationPanel from './ReconciliationPanel';
 import BudgetReconciliationManager from './BudgetReconciliationManager';
@@ -202,9 +209,11 @@ export default function BusinessChatPanel({
   const [unsafeReconciliation, setUnsafeReconciliation] = useState(false);
   const [unsafeManagedReconciliation, setUnsafeManagedReconciliation] = useState(false);
   const scroll = useRef<HTMLDivElement>(null);
+  const messageContent = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  const lastScrollTop = useRef(0);
   const anchor = useRef<{ height: number; top: number } | null>(null);
-  const [newContent, setNewContent] = useState(false);
+  const [showBottomButton, setShowBottomButton] = useState(false);
   const lastVersion = useRef(conversation.version);
   const composing = useRef(false);
   const composer = useRef<React.ComponentRef<typeof Input.TextArea>>(null);
@@ -242,9 +251,21 @@ export default function BusinessChatPanel({
 
   const allTurns = located.active ? located.turns : [...new Map([...olderTurns, ...chat.turns].map(turn => [turn.turnId, turn])).values()].sort((a, b) => a.sequence - b.sequence);
   const visibleViews = located.active ? located.views : chat.invocations;
+  const streamFollowing = !located.active && !chat.historyLoading
+    && chat.page === Math.max(1, Math.ceil(chat.total / HISTORY_PAGE_SIZE))
+    && (chat.activeIds.length > 0 || runBusy);
   const locatedAnchor = useRef<{ id: string; offset: number } | null>(null);
   const positioned = useRef<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
+
+  function alignBottom(node: HTMLDivElement) {
+    node.scrollTop = node.scrollHeight;
+    lastScrollTop.current = node.scrollTop;
+  }
+
+  function updateBottomButton(node: HTMLDivElement) {
+    setShowBottomButton(node.scrollHeight - node.scrollTop - node.clientHeight > 8);
+  }
 
   function captureLocatedAnchor() {
     const node = scroll.current;
@@ -305,16 +326,44 @@ export default function BusinessChatPanel({
     const node = scroll.current;
     if (!node) return;
     if (located.active) {
-      setNewContent(true);
+      setShowBottomButton(false);
       return;
     }
     if (anchor.current && !chat.historyLoading) {
       node.scrollTop = anchor.current.top + node.scrollHeight - anchor.current.height;
+      lastScrollTop.current = node.scrollTop;
       anchor.current = null;
-    } else if (following.current) {
-      node.scrollTop = node.scrollHeight;
-    } else setNewContent(true);
-  }, [chat.turns, chat.invocations, chat.historyLoading, runStates, runContentRevision, located.active]);
+    } else if (streamFollowing || following.current) {
+      following.current = true;
+      alignBottom(node);
+    }
+    updateBottomButton(node);
+  }, [chat.turns, chat.invocations, chat.historyLoading, runStates, runContentRevision, located.active, streamFollowing]);
+
+  // Markdown 后续排版、图片加载及可视区域伸缩也会改变底部，合并到下一帧校准。
+  useLayoutEffect(() => {
+    const node = scroll.current, content = messageContent.current;
+    if (!node || !content || located.active) return;
+    let frame: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (node.clientHeight <= 0 || anchor.current) return;
+        if (streamFollowing || following.current) {
+          following.current = true;
+          alignBottom(node);
+        }
+        updateBottomButton(node);
+      });
+    });
+    observer.observe(node);
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [located.active, streamFollowing]);
 
   const error = (failure: unknown, retry?: () => void) => failure ?
     <Alert type="error" title={failure instanceof AiApiError ? failure.message : '读取失败，请重试。'}
@@ -368,14 +417,24 @@ export default function BusinessChatPanel({
     {/* 消息记录列表 */}
     <Flex vertical ref={scroll} className="ainew-messages" aria-label="消息历史" onScroll={() => {
       const node = scroll.current!;
+      if (node.clientHeight <= 0) return;
+      const movingUp = node.scrollTop < lastScrollTop.current - 1;
+      lastScrollTop.current = node.scrollTop;
       if (located.active) {
         following.current = false;
+        setShowBottomButton(false);
         captureLocatedAnchor();
         return;
       }
-      following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
-      if (following.current) setNewContent(false);
+      if (streamFollowing && !anchor.current) {
+        following.current = true;
+        alignBottom(node);
+      } else if (node.scrollHeight - node.scrollTop - node.clientHeight <= 8) {
+        following.current = true;
+      } else if (movingUp) following.current = false;
+      updateBottomButton(node);
     }}>
+      <Flex vertical ref={messageContent} className="ainew-message-content">
       {located.active && located.before && <Button loading={located.loading} onClick={() => {
         captureLocatedAnchor();
         void located.load('before');
@@ -544,11 +603,15 @@ export default function BusinessChatPanel({
                                                 streaming/></Flex></MessageRow>}
     </Flex>
     </Flex>
-    {!located.active && newContent && <Button className="ainew-follow" onClick={() => {
-      following.current = true;
-      if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
-      setNewContent(false);
-    }}>有新内容 · 回到最新</Button>}
+      {!located.active && showBottomButton && <Tooltip title="回到底部">
+        <Button className="ainew-follow ainew-scroll-button" shape="circle" aria-label="回到底部"
+                icon={<ArrowDownOutlined style={{fontSize: 14}}/>} onClick={() => {
+          following.current = true;
+          if (scroll.current) alignBottom(scroll.current);
+          setShowBottomButton(false);
+        }}/>
+      </Tooltip>}
+    </Flex>
     <Flex vertical gap={8} className="ainew-composer">
       {toolCommand.storageError &&
         <Alert type="warning" title="工具聊天恢复记录无法安全保存或读取，请保留页面并检查浏览器存储。"

@@ -645,11 +645,19 @@
 }
 
 /* 消息保持自然高度，避免 Flex 压缩消息、影响历史锚点和自动跟随。 */
-.ainew-messages > * {
+.ainew-messages > *,
+.ainew-message-content > * {
   flex-shrink: 0;
 }
 
-.ainew-messages > .ant-btn {
+.ainew-message-content.ant-flex {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+}
+
+.ainew-messages > .ant-btn,
+.ainew-message-content > .ant-btn {
   align-self: flex-start;
 }
 
@@ -821,10 +829,31 @@
   gap: 16px;
 }
 
-.ainew-follow {
+.ainew-scroll-button.ant-btn {
   position: absolute;
-  bottom: 180px;
-  align-self: center;
+  inset-block-end: 16px;
+  inset-inline-end: 24px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 50%;
+  background: var(--ant-color-bg-elevated, #fff);
+  color: var(--ant-color-text, #262626);
+  box-shadow: var(--ant-box-shadow, 0 4px 12px #0000001f);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.ainew-scroll-button.ant-btn:not(:disabled):hover {
+  background: var(--ant-color-fill-secondary, #f0f0f0);
+  border-color: var(--ant-color-border-secondary, #f0f0f0);
+  color: var(--ant-color-text, #262626);
+  transform: translateY(-1px);
 }
 
 .ainew-markdown {
@@ -1155,12 +1184,6 @@
 
 .ainew-directory-more-error .ant-alert-actions {
   margin-inline-start: 0;
-}
-
-.ainew-directory-backtop {
-  position: absolute;
-  bottom: 12px;
-  right: 14px;
 }
 
 @media (hover: none) {
