@@ -251,7 +251,7 @@ public class NewAiAdmissionConfiguration {
      */
     @Bean("newAiBudgetAccountQueryService")
     BudgetAccountQueryService budgetQueryService(BudgetDefinitionProvider definitions, AdmissionAuthorization authorization, MybatisExecutionPersistence store, ObjectProvider<com.arte.ainew.spi.auth.BudgetReconciliationAccess> access) {
-        var service = new BudgetAccountQueryService(definitions, authorization, store);
+        BudgetAccountQueryService service = new BudgetAccountQueryService(definitions, authorization, store);
         service.accountAccess(access.getIfAvailable());
         return service;
     }

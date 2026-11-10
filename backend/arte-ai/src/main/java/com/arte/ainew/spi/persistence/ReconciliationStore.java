@@ -3,6 +3,7 @@ package com.arte.ainew.spi.persistence;
 import com.arte.ainew.pojo.budget.Reconciliation;
 import com.arte.ainew.pojo.conversation.ConversationPage;
 import com.arte.ainew.pojo.execution.StoreOutcome;
+import com.arte.ainew.spi.auth.BudgetReconciliationAccess;
 import com.arte.core.pojo.platform.ExecutionOwner;
 import reactor.core.publisher.Mono;
 
@@ -54,24 +55,21 @@ public interface ReconciliationStore {
     /**
      * 在最终同库事务内复核具体账户许可，不能将外层初检视为永久授权。
      */
-    default Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command,
-                                                                             com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit) {
+    default Mono<StoreOutcome<Reconciliation.Receipt>> confirmReconciliation(Reconciliation.Confirm command, BudgetReconciliationAccess.Permit permit) {
         return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
     }
 
     /**
      * 财务读取与当前授权使用同一事务，不读取聊天正文或模型结果。
      */
-    default Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(
-            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, long current, long size) {
+    default Mono<ConversationPage<Reconciliation.Pending>> pendingReconciliations(Permit permit, long current, long size) {
         return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
     }
 
     /**
      * 原回执读取仍受目标账户当前授权约束。
      */
-    default Mono<Reconciliation.Receipt> reconciliationReceipt(
-            com.arte.ainew.spi.auth.BudgetReconciliationAccess.Permit permit, String invocationId, String key) {
+    default Mono<Reconciliation.Receipt> reconciliationReceipt(BudgetReconciliationAccess.Permit permit, String invocationId, String key) {
         return Mono.error(new IllegalStateException("Account authorization transaction is not supported"));
     }
 

@@ -20,6 +20,7 @@ import com.arte.ainew.pojo.conversation.AnswerCandidate;
 import com.arte.ainew.pojo.conversation.Conversation;
 import com.arte.ainew.pojo.conversation.Turn;
 import com.arte.ainew.pojo.entry.EntryRequests;
+import com.arte.ainew.pojo.execution.ExecutionOptions;
 import com.arte.ainew.pojo.execution.Invocation;
 import com.arte.ainew.pojo.execution.InvocationRequest;
 import com.arte.ainew.pojo.execution.InvocationSubmission;
@@ -27,23 +28,25 @@ import com.arte.ainew.pojo.generation.GenerationRequest;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.ainew.spi.persistence.ExecutionStore;
 import com.arte.core.enums.ResultCodeEnum;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 
 /**
- * 单条用户文本聊天入口，自动加载最近十轮完整历史；会话版本参与耐久幂等与受理检查。
+ * 单条用户文本聊天入口
+ * <p>
+ * 自动加载最近十轮完整历史；会话版本参与耐久幂等与受理检查。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
 @Slf4j
 public final class DefaultChatService implements ChatService {
+
     private final AdmissionAuthorization authorization;
     private final ConversationService conversationsService;
     private final BindingManager bindingManager;
@@ -69,7 +72,7 @@ public final class DefaultChatService implements ChatService {
 
     @Override
     public Mono<AcceptedExecution> submit(EntryRequests.Chat request, ExecutionContext context) {
-        return authorization.prepare(context, java.util.Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), false, currentContext ->
+        return authorization.prepare(context, Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION), false, currentContext ->
                         // 查找会话
                         conversationsService.find(request.conversationId(), currentContext).flatMap(conversation -> {
                             if (conversation.state() != Conversation.State.ACTIVE) {
@@ -79,8 +82,8 @@ public final class DefaultChatService implements ChatService {
                                     || !conversation.resources().isEmpty() || request.context().history() != null) {
                                 throw new AdmissionException(ResultCodeEnum.AI_CHAT_SELECTION_NOT_SUPPORTED);
                             }
-                            var input = request.context();
-                            var selection = new ContextRequest(input.messages(), new ContextRequest.HistorySelection(
+                            ContextRequest input = request.context();
+                            ContextRequest selection = new ContextRequest(input.messages(), new ContextRequest.HistorySelection(
                                     conversation.conversationId(), request.expectedVersion(), List.of(), ChatHistoryLoader.MAX_TURNS),
                                     input.memoryIds(), input.resources(), input.target(), input.budget());
                             // 解析绑定
@@ -93,14 +96,14 @@ public final class DefaultChatService implements ChatService {
                                     .flatMap(snapshot -> admissionCatalogStore.nextTurnSequence(ExecutionOwners.from(currentContext), conversation.conversationId())
                                             .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
                                             .flatMap(sequence -> {
-                                                var generation = new GenerationRequest(snapshot.messages(), request.generationOptions(), List.of(), new GenerationRequest.TextOutput());
-                                                var invocation = new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), generation, request.options(), currentContext);
-                                                var now = clock.instant();
+                                                GenerationRequest generation = new GenerationRequest(snapshot.messages(), request.generationOptions(), List.of(), new GenerationRequest.TextOutput());
+                                                InvocationRequest<GenerationRequest> invocation = new InvocationRequest<>(request.capability(), request.binding(), generation.kind(), generation, request.options(), currentContext);
+                                                Instant now = clock.instant();
                                                 // 组装轮次
-                                                var turn = new Turn(UUID.randomUUID().toString(), conversation.conversationId(),
+                                                Turn turn = new Turn(UUID.randomUUID().toString(), conversation.conversationId(),
                                                         sequence, null, null, snapshot.messages().getLast(),
                                                         List.of(currentContext.executionId()), null, 0, now, now);
-                                                var link = new Invocation.ConversationLink(conversation.conversationId(), request.expectedVersion(), turn.turnId());
+                                                Invocation.ConversationLink link = new Invocation.ConversationLink(conversation.conversationId(), request.expectedVersion(), turn.turnId());
                                                 // 委托给执行协调器
                                                 return invocationCoordinator.submit(new InvocationSubmission<>(invocation, snapshot, link, turn, null));
                                             }));
@@ -121,14 +124,15 @@ public final class DefaultChatService implements ChatService {
                 executionStore.find(ExecutionOwners.from(current), request.originalInvocationId())
                         .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_NOT_FOUND)))
                         .flatMap(original -> {
-                            if (original.conversation() == null || !(original.request().input() instanceof GenerationRequest))
+                            if (original.conversation() == null || !(original.request().input() instanceof GenerationRequest)) {
                                 return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
-                            var link = original.conversation();
+                            }
+                            Invocation.ConversationLink link = original.conversation();
                             // 新操作继承原预算、发布及精确模型版本；当前身份不继承旧授权。
-                            var renewed = new ExecutionContext(current.executionId(), current.traceId(), current.authorization(),
+                            ExecutionContext renewed = new ExecutionContext(current.executionId(), current.traceId(), current.authorization(),
                                     current.deadline(), null, original.request().context().budgetRef(),
                                     original.request().context().releaseRef(), current.idempotencyKey());
-                            var owner = ExecutionOwners.from(renewed);
+                            ExecutionOwner owner = ExecutionOwners.from(renewed);
                             return conversationsService.find(link.conversationId(), renewed).flatMap(conversation ->
                                     conversationsService.turn(link.conversationId(), link.turnId(), renewed).flatMap(turn ->
                                             authorization.require(renewed, AdmissionAuthorization.READ).flatMap(read ->
@@ -144,21 +148,26 @@ public final class DefaultChatService implements ChatService {
      */
     private Mono<AcceptedExecution> regenerateNew(EntryRequests.Regenerate request, ExecutionContext current,
                                                   Invocation original, Conversation conversation, Turn turn) {
-        if (!ConversationExecutionPolicy.ordinaryText(original, conversation, turn))
+        if (!ConversationExecutionPolicy.ordinaryText(original, conversation, turn)) {
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_REGENERATION_NOT_SUPPORTED));
-        if (!original.state().terminal())
+        }
+        if (!original.state().terminal()) {
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY));
-        if (conversation.version() != request.expectedConversationVersion())
+        }
+        if (conversation.version() != request.expectedConversationVersion()) {
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT));
+        }
         return admissionCatalogStore.nextTurnSequence(ExecutionOwners.from(current), conversation.conversationId())
                 .switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)))
                 .flatMap(next -> {
-                    if (turn.sequence() != next - 1)
+                    if (turn.sequence() != next - 1) {
                         return Mono.error(new AdmissionException(ResultCodeEnum.AI_INVALID_STATE));
+                    }
                     return contextService.find(original.contextSnapshotId(), current).flatMap(saved -> {
                         TextInputs.requireActualSnapshot(original, saved);
-                        if (!saved.messages().getLast().equals(turn.userMessage()))
+                        if (!saved.messages().getLast().equals(turn.userMessage())) {
                             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+                        }
                         return invocationCoordinator.submit(regenerationSubmission(request, current, original, turn, saved));
                     });
                 });
@@ -168,9 +177,9 @@ public final class DefaultChatService implements ChatService {
      * 核对原重新生成操作的完整可变请求语义；只返回已授权的原回执，不读取结果正文或重新派发。
      */
     private AcceptedExecution regenerationReceipt(EntryRequests.Regenerate request, Invocation source, Invocation accepted) {
-        var link = accepted.conversation();
-        var expected = accepted.request().options();
-        var actual = request.options();
+        Invocation.ConversationLink link = accepted.conversation();
+        ExecutionOptions expected = accepted.request().options();
+        ExecutionOptions actual = request.options();
         if (!ExecutionOwners.from(source.request().context()).equals(ExecutionOwners.from(accepted.request().context()))
                 || !accepted.request().capability().equals(source.request().capability())
                 || !accepted.request().binding().equals(source.request().binding())
@@ -183,8 +192,9 @@ public final class DefaultChatService implements ChatService {
                 || expected.maxAttempts() != actual.maxAttempts() || expected.maxOutputBytes() != actual.maxOutputBytes()
                 || expected.maxToolSteps() != actual.maxToolSteps() || expected.maxConcurrentTools() != actual.maxConcurrentTools()
                 || !Objects.equals(expected.requestedTimeout(), actual.requestedTimeout())
-                || expected.requestedTimeout() == null && !expected.deadline().equals(actual.deadline()))
+                || expected.requestedTimeout() == null && !expected.deadline().equals(actual.deadline())) {
             throw new AdmissionException(ResultCodeEnum.AI_IDEMPOTENCY_CONFLICT);
+        }
         return new AcceptedExecution(accepted.request().context().executionId(), AcceptedExecution.Kind.INVOCATION, accepted.acceptedAt());
     }
 
@@ -200,22 +210,22 @@ public final class DefaultChatService implements ChatService {
      */
     private InvocationSubmission<GenerationRequest> regenerationSubmission(EntryRequests.Regenerate request, ExecutionContext context,
                                                                            Invocation original, Turn turn, ContextSnapshot saved) {
-        var at = clock.instant();
-        var snapshot = new ContextSnapshot(UUID.randomUUID().toString(), saved.history(), saved.modelBinding(),
+        Instant at = clock.instant();
+        ContextSnapshot snapshot = new ContextSnapshot(UUID.randomUUID().toString(), saved.history(), saved.modelBinding(),
                 saved.messages(), saved.fragments(), saved.budget(), saved.inputTokens(), saved.estimatedTokens(),
                 saved.tokenizerVersion(), saved.truncations(), saved.contentDigest(), at,
                 at.plus(properties.limits().snapshotRetention()), saved.assistant());
-        var candidates = new ArrayList<>(turn.candidates());
+        ArrayList<AnswerCandidate> candidates = new ArrayList<>(turn.candidates());
         candidates.add(AnswerCandidate.invocation(context.executionId()));
         // 重放已在上层返回原回执；只有新操作沿用原实际输入并追加候选。
-        var turnUpdatedAt = at.isBefore(turn.updatedAt()) ? turn.updatedAt() : at;
-        var updated = Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
+        Instant turnUpdatedAt = at.isBefore(turn.updatedAt()) ? turn.updatedAt() : at;
+        Turn updated = Turn.typed(turn.turnId(), turn.conversationId(), turn.sequence(), turn.parentTurnId(),
                 turn.supersedesTurnId(), turn.userMessage(), candidates,
                 turn.effectiveCandidate(),
                 turn.version() + 1, turn.createdAt(), turnUpdatedAt);
-        var generation = (GenerationRequest) original.request().input();
-        var input = new GenerationRequest(snapshot.messages(), generation.options(), generation.tools(), generation.outputFormat());
-        var invocation = new InvocationRequest<>(original.request().capability(), original.request().binding(), input.kind(), input, request.options(), context);
+        GenerationRequest generation = (GenerationRequest) original.request().input();
+        GenerationRequest input = new GenerationRequest(snapshot.messages(), generation.options(), generation.tools(), generation.outputFormat());
+        InvocationRequest<GenerationRequest> invocation = new InvocationRequest<>(original.request().capability(), original.request().binding(), input.kind(), input, request.options(), context);
         return new InvocationSubmission<>(invocation, snapshot,
                 new Invocation.ConversationLink(turn.conversationId(), request.expectedConversationVersion(), turn.turnId()),
                 updated, request.originalInvocationId());

@@ -9,12 +9,15 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * 账单人工核对契约；只能由重新授权的预算管理员组装，所有金额使用十进制。
+ * 账单人工核对契约
+ * <p>
+ * 只能由重新授权的预算管理员组装，所有金额使用十进制。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/8 10:20 ✾
  */
 public final class Reconciliation {
+
     private Reconciliation() {
     }
 
@@ -42,6 +45,23 @@ public final class Reconciliation {
         }
     }
 
+    /**
+     * 凭实际账单及执行结束证据提交的人工核对命令，目标账本归属与真实核对者分别记录。
+     *
+     * @param owner              目标账本所属执行主体
+     * @param reviewer           真实核对者身份，不能替换为目标账户所有者
+     * @param traceId            本次核对操作的追踪标识
+     * @param key                本次核对操作的幂等键
+     * @param budgetRef          精确账户标识
+     * @param invocationId       原调用标识
+     * @param invocationVersion  原调用的条件确认版本
+     * @param reservationId      原预留标识
+     * @param reservationVersion 预留条件确认版本
+     * @param charge             有证据支持的实际费用及币种，零费用也须有证据
+     * @param evidenceRef        可归属原调用的账单及核对证据引用
+     * @param note               人工核对说明，最长 2000 字符
+     * @param executionEnded     是否已确认远端执行结束，提交时必须为真
+     */
     public record Confirm(ExecutionOwner owner, ExecutionPrincipal reviewer, String traceId, String key,
                           String budgetRef, String invocationId, long invocationVersion, String reservationId,
                           long reservationVersion,

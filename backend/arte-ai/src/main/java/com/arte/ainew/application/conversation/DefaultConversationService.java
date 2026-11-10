@@ -9,28 +9,37 @@ import com.arte.ainew.common.execution.ExecutionOwners;
 import com.arte.ainew.common.validation.ContractChecks;
 import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.conversation.*;
+import com.arte.ainew.pojo.execution.StoreOutcome;
 import com.arte.ainew.spi.conversation.ConversationArchiveReader;
 import com.arte.ainew.spi.persistence.AdmissionCatalogStore;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.pojo.PageParam;
+import com.arte.core.pojo.platform.ExecutionOwner;
 import com.arte.core.pojo.reference.DefinitionRef;
 import com.arte.core.pojo.reference.ResourceVersionRef;
 import com.arte.core.utils.MybatisPages;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * 当前会话创建／归属读取门面；创建幂等由数据库仲裁，不在 JVM 缓存命令或复制执行状态。
+ * 当前会话创建／归属读取门面
+ * <p>
+ * 创建幂等由数据库仲裁，不在 JVM 缓存命令或复制执行状态。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
  */
 @Slf4j
 public final class DefaultConversationService implements ConversationService {
+
     private final AdmissionCatalogStore admissionCatalogStore;
     private final AdmissionAuthorization authorization;
     private final Clock clock;
@@ -63,26 +72,26 @@ public final class DefaultConversationService implements ConversationService {
     private Mono<Conversation> create(String title, DefinitionRef profile, List<ResourceVersionRef> resources, ExecutionContext context, String digest) {
         return authorization.requireWrite(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.text(title, "title", 256);
-            var selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
+            List<ResourceVersionRef> selections = ContractChecks.list(resources, "resources", 0, ContractChecks.MAX_ITEMS);
             if (profile != null && (assistants == null || !"chat-profile".equals(profile.type())) || !selections.isEmpty()) {
                 throw new AdmissionException(ResultCodeEnum.AI_CONVERSATION_CONFIGURATION_NOT_SUPPORTED);
             }
             ContractChecks.id(current.idempotencyKey(), "idempotencyKey");
-            var now = clock.instant();
-            var conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwners.from(current), title, 0, profile,
+            Instant now = clock.instant();
+            Conversation conversation = new Conversation(UUID.randomUUID().toString(), ExecutionOwners.from(current), title, 0, profile,
                     selections, Conversation.State.ACTIVE, now, now);
-            var creation = profile == null ? admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
+            Mono<StoreOutcome<Conversation>> creation = profile == null ? admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest)
                     : admissionCatalogStore.createConversationOnce(conversation, current.idempotencyKey(), digest,
                     () -> assistants.requireNewConversation(current, profile));
             return creation.map(outcome -> {
-                        if (!outcome.successful()) {
-                            log.warn("AI conversation creation rejected, invocationId={}, traceId={}, code={}", current.executionId(), current.traceId(), outcome.code());
-                            throw AdmissionException.fromStoreRejection(outcome.code());
-                        }
-                        log.info("AI conversation creation committed, invocationId={}, traceId={}, conversationId={}, outcome={}",
-                                current.executionId(), current.traceId(), outcome.value().conversationId(), outcome.code());
-                        return outcome.value();
-                    });
+                if (!outcome.successful()) {
+                    log.warn("AI conversation creation rejected, invocationId={}, traceId={}, code={}", current.executionId(), current.traceId(), outcome.code());
+                    throw AdmissionException.fromStoreRejection(outcome.code());
+                }
+                log.info("AI conversation creation committed, invocationId={}, traceId={}, conversationId={}, outcome={}",
+                        current.executionId(), current.traceId(), outcome.value().conversationId(), outcome.code());
+                return outcome.value();
+            });
         });
     }
 
@@ -98,9 +107,9 @@ public final class DefaultConversationService implements ConversationService {
         }
         ContractChecks.require(localDate == null || (date.getYear() >= 1 && date.getYear() <= 9999
                 && date.toString().equals(localDate)), "localDate must be a valid yyyy-MM-dd date");
-        var title = "新会话" + date.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        String title = "新会话" + date.format(DateTimeFormatter.BASIC_ISO_DATE);
         // 旧请求保留原摘要；新请求绑定点击日期，即使首次到达／首次落库已跨午夜也不变。
-        var digest = localDate == null ? List.of("create-default-conversation", "Asia/Shanghai")
+        List<String> digest = localDate == null ? List.of("create-default-conversation", "Asia/Shanghai")
                 : List.of("create-default-conversation", "Asia/Shanghai", localDate);
         return create(title, null, List.of(), context,
                 com.arte.ainew.serialization.CanonicalJson.digest(digest));
@@ -163,10 +172,12 @@ public final class DefaultConversationService implements ConversationService {
     @Override
     public Mono<ConversationExecutionState> executionState(String id, ExecutionContext context) {
         return authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
-            var owner = ExecutionOwners.from(current);
-            var read = admissionCatalogStore.conversationExecutionState(owner, id);
-            if (archives == null) return read;
-            return archives.findArchivedConversationIds(owner, java.util.Set.of(id))
+            ExecutionOwner owner = ExecutionOwners.from(current);
+            Mono<ConversationExecutionState> read = admissionCatalogStore.conversationExecutionState(owner, id);
+            if (archives == null) {
+                return read;
+            }
+            return archives.findArchivedConversationIds(owner, Set.of(id))
                     .switchIfEmpty(Mono.error(new IllegalStateException("Archive qualification is unavailable")))
                     .flatMap(excluded -> excluded.contains(id) ? Mono.empty() : read);
         }).switchIfEmpty(Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_NOT_FOUND)));
@@ -175,7 +186,7 @@ public final class DefaultConversationService implements ConversationService {
     @Override
     public Mono<ConversationPage<Conversation>> list(PageParam page, ExecutionContext context) {
         return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
-            var pagination = MybatisPages.from(page);
+            Page<Conversation> pagination = MybatisPages.from(page);
             return admissionCatalogStore.listConversations(ExecutionOwners.from(current), pagination.getCurrent(), pagination.getSize());
         }), context, "listConversations", null, page, null);
     }
@@ -185,7 +196,7 @@ public final class DefaultConversationService implements ConversationService {
         return observe(authorization.require(context, AdmissionAuthorization.CONVERSATION).flatMap(current -> {
             ContractChecks.id(conversationId, "conversationId");
             ContractChecks.range(expectedVersion, "expectedVersion", 0, Long.MAX_VALUE);
-            var pagination = MybatisPages.from(page);
+            Page<Conversation> pagination = MybatisPages.from(page);
             return admissionCatalogStore.listTurns(ExecutionOwners.from(current), conversationId, expectedVersion,
                     pagination.getCurrent(), pagination.getSize()).map(outcome -> {
                 if (!outcome.successful()) {
@@ -202,9 +213,9 @@ public final class DefaultConversationService implements ConversationService {
     private <T> Mono<T> observe(Mono<T> source, ExecutionContext context, String operation,
                                 String conversationId, PageParam page, Long expectedVersion) {
         return Mono.defer(() -> {
-            var started = System.nanoTime();
-            var owner = ExecutionOwners.from(context);
-            var target = conversationId == null ? null : conversationId.replaceAll("\\p{Cntrl}", "_");
+            long started = System.nanoTime();
+            ExecutionOwner owner = ExecutionOwners.from(context);
+            String target = conversationId == null ? null : conversationId.replaceAll("\\p{Cntrl}", "_");
             log.debug("AI conversation query started, operation={}, traceId={}, executionId={}, tenantId={}, workspaceId={}, subjectId={}, conversationId={}, current={}, size={}, expectedVersion={}",
                     operation, context.traceId(), context.executionId(), owner.tenantId(), owner.workspaceId(), owner.subjectId(),
                     target, page == null ? null : page.getCurrent(), page == null ? null : page.getSize(), expectedVersion);

@@ -48,6 +48,7 @@ public interface BudgetReconciliationAccess {
      * 原事务重检器：锁住公共治理范围后，才允许锁定调用和账本。
      */
     interface Permit {
+
         /**
          * 由服务端按真实账本解析的目标账户。
          */

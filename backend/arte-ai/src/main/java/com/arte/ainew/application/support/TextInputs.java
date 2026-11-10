@@ -1,6 +1,7 @@
 package com.arte.ainew.application.support;
 
 import com.arte.ainew.config.NewAiProperties;
+import com.arte.ainew.pojo.context.ContextRequest;
 import com.arte.ainew.pojo.context.ContextSnapshot;
 import com.arte.ainew.pojo.control.ResolvedBinding;
 import com.arte.ainew.pojo.execution.Invocation;
@@ -14,7 +15,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * 单条用户输入及可信历史上下文规则；估算明确标记为估算，不假装供应商 tokenizer 或计费用量。
+ * 单条用户输入及可信历史上下文规则
+ * <p>
+ * 估算明确标记为估算，不假装供应商 tokenizer 或计费用量。
  *
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/5 16:22 ✾
@@ -43,14 +46,16 @@ public final class TextInputs {
                 || !snapshot.snapshotId().equals(invocation.contextSnapshotId())
                 || !snapshot.modelBinding().equals(invocation.request().binding())
                 || !snapshot.messages().equals(generation.messages())
-                || !snapshot.contentDigest().equals(contentDigest(snapshot.messages())))
+                || !snapshot.contentDigest().equals(contentDigest(snapshot.messages()))) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
-        var link = invocation.conversation();
+        }
+        Invocation.ConversationLink link = invocation.conversation();
         // 重新生成沿用原问题位置的历史，历史版本可早于这次新调用的受理版本。
-        var history = snapshot.history();
+        ContextRequest.HistorySelection history = snapshot.history();
         if (link != null && history != null && (!history.conversationId().equals(link.conversationId())
-                || history.conversationVersion() > link.conversationVersion()))
+                || history.conversationVersion() > link.conversationVersion())) {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
+        }
     }
 
     public static void validate(List<ChatMessage> messages, NewAiProperties.Limits limits) {
@@ -74,8 +79,8 @@ public final class TextInputs {
             throw new AdmissionException(ResultCodeEnum.AI_INVALID_CONTEXT_SNAPSHOT);
         }
         for (int i = 0; i < messages.size(); i++) {
-            var message = messages.get(i);
-            var expected = i < offset ? ChatMessage.Role.SYSTEM
+            ChatMessage message = messages.get(i);
+            ChatMessage.Role expected = i < offset ? ChatMessage.Role.SYSTEM
                     : (i - offset) % 2 == 0 ? ChatMessage.Role.USER : ChatMessage.Role.ASSISTANT;
             if (message.role() != expected
                     || !message.toolCalls().isEmpty() || message.toolCallId() != null

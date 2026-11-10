@@ -128,7 +128,7 @@ public final class ChatHistoryLoader {
             // 当前只支持按固定会话版本选择最近轮次，不支持指定 Turn ID 或超过十轮的选择。
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED));
         }
-        var owner = ExecutionOwners.from(executionContext);
+        ExecutionOwner owner = ExecutionOwners.from(executionContext);
         return conversationService.find(selection.conversationId(), executionContext).flatMap(conversation ->
                 // 先按主体归属、能力 ID 和幂等键查找原受理记录，再决定是否检查当前会话版本。
                 // 原调用受理后会话版本可能已推进，重放必须优先恢复原输入历史。
@@ -149,7 +149,7 @@ public final class ChatHistoryLoader {
                                         executionContext.executionId(), originalInvocation.request().context().executionId(), executionContext.traceId(),
                                         selection.conversationId(), contextSnapshot.snapshotId());
                                 TextInputs.requireActualSnapshot(originalInvocation, contextSnapshot);
-                                var loaded = new Loaded(contextSnapshot.messages().subList(0, contextSnapshot.messages().size() - 1),
+                                Loaded loaded = new Loaded(contextSnapshot.messages().subList(0, contextSnapshot.messages().size() - 1),
                                         contextSnapshot.history(), contextSnapshot.assistant());
                                 // 无历史时不需要额外的历史读取权限；有历史时，即使是幂等重放也重新校验 ai:read。
                                 return loaded.messages().isEmpty() ? Mono.just(loaded)
@@ -163,37 +163,41 @@ public final class ChatHistoryLoader {
                         return Mono.error(new AdmissionException(ResultCodeEnum.AI_VERSION_CONFLICT));
                     }
                     // 新会话版本为零，尚未受理任何轮次，直接返回空历史且不创建历史选择记录。
-                    if (conversation.version() == 0) return Mono.just(new Loaded(List.of(), null));
+                    if (conversation.version() == 0) {
+                        return Mono.just(new Loaded(List.of(), null));
+                    }
                     return admissionAuthorization.require(executionContext, AdmissionAuthorization.READ).flatMap(currentContext -> {
-                        var firstPage = new PageParam();
+                        PageParam firstPage = new PageParam();
                         firstPage.setCurrent(1L);
                         firstPage.setSize((long) selection.maxTurns());
                         return conversationService.turns(conversation.conversationId(), conversation.version(), firstPage, currentContext)
                                 .flatMapMany(first -> {
                                     long last = Math.max(1, (first.total() + selection.maxTurns() - 1) / selection.maxTurns());
-                                    var pages = last == 1 ? List.of(1L) : List.of(last - 1, last);
+                                    List<Long> pages = last == 1 ? List.of(1L) : List.of(last - 1, last);
                                     return Flux.fromIterable(pages).concatMap(page -> {
-                                        if (page == 1) return Mono.just(first);
-                                        var pagination = new PageParam();
+                                        if (page == 1) {
+                                            return Mono.just(first);
+                                        }
+                                        PageParam pagination = new PageParam();
                                         pagination.setCurrent(page);
                                         pagination.setSize((long) selection.maxTurns());
                                         return conversationService.turns(conversation.conversationId(), conversation.version(), pagination, currentContext);
                                     });
                                 }).flatMapIterable(ConversationPage::records).collectList().flatMap(turns -> {
-                                    var recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
+                                    List<Turn> recent = turns.stream().sorted(Comparator.comparingLong(Turn::sequence))
                                             .skip(Math.max(0, turns.size() - selection.maxTurns())).toList();
                                     // 按历史顺序逐轮读取权威执行状态和已提交结果；concatMap 保留顺序。
                                     // 已知失败及合格普通文本 UNKNOWN 整轮跳过，活跃／不合格未知状态及完整性错误终止加载。
                                     return Flux.fromIterable(recent).concatMap(turn -> completed(turn, conversation)).collectList();
                                 }).map(completed -> {
-                                    var messages = new ArrayList<ChatMessage>();
+                                    ArrayList<ChatMessage> messages = new ArrayList<>();
                                     completed.forEach(turn -> {
                                         messages.add(turn.turn().userMessage());
                                         messages.add(turn.answer());
                                     });
                                     // 将“最近轮次”的选择条件收敛为实际选入的 Turn ID，供快照记录确切历史来源。
                                     // 若没有可用的完整成功回复，history 必须为 null，不能保存空 Turn ID 的历史选择。
-                                    var actual = completed.isEmpty() ? null : new ContextRequest.HistorySelection(selection.conversationId(),
+                                    ContextRequest.HistorySelection actual = completed.isEmpty() ? null : new ContextRequest.HistorySelection(selection.conversationId(),
                                             selection.conversationVersion(), completed.stream().map(turn -> turn.turn().turnId()).toList(), selection.maxTurns());
                                     return new Loaded(List.copyOf(messages), actual);
                                 });
@@ -205,20 +209,24 @@ public final class ChatHistoryLoader {
      * 从一轮历史中选取可用于后续模型输入的完整纯文本回答。
      * 优先使用显式选中的类型化候选，未选择时使用最新候选；Invocation 与 Run 分别核验权威结果。
      *
-     * @param turn  待检查的历史轮次，候选关联来自已受理的会话记录。
+     * @param turn         待检查的历史轮次，候选关联来自已受理的会话记录。
      * @param conversation 已校验当前读取权限的会话及 owner，用于核验候选的直接关联和普通文本资格。
      * @return 完整成功问答；已知失败或合格普通文本 UNKNOWN 整轮返回 empty。
      * 活跃、不合格 UNKNOWN、归属／关联错误及成功结果损坏明确拒绝，不作为可跳过的失败吞掉。
      */
     private Mono<Completed> completed(Turn turn, Conversation conversation) {
-        var owner = conversation.owner();
-        if (!turn.conversationId().equals(conversation.conversationId()))
+        ExecutionOwner owner = conversation.owner();
+        if (!turn.conversationId().equals(conversation.conversationId())) {
             return Mono.error(new IllegalStateException("History turn does not match conversation"));
-        var candidate = turn.effectiveCandidate();
-        if (candidate == null) return Mono.empty();
-        if (candidate.kind() == AnswerCandidate.Kind.TOOL_CHAT_RUN)
+        }
+        AnswerCandidate candidate = turn.effectiveCandidate();
+        if (candidate == null) {
+            return Mono.empty();
+        }
+        if (candidate.kind() == AnswerCandidate.Kind.TOOL_CHAT_RUN) {
             return completedRun(turn, owner, candidate.executionId());
-        var id = candidate.executionId();
+        }
+        String id = candidate.executionId();
         return executionStore.find(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History invocation is missing")))
                 .flatMap(invocation -> {
                     // 候选 Invocation 必须同时关联目标会话和目标 Turn，不能仅凭列表中的 ID 信任其来源。
@@ -241,8 +249,9 @@ public final class ChatHistoryLoader {
                                 invocation.result() != null && invocation.result().partial());
                         return Mono.empty();
                     }
-                    if (invocation.result() == null || invocation.result().partial())
+                    if (invocation.result() == null || invocation.result().partial()) {
                         return Mono.error(new IllegalStateException("Successful history result is incomplete"));
+                    }
                     return executionResultStore.find(owner, id, invocation.result())
                             .switchIfEmpty(Mono.error(new IllegalStateException("Committed history result bytes are missing")))
                             .flatMap(result -> answer(turn, result));
@@ -251,44 +260,52 @@ public final class ChatHistoryLoader {
 
     private Mono<Completed> answer(Turn turn, InvocationResult result) {
         // 再核对结果字节的能力类型与模型输出完整性，不能只依赖 Invocation 的成功状态。
-        if (!(result instanceof InvocationResult.Generation(
-                ModelResult value
-        )) || !value.complete())
+        if (!(result instanceof InvocationResult.Generation(ModelResult value)) || !value.complete()) {
             return Mono.error(new IllegalStateException("Successful history result type or completeness mismatch"));
-        var outputs = value.outputs();
+        }
+        List<ChatMessage> outputs = value.outputs();
         // 当前历史链路只支持非空的纯文本助手输出；工具调用、工具关联及多模态内容均显式拒绝。
         if (value.structuredOutput() != null || outputs.isEmpty() || outputs.stream().anyMatch(message -> !message.toolCalls().isEmpty()
                 || message.toolCallId() != null || message.content().stream().anyMatch(part -> !(part instanceof ChatMessage.Text)))) {
             return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONTEXT_SELECTION_NOT_SUPPORTED));
         }
         // 只合并该轮最终 assistant 文本；工具过程独立保留。
-        var parts = outputs.stream().flatMap(message -> message.content().stream()).toList();
+        List<ChatMessage.ContentPart> parts = outputs.stream().flatMap(message -> message.content().stream()).toList();
         return Mono.just(new Completed(turn, new ChatMessage("history-" + turn.turnId(),
                 ChatMessage.Role.ASSISTANT, parts, List.of(), null)));
     }
 
     private Mono<Completed> completedRun(Turn turn, ExecutionOwner owner, String id) {
-        if (runs == null) return Mono.error(new IllegalStateException("Run history reader is unavailable"));
+        if (runs == null) {
+            return Mono.error(new IllegalStateException("Run history reader is unavailable"));
+        }
         return runs.find(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History Run is missing"))).flatMap(run ->
                 runs.link(owner, id).switchIfEmpty(Mono.error(new IllegalStateException("History Run link is missing"))).flatMap(link -> {
-                    if (!link.conversationId().equals(turn.conversationId()) || !link.turnId().equals(turn.turnId()))
+                    if (!link.conversationId().equals(turn.conversationId()) || !link.turnId().equals(turn.turnId())) {
                         return Mono.error(new IllegalStateException("History Run does not match turn"));
-                    if (!run.state().terminal())
+                    }
+                    if (!run.state().terminal()) {
                         return Mono.error(new AdmissionException(ResultCodeEnum.AI_CONVERSATION_BUSY));
-                    if (run.state() != ToolChatRun.State.SUCCEEDED) return Mono.empty();
-                    if (link.finalInvocationId() == null || run.result() == null || run.result().partial())
+                    }
+                    if (run.state() != ToolChatRun.State.SUCCEEDED) {
+                        return Mono.empty();
+                    }
+                    if (link.finalInvocationId() == null || run.result() == null || run.result().partial()) {
                         return Mono.error(new IllegalStateException("Successful Run final answer is missing"));
+                    }
                     return executionStore.find(owner, link.finalInvocationId())
                             .switchIfEmpty(Mono.error(new IllegalStateException("Run final model is missing"))).flatMap(child -> {
                                 if (!id.equals(child.request().context().parentExecutionId()) || child.conversation() != null
-                                        || child.state() != Invocation.State.SUCCEEDED || !run.result().equals(child.result()))
+                                        || child.state() != Invocation.State.SUCCEEDED || !run.result().equals(child.result())) {
                                     return Mono.error(new IllegalStateException("Run final model identity mismatch"));
+                                }
                                 return executionResultStore.find(owner, link.finalInvocationId(), run.result())
                                         .switchIfEmpty(Mono.error(new IllegalStateException("Run final result is missing")))
                                         .flatMap(value -> {
                                             if (!(value instanceof InvocationResult.Generation(ModelResult value1))
-                                                    || value1.finishReason() != ModelResult.FinishReason.STOP)
+                                                    || value1.finishReason() != ModelResult.FinishReason.STOP) {
                                                 return Mono.error(new IllegalStateException("Run final answer is incomplete"));
+                                            }
                                             return answer(turn, value);
                                         });
                             });

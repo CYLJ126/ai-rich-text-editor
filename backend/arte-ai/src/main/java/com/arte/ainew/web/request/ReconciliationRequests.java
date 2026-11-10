@@ -1,5 +1,7 @@
 package com.arte.ainew.web.request;
 
+import com.arte.core.pojo.access.ResourceRef;
+import com.arte.core.pojo.access.ResourceType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
@@ -90,8 +92,8 @@ public final class ReconciliationRequests {
     public record AccountRef(@NotBlank @Size(max = 256) String tenantId,
                              @NotBlank @Pattern(regexp = "budget-account") String type,
                              @NotBlank @Size(max = 256) String resourceId) {
-        public com.arte.core.pojo.access.ResourceRef ref() {
-            return new com.arte.core.pojo.access.ResourceRef(tenantId, new com.arte.core.pojo.access.ResourceType(type), resourceId);
+        public ResourceRef ref() {
+            return new ResourceRef(tenantId, new ResourceType(type), resourceId);
         }
     }
 

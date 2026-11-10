@@ -29,6 +29,7 @@ public record ConversationExecutionState(String conversationId, long version, Ac
      * @param executionId 对应 Invocation 或 Run 的真实 ID。
      */
     public record ActiveExecution(Kind kind, String executionId) {
+
         public ActiveExecution {
             Objects.requireNonNull(kind, "kind");
             ContractChecks.id(executionId, "executionId");
