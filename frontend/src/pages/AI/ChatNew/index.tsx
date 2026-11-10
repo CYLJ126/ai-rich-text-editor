@@ -69,7 +69,6 @@ import ConversationDirectoryHeader from '@/features/ainew/ConversationDirectoryH
 import ChatWorkspaceLayout from '@/features/ainew/ChatWorkspaceLayout';
 import {useChatLayout} from '@/features/ainew/useChatLayout';
 import {useComponentHeight} from '@/utils/useDynamicHeight';
-import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
 import type {ConfigurationRejected} from '@/features/ainew/configurationInvalidation';
 import {
   type BrowserContext,
@@ -160,7 +159,7 @@ function WorkspaceChat({
   // 布局，各栏状态、可见性、尺寸等计算
   const layout = useChatLayout();
   // 右侧辅助栏显示哪个标签页
-  const [tab, setTab] = useState('models');
+  const [tab, setTab] = useState('settings');
   const [workspaceSelectOpen, setWorkspaceSelectOpen] = useState(false);
   const seenWorkspaceRevision = useRef(workspaceRevision);
   const [toolSettingsContainer, setToolSettingsContainer] = useState<HTMLDivElement | null>(null);
@@ -468,23 +467,9 @@ function WorkspaceChat({
 
   // 右侧辅助栏
   const editor = <Flex component="aside" vertical className="ainew-settings" aria-label="辅助设置">
-    <Flex component="header" align="center" justify="space-between" gap={4}
-          className="ainew-settings-header">
-      <Typography.Text strong>设置与管理</Typography.Text>
-      <Button type="text" aria-label="收起设置侧栏" icon={<DynamicIcon iconName="MenuFoldOutlined"/>}
-              onClick={() => layout.close('settings')}/>
-    </Flex>
     {/* 右侧辅助栏 */}
-    <Tabs className={`ainew-settings-tabs${tab === 'workspace' ? ' is-workspace' : ''}`} tabBarGutter={0}
+    <Tabs className={`ainew-settings-tabs${tab === 'workspace' ? ' is-workspace' : ''}`} size="small" tabBarGutter={0}
           activeKey={tab} onChange={setTab} destroyOnHidden={false} items={[
-      {
-        key: 'workspace',
-        className: 'ainew-workspace-pane',
-        label: '',
-        icon: <Tooltip title='工作空间'><HomeOutlined aria-label="工作空间"/></Tooltip>,
-        forceRender: true,
-        children: workspaceManager
-      },
       {
         key: 'settings',
         label: '',
@@ -529,10 +514,19 @@ function WorkspaceChat({
                                                }]}/>}</>
       },
       {
+        key: 'workspace',
+        className: 'ainew-workspace-pane',
+        label: '',
+        icon: <Tooltip title='工作空间'><HomeOutlined aria-label="工作空间"/></Tooltip>,
+        forceRender: true,
+        children: workspaceManager
+      },
+      {
         key: 'models',
         label: '',
         className: 'ainew-models-pane',
         icon: <Tooltip title='模型管理'><AppstoreOutlined aria-label="模型管理"/></Tooltip>,
+        forceRender: true,
         children: <>
           <Segmented block aria-label="模型视图" value={modelMode} disabled={aiSettingsUnsafe || modelManagementUnsafe}
                      options={[{label: '可用模型', value: 'catalog'}, {label: '我可管理', value: 'manage'}]}

@@ -345,6 +345,7 @@ it('keeps dirty configuration protection for search navigation and releases its 
   render(<ChatNewPage/>);
   await chooseConversation();
   await screen.findByText('可用余额 100 CNY');
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
   fireEvent.click(screen.getByRole('button', {name: '高级参数'}));
   fireEvent.change(screen.getByRole('spinbutton', {name: /最大输出 Token/}), {target: {value: '1024'}});
   await screen.findByText('有未应用更改');
@@ -390,6 +391,11 @@ async function chooseConversation() {
 it('registers a business view with one chat session and one shared configuration form', async () => {
   render(<ChatNewPage/>);
   await chooseConversation();
+  const settings = screen.getByRole('complementary', {name: '辅助设置'});
+  expect(within(settings).getAllByRole('tab')[0]).toHaveAccessibleName('会话设置');
+  expect(screen.getByRole('tab', {name: '会话设置'})).toHaveAttribute('aria-selected', 'true');
+  expect(screen.queryByText('设置与管理')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name: '收起设置侧栏'})).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('输入问题'), {target: {value: '你好'}});
   await waitFor(() => expect(screen.getByRole('button', {name: '发送'})).toBeEnabled());
   expect(document.querySelectorAll('.ainew-chat')).toHaveLength(1);
@@ -534,8 +540,6 @@ it('keeps the chat draft and single configuration form when collapsing regions a
   fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
   expect(screen.getByRole('spinbutton', {name: /最大输出 Token/})).toBe(outputLimit);
   expect(outputLimit).toHaveValue('1024');
-  fireEvent.click(screen.getByRole('button', {name: '收起设置侧栏'}));
-  fireEvent.click(screen.getByRole('button', {name: '展开设置侧栏'}));
   expect(screen.getByLabelText('输入问题')).toBe(composer);
   expect(composer).toHaveValue('切换布局后保留');
   expect(document.querySelectorAll('form#ai-new-chat-config')).toHaveLength(1);
@@ -557,6 +561,7 @@ it('checks newly edited configuration again after a search target has been read 
   const reads = vi.mocked(api.getConversation).mock.calls.length;
   fireEvent.click(screen.getByRole('button', {name: '查看命中消息：搜索中的会话'}));
   await waitFor(() => expect(api.getConversation).toHaveBeenCalledTimes(reads + 1));
+  fireEvent.click(screen.getByRole('tab', {name: '模型管理'}));
   fireEvent.click(screen.getByRole('button', {name: '高级参数'}));
   fireEvent.change(screen.getByRole('spinbutton', {name: /最大输出 Token/}), {target: {value: '1024'}});
   await act(async () => {

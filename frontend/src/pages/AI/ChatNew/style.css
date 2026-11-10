@@ -200,7 +200,7 @@
 
 .ainew-settings.ant-flex {
   box-sizing: border-box;
-  padding: 12px;
+  padding: 0 12px 0 12px;
   overflow: hidden;
   height: 100%;
   min-width: 0;
@@ -210,7 +210,7 @@
   flex-shrink: 0;
 }
 
-/* 工作空间内容独立滚动，保留标题与 Tab 导航，不显示滚动条。 */
+/* 工作空间内容独立滚动，保留 Tab 导航，不显示滚动条。 */
 .ainew-settings-tabs.is-workspace.ant-tabs {
   flex: 1 1 0;
   min-height: 0;
@@ -284,16 +284,11 @@
   gap: 8px;
 }
 
-.ainew-settings-header, .ainew-directory-header, .ainew-directory-tools {
+.ainew-directory-header, .ainew-directory-tools {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-}
-
-.ainew-settings-header.ant-flex {
-  justify-content: space-between;
-  margin-bottom: 8px;
 }
 
 .ainew-region {
@@ -498,7 +493,7 @@
   flex: 1 1 0;
   min-width: 0;
   justify-content: center;
-  padding: 12px 0;
+  padding: 8px 0;
 }
 
 .ainew-settings-tabs > .ant-tabs-nav .ant-tabs-tab-btn {
@@ -517,10 +512,10 @@
 }
 
 .ainew-settings-tabs > .ant-tabs-nav .anticon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .ainew-tool-settings,
