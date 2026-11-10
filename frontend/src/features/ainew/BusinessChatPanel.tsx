@@ -3,7 +3,6 @@ import {createPortal} from 'react-dom';
 import {
   Alert,
   Button,
-  Collapse,
   Descriptions,
   Drawer,
   Empty,
@@ -16,7 +15,18 @@ import {
   Tooltip,
   Typography
 } from 'antd';
-import {ArrowDownOutlined, MenuFoldOutlined, MenuUnfoldOutlined, RobotOutlined, UserOutlined} from '@ant-design/icons';
+import {
+  ArrowDownOutlined,
+  CopyOutlined,
+  DownOutlined,
+  FormOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ReloadOutlined,
+  RobotOutlined,
+  UserOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 import {
   AiApiError,
   type ChatMessage,
@@ -198,6 +208,7 @@ export default function BusinessChatPanel({
                              onPrepare={prepareRun}/>;
   }
   const [viewed, setViewed] = useState<Record<string, string>>({});
+  const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
   const [olderCache, setOlderCache] = useState<{
     version: number;
     turns: typeof chat.turns
@@ -473,6 +484,10 @@ export default function BusinessChatPanel({
         const invocation = id ? visibleViews[id] : undefined;
         const result = invocation?.result?.kind === 'GENERATION' ? invocation.result.result.value : null;
         const text = result ? result.outputs.map(messageText).join('\n\n') : invocation?.streamText ?? '';
+        const answeredAt = invocation?.status?.acceptedAt;
+        const detailsExpanded = !!expandedDetails[turn.turnId];
+        const detailsLabel = detailsExpanded ? '收起执行详情' : '展开执行详情';
+        const detailsId = `ainew-execution-${turn.turnId}`;
         const regenerate = !located.active && turn.sequence === chat.total && latest?.kind === 'GENERATION' && !isActive(latest) && latest.blocksConversation === false;
         const selectedView = selected?.kind === 'INVOCATION' ? visibleViews[selected.executionId] : undefined;
         const adopted = selectedView?.status?.state === 'SUCCEEDED' && selectedView.result?.kind === 'GENERATION' && selectedView.result.result.value.complete;
@@ -533,27 +548,48 @@ export default function BusinessChatPanel({
               {skippedTurn ? <Typography.Paragraph>{t('recovery.turnSkipped')}</Typography.Paragraph>
                 : skippedCandidate && <Typography.Paragraph>{t('recovery.candidateSkipped')}</Typography.Paragraph>}
             {error(invocation?.error, () => id && void chat.inspectCandidate(id))}
-            <Flex align="center" gap={8} wrap className="ainew-answer-actions">
-              {text && <Button size="small" onClick={() => void copyText(text, setNotice)}>复制回答</Button>}
-              {plainQuestion && <Button size="small"
-                                        onClick={() => copyQuestion(messageText(turn.userMessage))}>{t('recovery.copyQuestion')}</Button>}
-              {plainQuestion &&
-                <Typography.Text type="secondary">{t('recovery.currentConfiguration')}</Typography.Text>}
-              {regenerate && <Button size="small" disabled={regenerationBlocked}
-                                     title="沿用原问题、模型、参数及预算，将产生新调用和费用。" onClick={() => {
+              <Flex align="center" gap={12} className="ainew-answer-actions">
+                <Flex align="center" gap={4} className="ainew-answer-action-icons">
+                  {text && <Tooltip title="复制回答"><Button type="text" size="small" aria-label="复制回答"
+                                                             icon={<CopyOutlined/>}
+                                                             onClick={() => void copyText(text, setNotice)}/></Tooltip>}
+                  {plainQuestion && <Tooltip title={t('recovery.copyQuestion')}>
+                    <Button type="text" size="small" aria-label={t('recovery.copyQuestion')} icon={<FormOutlined/>}
+                            onClick={() => copyQuestion(messageText(turn.userMessage))}/></Tooltip>}
+                  {regenerate && <Tooltip title="重新生成">
+                    <Button type="text" size="small" aria-label="重新生成" icon={<ReloadOutlined/>}
+                            disabled={regenerationBlocked}
+                            onClick={() => {
                 setViewed(previous => {
                   const next = {...previous};
                   delete next[turn.turnId];
                   return next;
                 });
                 void chat.regenerate(latestId);
-              }}>重新生成</Button>}
-              {regenerate && <Typography.Text
-                type="secondary">{t(latest?.state === 'UNKNOWN' ? 'recovery.regenerateUnknown' : 'recovery.regenerateHelp')}</Typography.Text>}
-              <Collapse ghost size="small" className="ainew-execution-details"
-                        styles={{header: {padding: '8px 0'}, body: {padding: '0 0 8px'}}}
-                        items={[{
-                          key: 'execution', label: '执行详情', children: <>
+                            }}/></Tooltip>}
+                  <Tooltip title={detailsLabel}>
+                    <Button type="text" size="small" aria-label={detailsLabel} aria-expanded={detailsExpanded}
+                            aria-controls={detailsId} icon={<DownOutlined rotate={detailsExpanded ? 180 : 0}/>}
+                            onClick={() => setExpandedDetails(previous => ({
+                              ...previous,
+                              [turn.turnId]: !previous[turn.turnId]
+                            }))}/>
+                  </Tooltip>
+                </Flex>
+                <div className="ainew-answer-metadata" aria-label="消息生成信息">
+                  <span>输入 {result?.usage.inputTokens ?? '—'} tokens</span>
+                  <span>输出 {result?.usage.outputTokens ?? '—'} tokens</span>
+                  <span className="ainew-answer-model"
+                        title={result ? `${result.model.providerId} / ${result.model.modelId}${result.model.revision ? `@${result.model.revision}` : ''}` : '远端模型待返回'}>
+                  {result?.model.modelId ?? '模型待返回'}
+                </span>
+                  {answeredAt && <time dateTime={answeredAt} title={dayjs(answeredAt).format('YYYY-MM-DD HH:mm:ss')}>
+                    {dayjs(answeredAt).format('HH:mm')}
+                  </time>}
+                </div>
+              </Flex>
+              <div id={detailsId} className="ainew-execution-details" hidden={!detailsExpanded}>
+                {detailsExpanded && <>
                             <Typography.Paragraph>{t('recovery.copyHelp')}</Typography.Paragraph>
                             <Descriptions column={1} size="small" className="ainew-info" items={[
                               {key: 'invocation', label: '调用', children: id ?? '未知'},
@@ -575,9 +611,8 @@ export default function BusinessChatPanel({
                                 label: '错误',
                                 children: `${invocation.status.error.code} · ${invocation.status.error.phase} · ${invocation.status.error.correlationId}`
                               }] : []),
-                            ]}/></>
-                        }]}/>
-            </Flex>
+                            ]}/></>}
+              </div>
             </>}
             {latestRun && latestRun.executionId !== runCandidate?.executionId &&
               <div hidden>{renderRun(latestRun.executionId, false)}</div>}

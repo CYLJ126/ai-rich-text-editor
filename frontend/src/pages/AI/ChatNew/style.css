@@ -758,16 +758,61 @@
 }
 
 .ainew-answer-actions.ant-flex {
+  min-width: 0;
+  flex-wrap: nowrap;
   margin-top: 12px;
   font-size: 12px;
   color: var(--ant-color-text-secondary);
 }
 
-.ainew-execution-details.ant-collapse {
-  flex-basis: 100%;
+.ainew-answer-action-icons.ant-flex {
+  flex: 0 0 auto;
+}
+
+.ainew-answer-action-icons .ant-btn.ant-btn-icon-only {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ant-color-text-secondary);
+}
+
+.ainew-answer-metadata {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  line-height: 20px;
+}
+
+.ainew-answer-metadata > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.ainew-answer-metadata > time {
+  white-space: nowrap;
+}
+
+.ainew-answer-metadata > .ainew-answer-model {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ainew-execution-details {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.ainew-execution-details:not([hidden]) {
+  padding: 8px 0;
 }
 
 .ainew-reply-placeholder.ant-flex {

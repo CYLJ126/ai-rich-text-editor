@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {Modal} from 'antd';
-import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, renderHook, screen, waitFor, within} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import * as api from '@/services/arte-ai';
 import {chatConfigSchema, DEFAULT_CHAT_CONFIG} from './config';
@@ -960,7 +960,9 @@ it('copies only a question into the draft, defaults to keep a nonempty draft, an
   fireEvent.click(copy);
   fireEvent.click(await screen.findByRole('button', {name: uiT('recovery.replace')}));
   await waitFor(() => expect(screen.getByRole('textbox', {name: '输入问题'})).toHaveValue('可复制的原问题'));
-  expect(screen.getByText(uiT('recovery.currentConfiguration'))).toBeInTheDocument();
+  fireEvent.mouseOver(copy);
+  expect((await screen.findByRole('tooltip')).textContent).toBe(uiT('recovery.copyQuestion'));
+  expect(screen.getByLabelText('消息生成信息')).toHaveTextContent('输入 — tokens输出 — tokens模型待返回');
   expect(api.turnsForChat).not.toHaveBeenCalled();
   expect(api.regenerateChat).not.toHaveBeenCalled();
   expect(api.confirmReconciliation).not.toHaveBeenCalled();
@@ -1044,7 +1046,7 @@ it('marks only a failed viewed candidate when a complete successful answer remai
             toolCallId: null
           }],
           finishReason: 'STOP', complete: true, structuredOutput: null,
-          usage: {basis: 'PROVIDER_REPORTED', inputTokens: 3, outputTokens: 3, totalTokens: 6}, sources: [],
+          usage: {basis: 'PROVIDER_REPORTED', inputTokens: 0, outputTokens: 3, totalTokens: 3}, sources: [],
         }
       }
     },
@@ -1053,6 +1055,27 @@ it('marks only a failed viewed candidate when a complete successful answer remai
                             onUpdated={vi.fn()} onChooseModel={vi.fn()} onConfigurationRejected={vi.fn()}
                             onInteraction={vi.fn()} onOpenToolSettings={vi.fn()} t={uiT}/>);
   await screen.findByText('原完整成功答案');
+  const metadata = screen.getByLabelText('消息生成信息');
+  expect([...metadata.children].map(item => item.textContent)).toEqual([
+    '输入 0 tokens', '输出 3 tokens', 'model', expect.stringMatching(/^\d{2}:\d{2}$/)
+  ]);
+  expect(metadata.querySelector('time')).toHaveAttribute('dateTime', conversation.createdAt);
+  const footer = metadata.parentElement!;
+  expect(within(footer).getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
+    '复制回答', uiT('recovery.copyQuestion'), '重新生成', '展开执行详情'
+  ]);
+  expect(within(footer).getAllByRole('button').every(button => !button.textContent)).toBe(true);
+  const detailsToggle = within(footer).getByRole('button', {name: '展开执行详情'});
+  expect(detailsToggle).toHaveAttribute('aria-expanded', 'false');
+  const details = document.getElementById(detailsToggle.getAttribute('aria-controls')!)!;
+  expect(details).not.toBeVisible();
+  fireEvent.click(detailsToggle);
+  expect(within(footer).getByRole('button', {name: '收起执行详情'})).toHaveAttribute('aria-expanded', 'true');
+  expect(details).toBeVisible();
+  expect(within(details).getByText('success')).toBeInTheDocument();
+  fireEvent.click(detailsToggle);
+  expect(detailsToggle).toHaveAttribute('aria-expanded', 'false');
+  expect(details).not.toBeVisible();
   expect(screen.getByText('回复 1 · 后续上下文采用')).toBeInTheDocument();
   expect(screen.queryByText(uiT('recovery.turnSkipped'))).toBeNull();
   fireEvent.mouseDown(screen.getByRole('combobox', {name: '浏览第 1 轮候选回复'}));
