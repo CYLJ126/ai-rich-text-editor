@@ -1,3 +1,4 @@
+import {workspaceOwnership, workspaceRelationship} from './workspaceIdentity';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, Button, Card, Descriptions, Flex, Form, Input, Select, Tabs, Typography} from 'antd';
 import {
@@ -315,6 +316,16 @@ function Detail({
                                                  key: 'overview', label: '概览', children: <Flex vertical gap={12}>
                                                    <Descriptions size="small" column={{xs: 1, sm: 2}} items={[
                                                      {
+                                                       key: 'identity',
+                                                       label: '空间归属',
+                                                       children: workspaceOwnership(view)
+                                                     },
+                                                     {
+                                                       key: 'relationship',
+                                                       label: '我的关系',
+                                                       children: workspaceRelationship(view) || '—'
+                                                     },
+                                                     {
                                                        key: 'role',
                                                        label: '我的角色',
                                                        children: ['负责人', '管理员', '成员', '访客'][view.currentRole]
@@ -353,6 +364,7 @@ function Detail({
                                                ...(caps && (caps.manage || caps.leave) && membershipTarget ? [{
                                                  key: 'members', label: '成员',
                                                  children: <MembershipPanel target={membershipTarget}
+                                                                            targetName={view.name}
                                                                             version={view.version} caps={caps}
                                                                             disabled={locked}/>
                                                }] : []),

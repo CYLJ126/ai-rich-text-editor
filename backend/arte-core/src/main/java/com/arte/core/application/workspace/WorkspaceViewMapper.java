@@ -19,7 +19,14 @@ final class WorkspaceViewMapper {
     static WorkspaceViews.WorkspaceView workspace(WorkspaceAccessSupport.WorkspaceSnapshot workspaceSnapshot) {
         Workspace workspace = workspaceSnapshot.workspace();
         return new WorkspaceViews.WorkspaceView(workspace.scope(), workspace.name(), workspace.description(),
-                workspace.state(), workspaceSnapshot.member().role(), workspace.version());
+                workspace.state(), workspaceSnapshot.member().role(), workspace.version(), identity(workspaceSnapshot));
+    }
+
+    static WorkspaceViews.WorkspaceIdentity identity(WorkspaceAccessSupport.WorkspaceSnapshot snapshot) {
+        Tenant tenant = snapshot.tenant().tenant();
+        String subject = snapshot.tenant().principal().subjectId();
+        return new WorkspaceViews.WorkspaceIdentity(tenant.name(), tenant.type(),
+                subject.equals(tenant.personalSubjectId()), subject.equals(snapshot.workspace().createdBy()));
     }
 
     static WorkspaceViews.TenantView tenant(WorkspaceAccessSupport.TenantSnapshot snapshot) {

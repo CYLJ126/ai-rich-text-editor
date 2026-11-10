@@ -97,4 +97,10 @@ public interface MembershipService {
      * @return 交接操作回执，包含更新后的空间信息
      */
     CommandReceipt<WorkspaceViews.WorkspaceView> transferOwner(TrustedActor actor, WorkspaceCommands.TransferOwner command);
+
+    /**
+     * 受邀账号拒绝本人待处理邀请，沿用事务及幂等回执。
+     */
+    CommandReceipt<WorkspaceViews.InvitationView> decline(TrustedActor actor, WorkspaceCommands.DeclineInvitation command);
+
 }

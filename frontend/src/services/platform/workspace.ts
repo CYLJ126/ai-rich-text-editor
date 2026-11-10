@@ -22,6 +22,10 @@ const role = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 export const workspaceViewSchema = z.object({
   scope: workspaceScopeSchema, name: z.string().min(1).max(100), description: z.string().max(1000).optional(),
   state: role, currentRole: role, version,
+  identity: z.object({
+    tenantName: z.string().min(1).max(100), tenantType: z.union([z.literal(0), z.literal(1)]),
+    hostedByMe: z.boolean(), createdByMe: z.boolean()
+  }).nullish(),
 });
 export const workspacePreferenceSchema = z.object({
   defaultScope: workspaceScopeSchema, startupScope: workspaceScopeSchema.nullable(),

@@ -30,7 +30,9 @@ public enum PlatformErrorCodeEnum implements IEnum<Integer>, MyEnum<Integer> {
     AUTHORITY_UNAVAILABLE(113, "无法确认当前授权"),
     IDENTITY_CONFLICT(114, "稳定身份关联冲突"),
     TENANT_INACTIVE(115, "租户已停用或关闭中"),
-    CURSOR_EXPIRED(116, "空间目录游标已过期，请刷新目录");
+    CURSOR_EXPIRED(116, "空间目录游标已过期，请刷新目录"),
+    INVITATION_PENDING(117, "已有有效邀请，请等待处理或撤销后重新邀请"),
+    ALREADY_MEMBER(118, "该账号已是成员，请使用角色管理调整权限");
 
     private final Integer value;
     private final String description;

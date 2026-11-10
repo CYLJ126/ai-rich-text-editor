@@ -204,30 +204,59 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
 
     @Override
     public PageResult<TenantInvitationView> listTenantInvitations(TrustedActor actor, String tenantId, PageQuery query) {
+        return listTenantInvitations(actor, tenantId, query, null);
+    }
+
+    public PageResult<TenantInvitationView> listTenantInvitations(TrustedActor actor, String tenantId, PageQuery query, InvitationStateEnum state) {
         return read(actor, tenantRange(tenantId), () -> {
             organization(actor, tenantId, TENANT_MEMBER_MANAGE);
-            return tenantInvitations.listTenantInvitations(tenantId, null, query).map(this::view);
+            return tenantInvitations.listTenantInvitations(tenantId, null, query, state, clock.instant()).map(this::view);
         });
     }
 
     @Override
     public PageResult<TenantInvitationView> listMyTenantInvitations(TrustedActor actor, PageQuery query) {
+        return listMyTenantInvitations(actor, query, null);
+    }
+
+    public PageResult<TenantInvitationView> listMyTenantInvitations(TrustedActor actor, PageQuery query, InvitationStateEnum state) {
         String subject = principals.requireUser(actor).subjectId();
-        return tx.readOnly(() -> tenantInvitations.listTenantInvitations(null, subject, query).map(this::view));
+        return tx.readOnly(() -> tenantInvitations.listTenantInvitations(null, subject, query, state, clock.instant()).map(this::view));
     }
 
     @Override
     public PageResult<InvitationView> listWorkspaceInvitations(TrustedActor actor, Scope scope, PageQuery query) {
+        return listWorkspaceInvitations(actor, scope, query, null);
+    }
+
+    public PageResult<InvitationView> listWorkspaceInvitations(TrustedActor actor, Scope scope, PageQuery query, InvitationStateEnum state) {
         return read(actor, range(scope), () -> {
             workspace(actor, scope, WORKSPACE_INVITE);
-            return spaceInvitations.listForWorkspace(scope, query).map(this::view);
+            return spaceInvitations.listForWorkspace(scope, query, state, clock.instant()).map(this::view);
         });
     }
 
     @Override
     public PageResult<InvitationView> listInvitations(TrustedActor actor, PageQuery query) {
+        return listInvitations(actor, query, null);
+    }
+
+    public PageResult<InvitationView> listInvitations(TrustedActor actor, PageQuery query, InvitationStateEnum state) {
         String subject = principals.requireUser(actor).subjectId();
-        return tx.readOnly(() -> spaceInvitations.listForSubject(subject, query).map(this::view));
+        return tx.readOnly(() -> spaceInvitations.listForSubject(subject, query, state, clock.instant()).map(this::view));
+    }
+
+    /**
+     * 本人未过期待处理邀请数量，不要求已加入目标租户或空间。
+     */
+    public record InvitationCounts(long tenant, long workspace) {
+    }
+
+    public InvitationCounts pendingInvitationCounts(TrustedActor actor) {
+        String subject = principals.requireUser(actor).subjectId();
+        Instant now = clock.instant();
+        return tx.readOnly(() -> new InvitationCounts(tenantInvitations.countPendingTenantForSubject(subject, now),
+                spaceInvitations.countPendingForSubject(subject, now)));
     }
 
     @Override
@@ -243,6 +272,13 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
                     check(tenant.version() == command.expectedTenantVersion());
                     activeUser(target);
                     allowed(!subject(actor).equals(target));
+                    TenantMembership member = tenantMembers.lock(id, target).orElse(null);
+                    if (active(member) && member.role() != TenantRoleEnum.GUEST) {
+                        throw new PlatformException(PlatformErrorCodeEnum.ALREADY_MEMBER, "tenant-member");
+                    }
+                    if (tenantInvitations.findPendingTenant(id, target, clock.instant()).isPresent()) {
+                        throw new PlatformException(PlatformErrorCodeEnum.INVITATION_PENDING, "tenant-invitation");
+                    }
                     TenantInvitation invitation = new TenantInvitation(ids.nextId(), id, target, InvitationStateEnum.PENDING,
                             expiry(command.expiresAt()), subject(actor), null, 0);
                     check(tenantInvitations.insertTenantInvitation(invitation));
@@ -264,6 +300,12 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
                     check(workspace.version() == command.expectedWorkspaceVersion());
                     activeUser(target);
                     allowed(!subject(actor).equals(target));
+                    if (active(spaceMembers.lock(space, target).orElse(null))) {
+                        throw new PlatformException(PlatformErrorCodeEnum.ALREADY_MEMBER, "workspace-member");
+                    }
+                    if (spaceInvitations.findPending(space, target, clock.instant()).isPresent()) {
+                        throw new PlatformException(PlatformErrorCodeEnum.INVITATION_PENDING, "workspace-invitation");
+                    }
                     WorkspaceInvitation invitation = new WorkspaceInvitation(ids.nextId(), space, target, command.role(),
                             InvitationStateEnum.PENDING, expiry(command.expiresAt()), subject(actor), null, 0);
                     check(spaceInvitations.insert(invitation));
@@ -373,6 +415,46 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
                     }
                     event(actor, scope, type, operation, member.version(), invitation.id());
                     return result(new JoinResult(outcome(already), space, view(member)), member.version());
+                });
+    }
+
+    @Override
+    public CommandReceipt<TenantInvitationView> declineTenantInvitation(TrustedActor actor, TenantCommands.DeclineTenantInvitation command) {
+        String subject = principals.requireUser(actor).subjectId();
+        TenantInvitation located = tenantInvitations.findTenantInvitation(command.invitationId())
+                .filter(value -> value.targetSubjectId().equals(subject)).orElseThrow(DefaultMembershipGovernanceService::missing);
+        CommandScope scope = tenantRange(located.tenantId());
+        String type = "tenant:invitation:decline";
+        return commands.execute(actor, command.meta(), scope, type, TENANT_INVITATION, TenantInvitationView.class,
+                fields(located.id(), command.expectedInvitationVersion()), () -> gate(actor, scope),
+                saved -> authorizeReceipt(actor, scope, type, saved, saved.version()), operation -> {
+                    TenantInvitation invitation = tenantInvitations.lockTenantInvitation(located.id())
+                            .filter(value -> value.targetSubjectId().equals(subject)).orElseThrow(DefaultMembershipGovernanceService::missing);
+                    pending(invitation.state(), invitation.expiresAt(), invitation.version(), command.expectedInvitationVersion());
+                    TenantInvitation declined = transition(invitation, InvitationStateEnum.DECLINED, null);
+                    check(tenantInvitations.replaceTenantInvitation(declined, invitation.version()));
+                    event(actor, scope, type, operation, declined.version(), declined.id());
+                    return result(view(declined), declined.version());
+                });
+    }
+
+    @Override
+    public CommandReceipt<InvitationView> decline(TrustedActor actor, WorkspaceCommands.DeclineInvitation command) {
+        String subject = principals.requireUser(actor).subjectId();
+        WorkspaceInvitation located = spaceInvitations.find(command.invitationId())
+                .filter(value -> value.targetSubjectId().equals(subject)).orElseThrow(DefaultMembershipGovernanceService::missing);
+        CommandScope scope = range(located.scope());
+        String type = "workspace:invitation:decline";
+        return commands.execute(actor, command.meta(), scope, type, SPACE_INVITATION, InvitationView.class,
+                fields(located.id(), command.expectedInvitationVersion()), () -> gate(actor, scope),
+                saved -> authorizeReceipt(actor, scope, type, saved, saved.version()), operation -> {
+                    WorkspaceInvitation invitation = spaceInvitations.lock(located.id())
+                            .filter(value -> value.targetSubjectId().equals(subject)).orElseThrow(DefaultMembershipGovernanceService::missing);
+                    pending(invitation.state(), invitation.expiresAt(), invitation.version(), command.expectedInvitationVersion());
+                    WorkspaceInvitation declined = transition(invitation, InvitationStateEnum.DECLINED, null);
+                    check(spaceInvitations.replace(declined, invitation.version()));
+                    event(actor, scope, type, operation, declined.version(), declined.id());
+                    return result(view(declined), declined.version());
                 });
     }
 
@@ -690,8 +772,10 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
 
     private static String schema(String type) {
         return switch (type) {
-            case "tenant:invitation:issue", "tenant:invitation:revoke" -> TENANT_INVITATION;
-            case "workspace:invitation:issue", "workspace:invitation:revoke" -> SPACE_INVITATION;
+            case "tenant:invitation:issue", "tenant:invitation:revoke", "tenant:invitation:decline" ->
+                    TENANT_INVITATION;
+            case "workspace:invitation:issue", "workspace:invitation:revoke", "workspace:invitation:decline" ->
+                    SPACE_INVITATION;
             case "tenant:invitation:accept" -> TENANT_JOIN;
             case "workspace:invitation:accept" -> SPACE_JOIN;
             case "tenant:member:role" -> TENANT_MEMBER;
@@ -732,6 +816,20 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
     private void authorizeReceipt(TrustedActor actor, CommandScope scope, String type, Object saved, long version) {
         String tenant = scope.tenantId();
         Scope space = scope.workspaceId() == null ? null : new Scope(tenant, scope.workspaceId());
+        if (type.equals("tenant:invitation:decline")) {
+            TenantInvitationView result = (TenantInvitationView) saved;
+            allowed(tenant.equals(result.tenantId()) && result.targetSubjectId().equals(subject(actor))
+                    && result.state() == InvitationStateEnum.DECLINED && result.version() == version
+                    && tenantInvitations.lockTenantInvitation(result.invitationId()).map(this::view).filter(result::equals).isPresent());
+            return;
+        }
+        if (type.equals("workspace:invitation:decline")) {
+            InvitationView result = (InvitationView) saved;
+            allowed(result.scope().equals(space) && result.targetSubjectId().equals(subject(actor))
+                    && result.state() == InvitationStateEnum.DECLINED && result.version() == version
+                    && spaceInvitations.lock(result.invitationId()).map(this::view).filter(result::equals).isPresent());
+            return;
+        }
         if (type.equals("tenant:invitation:accept")) {
             TenantJoinResult result = (TenantJoinResult) saved;
             TenantMembership current = tenant(actor, tenant, TENANT_READ).member();

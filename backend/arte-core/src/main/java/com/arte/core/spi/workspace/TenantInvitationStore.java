@@ -25,4 +25,15 @@ public interface TenantInvitationStore {
     void invalidatePending(String tenantId, String workspaceId, String subjectId);
 
     PageResult<TenantInvitation> listTenantInvitations(String tenantId, String subjectId, PageQuery query);
+
+    /**
+     * 在租户治理锁内当前读取同目标未过期邀请。
+     */
+    Optional<TenantInvitation> findPendingTenant(String tenantId, String subjectId, java.time.Instant now);
+
+    PageResult<TenantInvitation> listTenantInvitations(String tenantId, String subjectId, PageQuery query,
+                                                       com.arte.core.enums.workspace.InvitationStateEnum state, java.time.Instant now);
+
+    long countPendingTenantForSubject(String subjectId, java.time.Instant now);
+
 }

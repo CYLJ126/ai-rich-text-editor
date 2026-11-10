@@ -15,7 +15,8 @@ public enum InvitationStateEnum implements IEnum<Integer>, MyEnum<Integer> {
     PENDING(0, "待接受"),
     ACCEPTED(1, "已接受"),
     REVOKED(2, "已撤销"),
-    EXPIRED(3, "已过期");
+    EXPIRED(3, "已过期"),
+    DECLINED(4, "已拒绝");
 
     private final Integer value;
     private final String description;

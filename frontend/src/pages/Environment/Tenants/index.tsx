@@ -379,7 +379,8 @@ function TenantDetails({userId, tenantId, initialTab, governance, blocked}: {
       },
       ...(caps?.manage && membershipTarget ? [{
         key: 'members', label: '成员',
-        children: <MembershipPanel target={membershipTarget} version={detail.version} caps={caps} disabled={blocked}/>
+        children: <MembershipPanel target={membershipTarget} targetName={detail.name} version={detail.version}
+                                   caps={caps} disabled={blocked}/>
       }] : []),
       {key: 'workspaces', label: '工作空间', children: <TenantWorkspaces userId={userId} tenantId={tenantId}/>},
       {

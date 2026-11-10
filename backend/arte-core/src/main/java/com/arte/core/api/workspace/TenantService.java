@@ -72,4 +72,10 @@ public interface TenantService extends TenantGovernanceService {
     CommandReceipt<WorkspaceViews.TenantInvitationView> revokeTenantInvitation(TrustedActor actor, TenantCommands.RevokeTenantInvitation command);
 
     CommandReceipt<WorkspaceViews.TenantJoinResult> acceptTenantInvitation(TrustedActor actor, TenantCommands.AcceptTenantInvitation command);
+
+    /**
+     * 受邀账号拒绝本人待处理邀请，沿用事务及幂等回执。
+     */
+    CommandReceipt<WorkspaceViews.TenantInvitationView> declineTenantInvitation(TrustedActor actor, TenantCommands.DeclineTenantInvitation command);
+
 }

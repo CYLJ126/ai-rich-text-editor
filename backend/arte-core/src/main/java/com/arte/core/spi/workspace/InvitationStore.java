@@ -41,4 +41,18 @@ public interface InvitationStore {
     PageResult<WorkspaceInvitation> listForSubject(String subjectId, PageQuery query);
 
     PageResult<WorkspaceInvitation> listForWorkspace(Scope scope, PageQuery query);
+
+    /**
+     * 在治理事务内当前锁定读取同目标未过期邀请，不能沿用旧 MVCC 快照。
+     */
+    Optional<WorkspaceInvitation> findPending(Scope scope, String subjectId, java.time.Instant now);
+
+    PageResult<WorkspaceInvitation> listForSubject(String subjectId, PageQuery query,
+                                                   com.arte.core.enums.workspace.InvitationStateEnum state, java.time.Instant now);
+
+    PageResult<WorkspaceInvitation> listForWorkspace(Scope scope, PageQuery query,
+                                                     com.arte.core.enums.workspace.InvitationStateEnum state, java.time.Instant now);
+
+    long countPendingForSubject(String subjectId, java.time.Instant now);
+
 }

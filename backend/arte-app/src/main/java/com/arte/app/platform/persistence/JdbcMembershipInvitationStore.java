@@ -175,4 +175,69 @@ public final class JdbcMembershipInvitationStore implements InvitationStore, Ten
                     tenantId, workspaceId, subjectId);
         }
     }
+
+    private String stateWhere(InvitationStateEnum state, Instant now, List<Object> args) {
+        if (state == null) return "";
+        if (state == InvitationStateEnum.PENDING || state == InvitationStateEnum.EXPIRED) {
+            args.add(LocalDateTime.ofInstant(now, ZoneOffset.UTC));
+            if (state == InvitationStateEnum.PENDING) return " AND state=0 AND expires_at>?";
+            return " AND (state=3 OR (state=0 AND expires_at<=?))";
+        }
+        args.add(state.getValue());
+        return " AND state=?";
+    }
+
+    @Override
+    public Optional<WorkspaceInvitation> findPending(Scope scope, String subjectId, Instant now) {
+        tx.requireWritable();
+        return jdbc.query("SELECT * FROM " + TABLE + " WHERE tenant_id=? AND workspace_id=? AND target_subject_id=?"
+                                + " AND state=0 AND expires_at>? ORDER BY id LIMIT 1 FOR UPDATE", JdbcMembershipInvitationStore::readRow,
+                        scope.tenantId(), scope.workspaceId(), subjectId, LocalDateTime.ofInstant(now, ZoneOffset.UTC))
+                .stream().findFirst().map(Row::workspaceInvitation);
+    }
+
+    @Override
+    public Optional<TenantInvitation> findPendingTenant(String tenantId, String subjectId, Instant now) {
+        tx.requireWritable();
+        return jdbc.query("SELECT * FROM " + TABLE + " WHERE tenant_id=? AND workspace_id IS NULL AND target_subject_id=?"
+                                + " AND state=0 AND expires_at>? ORDER BY id LIMIT 1 FOR UPDATE", JdbcMembershipInvitationStore::readRow,
+                        tenantId, subjectId, LocalDateTime.ofInstant(now, ZoneOffset.UTC))
+                .stream().findFirst().map(Row::tenantInvitation);
+    }
+
+    @Override
+    public PageResult<WorkspaceInvitation> listForSubject(String subjectId, PageQuery query, InvitationStateEnum state, Instant now) {
+        List<Object> args = new ArrayList<>(List.of(subjectId));
+        return list("workspace_id IS NOT NULL AND target_subject_id=?" + stateWhere(state, now, args), args, query).map(Row::workspaceInvitation);
+    }
+
+    @Override
+    public PageResult<WorkspaceInvitation> listForWorkspace(Scope scope, PageQuery query, InvitationStateEnum state, Instant now) {
+        List<Object> args = new ArrayList<>(List.of(scope.tenantId(), scope.workspaceId()));
+        return list("tenant_id=? AND workspace_id=?" + stateWhere(state, now, args), args, query).map(Row::workspaceInvitation);
+    }
+
+    @Override
+    public PageResult<TenantInvitation> listTenantInvitations(String tenantId, String subjectId, PageQuery query, InvitationStateEnum state, Instant now) {
+        List<Object> args = new ArrayList<>(List.of(tenantId != null ? tenantId : subjectId));
+        return list("workspace_id IS NULL AND " + (tenantId != null ? "tenant_id=?" : "target_subject_id=?")
+                + stateWhere(state, now, args), args, query).map(Row::tenantInvitation);
+    }
+
+    private long countPending(String subject, Instant now, boolean workspace) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM " + TABLE + " WHERE target_subject_id=? AND workspace_id IS "
+                        + (workspace ? "NOT NULL" : "NULL") + " AND state=0 AND expires_at>?", Long.class,
+                subject, LocalDateTime.ofInstant(now, ZoneOffset.UTC));
+    }
+
+    @Override
+    public long countPendingForSubject(String subjectId, Instant now) {
+        return countPending(subjectId, now, true);
+    }
+
+    @Override
+    public long countPendingTenantForSubject(String subjectId, Instant now) {
+        return countPending(subjectId, now, false);
+    }
+
 }

@@ -1,3 +1,4 @@
+import {workspaceOwnership, workspaceRelationship} from '@/features/workspace/workspaceIdentity';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {history} from '@umijs/max';
 import {Alert, Button, Card, Flex, Typography} from 'antd';
@@ -59,6 +60,8 @@ export default function TenantWorkspaces({userId, tenantId}: { userId: string; t
       <Flex justify="space-between" align="center" gap={12} wrap>
         <Flex vertical gap={4}>
           <Typography.Text strong>{space.name}</Typography.Text>
+          <Typography.Text
+            type="secondary">{workspaceOwnership(space)} · {workspaceRelationship(space)}</Typography.Text>
           <Typography.Text type="secondary">{roles[space.currentRole]} · {states[space.state]}</Typography.Text>
         </Flex>
         <Flex gap={8} wrap>

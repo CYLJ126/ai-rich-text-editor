@@ -1,3 +1,5 @@
+import {workspaceOwnership} from './workspaceIdentity';
+import InvitationCenter from './InvitationCenter';
 import React from 'react';
 import {Alert, Button, Dropdown, Flex, Tooltip} from 'antd';
 import {MyDynamicIcon as DynamicIcon} from '@/components/DynamicIcon';
@@ -20,7 +22,10 @@ export default function WorkspaceQuickSelect({userId, scope, name, onConnect, on
       selectedKeys: directory.records.filter(item => sameScope(item.scope, scope ?? directory.current?.scope)).map(item => `space:${JSON.stringify(item.scope)}`),
       items: [
         ...directory.records.map(item => ({
-          key: `space:${JSON.stringify(item.scope)}`, label: item.name,
+          key: `space:${JSON.stringify(item.scope)}`,
+          'aria-label': item.name,
+          label: <Flex vertical><span>{item.name}</span><span
+            style={{fontSize: 12, color: '#888'}}>{workspaceOwnership(item)}</span></Flex>,
           disabled: directory.selecting || directory.unsafeToLeave || directory.recoveryBlocked
         })),
         ...(!directory.records.length ? [{
@@ -72,6 +77,7 @@ export default function WorkspaceQuickSelect({userId, scope, name, onConnect, on
         </Button>
       </Tooltip>
     </Dropdown>
+    <InvitationCenter key={userId} userId={userId}/>
     {notice && <Alert type="warning" title={notice}/>}
   </Flex>;
 }

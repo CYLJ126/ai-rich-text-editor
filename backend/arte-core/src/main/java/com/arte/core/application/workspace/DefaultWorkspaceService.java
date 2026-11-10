@@ -125,7 +125,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     Workspace workspace = workspaceSnapshot.workspace();
                     records.add(new WorkspaceViews.WorkspaceSummary(workspace.scope(), workspace.name(), workspace.state(),
                             workspaceSnapshot.member().role(), preference.map(p -> p.defaultScope()
-                            .equals(workspace.scope())).orElse(false), workspace.version()));
+                            .equals(workspace.scope())).orElse(false), workspace.version(), WorkspaceViewMapper.identity(workspaceSnapshot)));
                 }
                 total = Math.incrementExact(total);
             }
@@ -225,7 +225,7 @@ public final class DefaultWorkspaceService implements WorkspaceService {
                     if (workspace.name().toLowerCase(Locale.ROOT).contains(query.search())) {
                         records.add(new WorkspaceViews.WorkspaceSummary(workspace.scope(), workspace.name(), workspace.state(),
                                 snapshot.member().role(), preference.map(p -> p.defaultScope()
-                                .equals(workspace.scope())).orElse(false), workspace.version()));
+                                .equals(workspace.scope())).orElse(false), workspace.version(), WorkspaceViewMapper.identity(snapshot)));
                     }
                 }
                 if (records.size() == query.size()) {

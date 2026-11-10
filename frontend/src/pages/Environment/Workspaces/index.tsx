@@ -1,3 +1,4 @@
+import {workspaceOwnership, workspaceRelationship} from '@/features/workspace/workspaceIdentity';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {history, useModel} from '@umijs/max';
 import {Alert, Button, Flex, Input, Modal, Tooltip, Typography} from 'antd';
@@ -260,9 +261,9 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
                                                disabled={unsafe}/>,
           content: <Flex vertical gap={8}>
             <Typography.Text strong>{item.name}</Typography.Text>
-            <Typography.Text type="secondary">所属租户：{item.scope.tenantId}</Typography.Text>
+            <Typography.Text type="secondary">{workspaceOwnership(item)}</Typography.Text>
             <Typography.Text
-              type="secondary">{['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
+              type="secondary">{workspaceRelationship(item)} · {['负责人', '管理员', '成员', '访客'][item.currentRole]} · {['正常', '已归档', '关闭处理中', '已删除'][item.state]}</Typography.Text>
           </Flex>
         }))}>
         {membership?.status}

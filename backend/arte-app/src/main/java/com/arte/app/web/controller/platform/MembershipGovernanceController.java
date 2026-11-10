@@ -8,16 +8,21 @@ import com.arte.app.web.platform.StrictPlatformRequest;
 import com.arte.core.application.workspace.DefaultMembershipGovernanceService;
 import com.arte.core.enums.ResultCodeEnum;
 import com.arte.core.enums.platform.PlatformErrorCodeEnum;
+import com.arte.core.enums.workspace.InvitationStateEnum;
 import com.arte.core.enums.workspace.TenantRoleEnum;
 import com.arte.core.enums.workspace.WorkspaceRoleEnum;
 import com.arte.core.exception.platform.PlatformException;
 import com.arte.core.pojo.ResultContext;
 import com.arte.core.pojo.platform.*;
 import com.arte.core.pojo.workspace.Tenant;
+import com.arte.core.pojo.workspace.TenantInvitation;
+import com.arte.core.pojo.workspace.WorkspaceInvitation;
 import com.arte.core.pojo.workspace.TenantCommands;
 import com.arte.core.pojo.workspace.Workspace;
 import com.arte.core.pojo.workspace.WorkspaceCommands;
 import com.arte.core.pojo.workspace.WorkspaceViews.*;
+import com.arte.core.spi.workspace.InvitationStore;
+import com.arte.core.spi.workspace.TenantInvitationStore;
 import com.arte.core.spi.workspace.TenantStore;
 import com.arte.core.spi.workspace.WorkspaceStore;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,14 +55,20 @@ public class MembershipGovernanceController {
     private final RbacIdentityProvider identities;
     private final TenantStore tenants;
     private final WorkspaceStore workspaces;
+    private final InvitationStore invitations;
+    private final TenantInvitationStore tenantInvitations;
 
     public MembershipGovernanceController(DefaultMembershipGovernanceService service, RbacIdentityProvider identities,
-                                          PlatformPersistenceExecutor persistence, TenantStore tenants, WorkspaceStore workspaces) {
+                                          PlatformPersistenceExecutor persistence, TenantStore tenants, WorkspaceStore workspaces,
+                                          InvitationStore invitations,
+                                          TenantInvitationStore tenantInvitations) {
         this.service = service;
         this.executor = new PlatformAuthenticatedExecutor(identities, persistence);
         this.identities = identities;
         this.tenants = tenants;
         this.workspaces = workspaces;
+        this.invitations = invitations;
+        this.tenantInvitations = tenantInvitations;
     }
 
     public record Target(@NotBlank @Size(max = 256) String tenantId, Scope scope) implements StrictPlatformRequest {
@@ -82,22 +93,32 @@ public class MembershipGovernanceController {
 
     public record InvitationRow(String invitationId, String tenantId, Scope scope, String targetSubjectId,
                                 String targetDisplayName, String targetName, Integer role, int state,
-                                Instant expiresAt, long version) {
+                                Instant expiresAt, long version, String tenantName, Integer tenantType,
+                                String hostDisplayName, String inviterDisplayName, String sharingBoundary) {
     }
 
     public record MemberRow(String memberId, String subjectId, String displayName, int role, int state, long version) {
     }
 
     public record TenantPage(@NotBlank @Size(max = 256) String tenantId, @Min(1) Long current,
-                             @Min(1) @Max(100) Long size)
-            implements StrictPlatformRequest {
+                             @Min(1) @Max(100) Long size) implements StrictPlatformRequest {
     }
 
     public record SpacePage(@NotNull Scope scope, @Min(1) Long current, @Min(1) @Max(100) Long size)
             implements StrictPlatformRequest {
     }
 
-    public record Page(@Min(1) Long current, @Min(1) @Max(100) Long size) implements StrictPlatformRequest {
+    public record TenantInvitationPage(@NotBlank @Size(max = 256) String tenantId, @Min(1) Long current,
+                                       @Min(1) @Max(100) Long size, @Min(0) @Max(4) Integer state)
+            implements StrictPlatformRequest {
+    }
+
+    public record SpaceInvitationPage(@NotNull Scope scope, @Min(1) Long current, @Min(1) @Max(100) Long size,
+                                      @Min(0) @Max(4) Integer state) implements StrictPlatformRequest {
+    }
+
+    public record Page(@Min(1) Long current, @Min(1) @Max(100) Long size,
+                       @Min(0) @Max(4) Integer state) implements StrictPlatformRequest {
     }
 
     public record TenantInvite(@NotBlank @Size(max = 256) String tenantId, @NotNull @Min(0) Long expectedTenantVersion,
@@ -206,38 +227,61 @@ public class MembershipGovernanceController {
                 .map(v -> new MemberRow(v.memberId(), v.subjectId(), name(v.subjectId()), v.role().getValue(), v.state().getValue(), v.version())));
     }
 
+    private InvitationRow invitationRow(String id, String tenantId, Scope scope, String target, Integer role,
+                                        int state, Instant expiresAt, long version, boolean inbox, String issuer) {
+        String ownerTenant = scope == null ? tenantId : scope.tenantId();
+        Tenant tenant = tenants.find(ownerTenant).orElse(null);
+        String boundary = scope == null
+                ? "仅加入此组织，不自动加入任何工作空间或获得资源读取权限。"
+                : "仅加入此工作空间，不开放其他空间；私有文章、会话和凭据仍按各自权限保护。负责人交接不改变空间归属。";
+        return new InvitationRow(id, tenantId, scope, target, inbox ? null : name(target),
+                scope == null ? tenant == null ? null : tenant.name()
+                        : workspaces.find(scope).map(Workspace::name).orElse(null),
+                role, state, expiresAt, version, tenant == null ? null : tenant.name(),
+                tenant == null ? null : tenant.type().getValue(),
+                tenant == null || tenant.personalSubjectId() == null ? null : name(tenant.personalSubjectId()),
+                issuer == null ? null : name(issuer), boundary);
+    }
+
     private InvitationRow tenantRow(TenantInvitationView view, boolean inbox) {
-        return new InvitationRow(view.invitationId(), view.tenantId(), null, view.targetSubjectId(),
-                inbox ? null : name(view.targetSubjectId()),
-                inbox ? tenants.find(view.tenantId()).map(Tenant::name).orElse(null) : null,
-                null, view.state().getValue(), view.expiresAt(), view.version());
+        String issuer = tenantInvitations.findTenantInvitation(view.invitationId()).map(TenantInvitation::issuedBy).orElse(null);
+        return invitationRow(view.invitationId(), view.tenantId(), null, view.targetSubjectId(), null,
+                view.state().getValue(), view.expiresAt(), view.version(), inbox, issuer);
     }
 
     private InvitationRow workspaceRow(InvitationView view, boolean inbox) {
-        return new InvitationRow(view.invitationId(), null, view.scope(), view.targetSubjectId(),
-                inbox ? null : name(view.targetSubjectId()),
-                inbox ? workspaces.find(view.scope()).map(Workspace::name).orElse(null) : null,
-                view.role().getValue(), view.state().getValue(), view.expiresAt(), view.version());
+        String issuer = invitations.find(view.invitationId()).map(WorkspaceInvitation::issuedBy).orElse(null);
+        return invitationRow(view.invitationId(), null, view.scope(), view.targetSubjectId(), view.role().getValue(),
+                view.state().getValue(), view.expiresAt(), view.version(), inbox, issuer);
+    }
+
+    private static InvitationStateEnum invitationState(Integer state) {
+        return state == null ? null : InvitationStateEnum.values()[state];
+    }
+
+    @PostMapping("/getMyPendingInvitationCounts")
+    public Mono<ResultContext<DefaultMembershipGovernanceService.InvitationCounts>> pendingCounts(Authentication auth, Locale locale) {
+        return call(auth, locale, service::pendingInvitationCounts);
     }
 
     @PostMapping("/listTenantInvitations")
-    public Mono<ResultContext<PageResult<InvitationRow>>> tenantInvitations(Authentication auth, @Valid @RequestBody TenantPage request, Locale locale) {
-        return call(auth, locale, actor -> service.listTenantInvitations(actor, request.tenantId(), page(request.current(), request.size())).map(v -> tenantRow(v, false)));
+    public Mono<ResultContext<PageResult<InvitationRow>>> tenantInvitations(Authentication auth, @Valid @RequestBody TenantInvitationPage request, Locale locale) {
+        return call(auth, locale, actor -> service.listTenantInvitations(actor, request.tenantId(), page(request.current(), request.size()), invitationState(request.state())).map(v -> tenantRow(v, false)));
     }
 
     @PostMapping("/listWorkspaceInvitations")
-    public Mono<ResultContext<PageResult<InvitationRow>>> workspaceInvitations(Authentication auth, @Valid @RequestBody SpacePage request, Locale locale) {
-        return call(auth, locale, actor -> service.listWorkspaceInvitations(actor, request.scope(), page(request.current(), request.size())).map(v -> workspaceRow(v, false)));
+    public Mono<ResultContext<PageResult<InvitationRow>>> workspaceInvitations(Authentication auth, @Valid @RequestBody SpaceInvitationPage request, Locale locale) {
+        return call(auth, locale, actor -> service.listWorkspaceInvitations(actor, request.scope(), page(request.current(), request.size()), invitationState(request.state())).map(v -> workspaceRow(v, false)));
     }
 
     @PostMapping("/listMyTenantInvitations")
     public Mono<ResultContext<PageResult<InvitationRow>>> myTenantInvitations(Authentication auth, @Valid @RequestBody Page request, Locale locale) {
-        return call(auth, locale, actor -> service.listMyTenantInvitations(actor, page(request.current(), request.size())).map(v -> tenantRow(v, true)));
+        return call(auth, locale, actor -> service.listMyTenantInvitations(actor, page(request.current(), request.size()), invitationState(request.state())).map(v -> tenantRow(v, true)));
     }
 
     @PostMapping("/listMyWorkspaceInvitations")
     public Mono<ResultContext<PageResult<InvitationRow>>> myWorkspaceInvitations(Authentication auth, @Valid @RequestBody Page request, Locale locale) {
-        return call(auth, locale, actor -> service.listInvitations(actor, page(request.current(), request.size())).map(v -> workspaceRow(v, true)));
+        return call(auth, locale, actor -> service.listInvitations(actor, page(request.current(), request.size()), invitationState(request.state())).map(v -> workspaceRow(v, true)));
     }
 
     @PostMapping("/inviteTenantMember")
@@ -289,6 +333,20 @@ public class MembershipGovernanceController {
         WorkspaceCommands.AcceptInvitation command = new WorkspaceCommands.AcceptInvitation(new CommandMeta(key, PlatformHttpContext.traceId(http)),
                 request.invitationId(), request.expectedInvitationVersion());
         return call(auth, locale, actor -> service.accept(actor, command));
+    }
+
+    @PostMapping("/declineTenantInvitation")
+    public Mono<ResultContext<CommandReceipt<TenantInvitationView>>> declineTenantInvitation(Authentication auth,
+                                                                                             @Valid @RequestBody Accept request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> service.declineTenantInvitation(actor, new TenantCommands.DeclineTenantInvitation(
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.invitationId(), request.expectedInvitationVersion())));
+    }
+
+    @PostMapping("/declineWorkspaceInvitation")
+    public Mono<ResultContext<CommandReceipt<InvitationView>>> declineWorkspaceInvitation(Authentication auth,
+                                                                                          @Valid @RequestBody Accept request, @RequestHeader("Idempotency-Key") String key, HttpServletRequest http, Locale locale) {
+        return call(auth, locale, actor -> service.decline(actor, new WorkspaceCommands.DeclineInvitation(
+                new CommandMeta(key, PlatformHttpContext.traceId(http)), request.invitationId(), request.expectedInvitationVersion())));
     }
 
     @PostMapping("/changeTenantMemberRole")

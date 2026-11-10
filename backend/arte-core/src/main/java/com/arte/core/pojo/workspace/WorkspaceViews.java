@@ -47,12 +47,25 @@ public final class WorkspaceViews {
     }
 
     /**
+     * 从当前授权快照派生的空间识别信息，不改变空间归属或读取权限。
+     *
+     * @param tenantName  所属个人租户或组织的可读名称
+     * @param tenantType  个人托管或组织
+     * @param hostedByMe  当前主体是否为个人托管账户
+     * @param createdByMe 当前主体是否为该空间的创建者，与治理角色独立
+     */
+    public record WorkspaceIdentity(String tenantName, TenantTypeEnum tenantType, boolean hostedByMe,
+                                    boolean createdByMe) {
+    }
+
+    /**
      * 可访问空间列表项，默认标记源自本人偏好关联。
      *
      * @param scope 目标空间范围，包含租户 ID 和空间 ID
      * @param name 展示名称
      * @param state 空间当前生命周期状态
      * @param currentRole 当前主体在该范围内的角色
+     * @param identity 当前授权范围内的可读归属及本人关系，历史回执可为空
      * @param defaultWorkspace 是否为当前主体的默认空间
      * @param version 空间记录版本
      */
@@ -62,7 +75,12 @@ public final class WorkspaceViews {
             WorkspaceStateEnum state,
             WorkspaceRoleEnum currentRole,
             boolean defaultWorkspace,
-            long version) {
+            long version,
+            WorkspaceIdentity identity) {
+        public WorkspaceSummary(Scope scope, String name, WorkspaceStateEnum state, WorkspaceRoleEnum currentRole, boolean defaultWorkspace, long version) {
+            this(scope, name, state, currentRole, defaultWorkspace, version, null);
+        }
+
         public WorkspaceSummary {
             Objects.requireNonNull(scope, "scope");
             name = PlatformChecks.name(name);
@@ -74,6 +92,8 @@ public final class WorkspaceViews {
 
     /**
      * 当前空间公开元数据。
+     *
+     * @param identity 当前授权范围内的可读归属及本人关系，历史回执可为空
      *
      * @param scope 目标空间范围，包含租户 ID 和空间 ID
      * @param name 展示名称
@@ -88,7 +108,12 @@ public final class WorkspaceViews {
             String description,
             WorkspaceStateEnum state,
             WorkspaceRoleEnum currentRole,
-            long version) {
+            long version,
+            WorkspaceIdentity identity) {
+        public WorkspaceView(Scope scope, String name, String description, WorkspaceStateEnum state, WorkspaceRoleEnum currentRole, long version) {
+            this(scope, name, description, state, currentRole, version, null);
+        }
+
         public WorkspaceView {
             Objects.requireNonNull(scope, "scope");
             name = PlatformChecks.name(name);

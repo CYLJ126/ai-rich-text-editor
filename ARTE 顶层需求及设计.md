@@ -19,7 +19,8 @@ USER 作为通用空间资源 owner。保留租户级资源归属及 `arte-core`
 默认政策配置和响应式会话适配，见 [公共应用服务说明](backend/arte-app/docs/PLATFORM_WORKSPACE.md)。第 4 批已开放首批 10 个
 HTTP
 接口，包含空间／偏好、权限检查及成功命令回执查询、参数／分页／错误适配，见 [公共空间 HTTP 说明](backend/arte-app/docs/PLATFORM_WORKSPACE_HTTP.md)
-。公共资源 ACL 已提供内部持久化、模型映射及模型发现／执行接入；空间切换须显式迁移，模型与 ACL 管理 HTTP 已开放，成员治理仍分步实施。涉及当前
+。公共资源 ACL 已提供内部持久化、模型映射及模型发现／执行接入；空间切换须显式迁移，模型与 ACL 管理 HTTP 已开放，C11
+两级成员治理已接通，空间生命周期仍待后续实施。涉及当前
 `ainew`
 的描述仅为实施基线，不表示目标功能均已实现。
 
@@ -116,6 +117,12 @@ M3，页面整合在 M4，综合验收在 M5；本批不清库或部署。
 2026-11-03 空间 AI 入口调整（仅文档）：后继模型页改为三个 Tab，工作空间详情统一编辑空间
 AI，聊天移除完整治理表单；模型发布与空间详情双向定位，平台默认模板保持平台级入口。模型配置专项升至 [V1.3](ARTE%20AI%20模型配置需求及设计.md)
 ，更新 M3～M5 与验收项；M0～M2 的“四 Tab”等规划描述保留当批历史，本次未改代码／DDL、执行数据库操作或部署。
+
+**2026-11-10 工作空间当前交付状态。** C11
+已接通两级邀请、本人接受、撤销、成员角色维护、移除、退出和负责人交接；邀请与空间识别完善增加本人拒绝、重复邀请／已有成员检查、待处理数量入口、状态筛选、有效期选择和可读空间归属。邀请确认显示组织或个人托管者、邀请人、角色、期限及共享边界。实际邀请表为
+`arte_platform_membership_invitation`，状态 0～4
+对应待接受、已接受、已撤销、已过期、已拒绝。已有安装须执行状态升级脚本，详见 [C11 交付说明](ARTE%20配置管理优化%20C11%20交付说明.md)
+。以下带日期的延期记录保留历史语境，不再代表成员邀请当前未实现。归档／恢复、受控关闭、文章与集合的统一空间协作及个人托管注销协调仍待后续实施；本机交付不代表目标部署验收。
 
 ## TODO
 
@@ -574,7 +581,8 @@ AI 工作。它面向个人和组织，模型只是其中一种资源。
 1. 每个用户在其个人租户中有一个系统创建的个人默认工作空间，初始化幂等；默认私有，可重命名。个人默认空间不能直接删除、转交为他人所有或因加入组织而被替换。默认私有状态不意味着用户的其他空间不能协作。
 2. 用户可在个人租户内建立多个空间，例如“学习”“小说写作”“与朋友共读”；组织成员可在组织政策与创建权限允许时创建组织空间。名称、描述即可完成基础创建，模型和集合之后再添加。
 3. 用户可接受他人创建的协作空间邀请，也可接受组织空间邀请或组织管理员分配；成员关系为用户与空间的多对多关系。同一账号始终保留自身个人空间，不为每次加入重复创建用户。
-4. 接受邀请前显示空间名称、归属者／组织、角色和共享边界。邀请由有权管理成员的主体发起，限定目标和有效期；重复接受幂等，撤销／过期邀请不能继续生效。
+4.
+接受邀请前显示空间名称、归属者／组织、个人托管者、邀请人、角色、有效期和共享边界。邀请由有权管理成员的主体发起，限定目标和有效期；受邀人可显式接受或拒绝。重复接受／拒绝沿用原键幂等，撤销／过期／拒绝邀请不能继续生效。同范围已有有效邀请时明确提示，已有成员使用独立角色管理，不以重新邀请改变角色。
 5. 加入他人个人租户内的空间时，后端可同时建立仅适用于目标空间的受限访客资格；不必先手动加入“组织”，也不因此看到邀请者的默认私有空间、其他空间或全部模型。加入组织空间同样不自动开放组织全部资源。
 6. “系统个人默认空间”“用户启动偏好”“上次访问空间”分别记录。用户可以偏好进入某个自建或已加入空间；该空间不可用时回退到自己的默认空间，不随机跳到其他组织。
 
@@ -670,9 +678,9 @@ AI 使用策略、默认偏好和生命周期操作，具体入口按授权展�
 事件或服务器“当前空间”字段强制同步。路由／页面上下文明确空间，已打开资源以其真实归属定位，每项保存、上传、发送及重试固定发起时的
 scope 和目标资源。最近访问与启动偏好只作下次导航提示，不能作为已有操作的执行范围；标签 B 切换空间不能把标签 A 的保存请求改到另一空间。
 
-截至本次基线，ainew 已把 tenantId／workspaceId 用于授权与执行隔离，但没有完整的 Workspace 实体、默认空间初始化、成员邀请或资源目录管理
-API。需要在公共身份／空间层增量实现这些能力，各领域通过已有 scope 和资源端口接入；不能把任意用户输入 workspaceId
-当作已经创建或加入空间，也不要求本次立即迁移旧文章和旧 AI 数据。
+初始基线仅以 tenantId／workspaceId 隔离 AI 执行；当前已实现 Workspace 实体、默认空间初始化、空间目录和 C11 成员邀请治理，交付状态以上方
+2026-11-10 记录为准。各领域继续通过可信 scope 和资源端口接入；不能把任意用户输入 workspaceId
+当作已创建或加入空间，文章与集合接入及旧数据迁移仍需独立设计。
 
 #### 3.3 公共空间与访问体系的代码职责
 
@@ -2038,7 +2046,7 @@ Outbox 表分别命名为 `arte_platform_command`、`arte_platform_outbox`，不
 | arte_platform_tenant_member                                | id、tenant_id、subject_id、role、state ACTIVE／REVOKED、generation、version                                                                                                            | UNIQUE(tenant_id, subject_id)；原记录保留，重新加入 generation 增加                                                   |
 | arte_platform_workspace                                    | id、tenant_id、name、description、state、created_by、version、auth_epoch、created_at、updated_at                                                                                       | UNIQUE(tenant_id,id)；按租户／状态／更新时间索引；负责人取成员 OWNER，不重复维护另一个可漂移字段                      |
 | arte_platform_workspace_member                             | id、tenant_id、workspace_id、subject_id、role、state、generation、version                                                                                                              | UNIQUE(workspace_id, subject_id)；每个活跃空间仅一位 OWNER，通过空间门控行锁保证，创建／交接事务校验                  |
-| arte_platform_workspace_invitation                         | id、tenant_id、workspace_id、target_subject_id、role、state PENDING／ACCEPTED／REVOKED／EXPIRED、expires_at、issued_by、version、accepted_member_id                                    | 接受身份等于目标主体；同一邀请只接受一次，历史保留；按目标／状态查询索引                                              |
+| arte_platform_membership_invitation                        | id、tenant_id、workspace_id、target_subject_id、role、state PENDING／ACCEPTED／REVOKED／EXPIRED／DECLINED、expires_at、issued_by、version、accepted_member_id                          | 接受身份等于目标主体；同一邀请只接受一次，历史保留；按目标／状态查询索引                                              |
 | arte_platform_tenant_policy                                | tenant_id、policy_schema_version、role_preset_version、固定政策字段、version                                                                                                           | tenant_id 唯一；更新政策与 tenant.auth_epoch 同事务提交，空间政策只能在该上限内收紧                                   |
 | arte_platform_workspace_policy                             | tenant_id、workspace_id、policy_schema_version、role_preset_version、固定政策字段、version                                                                                             | workspace_id 唯一；租户策略另有租户政策记录，不把任意 JSON 脚本当作许可                                               |
 | arte_platform_resource_access                              | tenant_id、resource_type、resource_id、home_workspace_id（租户级可空）、visibility、acl_version                                                                                        | PK(tenant_id,resource_type,resource_id)；主空间与领域权威归属一致，首版不支持通用 USER owner                          |

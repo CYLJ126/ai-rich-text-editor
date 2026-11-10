@@ -454,15 +454,19 @@ class PlatformWorkspaceAssemblyIntegrationTest {
                         null, carol, 403, "ACCESS_DENIED");
 
                 long tenantVersion = fixture.tenants.find(tenant).orElseThrow().version();
-                JSONObject duplicateInvite = command(http, "inviteTenantMember", "existing-member-invite", alice,
-                        Map.of("tenantId", tenant, "targetSubjectId", bobId, "expectedTenantVersion", tenantVersion));
-                JSONObject alreadyJoined = command(http, "acceptTenantInvitation", "existing-member-join", bob, acceptance(duplicateInvite));
-                assertEquals(1, alreadyJoined.getInt("outcome"));
-                JSONObject priorMember = joined.getJSONObject("value").getJSONObject("member");
-                JSONObject sameMember = alreadyJoined.getJSONObject("member");
-                assertEquals(priorMember.getStr("memberId"), sameMember.getStr("memberId"));
-                assertEquals(priorMember.getInt("role"), sameMember.getInt("role"));
-                assertEquals(priorMember.getLong("version"), sameMember.getLong("version"));
+                http.rejected("/workspace/inviteTenantMember", fixture.json.write(Map.of("tenantId", tenant,
+                                "targetSubjectId", bobId, "expectedTenantVersion", tenantVersion)),
+                        "existing-member-invite", alice, 409, "ALREADY_MEMBER");
+                assertEquals(tenantVersion, fixture.tenants.find(tenant).orElseThrow().version());
+                // 升级前可能留有同目标的历史待接受邀请；接受仍保留已有成员角色及代次。
+                fixture.jdbc.update("INSERT INTO arte_platform_membership_invitation"
+                        + " (id,tenant_id,workspace_id,target_subject_id,issued_by,role,state,expires_at,accepted_member_id,version)"
+                        + " SELECT 'legacy-pending',tenant_id,workspace_id,target_subject_id,issued_by,role,0,expires_at,NULL,0"
+                        + " FROM arte_platform_membership_invitation WHERE id=?", tenantInvite.getStr("invitationId"));
+                JSONObject already = command(http, "acceptTenantInvitation", "legacy-existing-join", bob,
+                        Map.of("invitationId", "legacy-pending", "expectedInvitationVersion", 0));
+                assertEquals(1, already.getInt("outcome"));
+                assertEquals(joined.getJSONObject("value").getJSONObject("member"), already.getJSONObject("member"));
                 assertEquals(tenantVersion, fixture.tenants.find(tenant).orElseThrow().version());
 
                 long workspaceVersion = fixture.workspaces.find(other).orElseThrow().version();
@@ -574,6 +578,124 @@ class PlatformWorkspaceAssemblyIntegrationTest {
                 assertFalse(readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant)).getBool("manage"));
                 http.rejected("/workspace/listTenantMembers", fixture.json.write(Map.of("tenantId", tenant)),
                         null, alice, 403, "ACCESS_DENIED");
+            }
+        });
+    }
+
+    @Test
+    void invitationIdentificationDeclineCountsAndDuplicateGuards() throws Exception {
+        membershipContext().run(c -> {
+            assertNull(c.getStartupFailure());
+            Authentication alice = login(1, "alice");
+            Authentication bob = login(2, "bob");
+            Authentication carol = login(3, "carol");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Shared");
+                String bobId = memberTarget(http, alice, tenant, "bob");
+                Map<String, Object> issue = Map.of("scope", scope, "targetSubjectId", bobId,
+                        "expectedWorkspaceVersion", 0, "role", 2);
+                JSONObject invitation = command(http, "inviteWorkspaceMember", "invite", alice, issue);
+                http.rejected("/workspace/inviteWorkspaceMember", fixture.json.write(issue), "duplicate", alice, 409, "INVITATION_PENDING");
+                JSONObject counts = readMembership(http, "getMyPendingInvitationCounts", bob, Map.of());
+                assertEquals(1, counts.getInt("workspace"));
+                assertEquals(0, counts.getInt("tenant"));
+                assertEquals(0, readMembership(http, "getMyPendingInvitationCounts", carol, Map.of()).getInt("workspace"));
+                JSONObject row = readMembership(http, "listMyWorkspaceInvitations", bob, Map.of("state", 0))
+                        .getJSONArray("records").getJSONObject(0);
+                assertEquals("Team", row.getStr("tenantName"));
+                assertEquals(1, row.getInt("tenantType"));
+                assertEquals("alice", row.getStr("inviterDisplayName"));
+                assertTrue(row.getStr("sharingBoundary").contains("私有"));
+                http.rejected("/workspace/declineWorkspaceInvitation", fixture.json.write(acceptance(invitation)),
+                        "wrong-user", carol, 404, "NOT_FOUND");
+                JSONObject declined = membershipResponse(http, "declineWorkspaceInvitation", "decline", bob, acceptance(invitation));
+                assertEquals(4, declined.getJSONObject("value").getInt("state"));
+                assertEquals(1, membershipResponse(http, "declineWorkspaceInvitation", "decline", bob, acceptance(invitation)).getInt("delivery"));
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", bob,
+                        Map.of("operationId", declined.getStr("operationId"))).getInt("delivery"));
+                assertTrue(fixture.tenantMembers.find(tenant, bobId).isEmpty());
+                assertTrue(fixture.workspaceMembers.find(scope, bobId).isEmpty());
+                assertEquals(0, readMembership(http, "getMyPendingInvitationCounts", bob, Map.of()).getInt("workspace"));
+                assertEquals(1, readMembership(http, "listMyWorkspaceInvitations", bob, Map.of("state", 4)).getInt("total"));
+                assertEquals(0, readMembership(http, "listMyWorkspaceInvitations", bob, Map.of("state", 0)).getInt("total"));
+                http.rejected("/workspace/acceptWorkspaceInvitation", fixture.json.write(acceptance(invitation)),
+                        "old-accept", bob, 409, "VERSION_CONFLICT");
+                JSONObject fresh = command(http, "inviteWorkspaceMember", "fresh", alice, issue);
+                command(http, "acceptWorkspaceInvitation", "join", bob, acceptance(fresh));
+                Map<String, Object> existing = new HashMap<>(issue);
+                existing.put("expectedWorkspaceVersion", 1);
+                http.rejected("/workspace/inviteWorkspaceMember", fixture.json.write(existing), "already", alice, 409, "ALREADY_MEMBER");
+                JSONObject origin = readMembership(http, "getWorkspace", bob, Map.of("scope", scope)).getJSONObject("identity");
+                assertEquals("Team", origin.getStr("tenantName"));
+                assertFalse(origin.getBool("createdByMe"));
+                JSONObject directory = readMembership(http, "browseAccessibleWorkspaces", bob, Map.of("size", 20));
+                assertEquals("Team", directory.getJSONArray("records").getJSONObject(0).getJSONObject("identity").getStr("tenantName"));
+
+                JSONObject orgInvite = command(http, "inviteTenantMember", "org-invite", alice, Map.of("tenantId", tenant,
+                        "targetSubjectId", bobId, "expectedTenantVersion", fixture.tenants.find(tenant).orElseThrow().version()));
+                JSONObject orgDecline = command(http, "declineTenantInvitation", "org-decline", bob, acceptance(orgInvite));
+                assertEquals(4, orgDecline.getInt("state"));
+                assertEquals(TenantRoleEnum.GUEST, fixture.tenantMembers.find(tenant, bobId).orElseThrow().role());
+
+                Scope second = createSpace(http, tenant, alice, "Expired");
+                JSONObject expired = command(http, "inviteWorkspaceMember", "expired", alice,
+                        Map.of("scope", second, "targetSubjectId", bobId, "expectedWorkspaceVersion", 0, "role", 3));
+                fixture.jdbc.update("UPDATE arte_platform_membership_invitation SET expires_at=? WHERE id=?",
+                        LocalDateTime.of(2020, 1, 1, 0, 0), expired.getStr("invitationId"));
+                assertEquals(0, readMembership(http, "getMyPendingInvitationCounts", bob, Map.of()).getInt("workspace"));
+                assertEquals(1, readMembership(http, "listMyWorkspaceInvitations", bob, Map.of("state", 3)).getInt("total"));
+                assertEquals(0, readMembership(http, "listWorkspaceInvitations", alice, Map.of("scope", second, "state", 0)).getInt("total"));
+                http.rejected("/workspace/declineWorkspaceInvitation", fixture.json.write(acceptance(expired)),
+                        "expired-decline", bob, 409, "VERSION_CONFLICT");
+                JSONObject renewed = command(http, "inviteWorkspaceMember", "renew", alice,
+                        Map.of("scope", second, "targetSubjectId", bobId, "expectedWorkspaceVersion", 0, "role", 3));
+                assertNotEquals(expired.getStr("invitationId"), renewed.getStr("invitationId"));
+                assertEquals(1, readMembership(http, "getMyPendingInvitationCounts", bob, Map.of()).getInt("workspace"));
+
+                Scope personal = c.getBean(ReactiveWorkspaceOperations.class).initializePersonal(alice, meta("personal")).block(WAIT).value().workspace().scope();
+                JSONObject personalInvite = command(http, "inviteWorkspaceMember", "personal-invite", alice,
+                        Map.of("scope", personal, "targetSubjectId", bobId, "expectedWorkspaceVersion", 0, "role", 3));
+                JSONObject personalRow = readMembership(http, "listMyWorkspaceInvitations", bob, Map.of("state", 0))
+                        .getJSONArray("records").stream().map(v -> (JSONObject) v)
+                        .filter(v -> personalInvite.getStr("invitationId").equals(v.getStr("invitationId"))).findFirst().orElseThrow();
+                assertEquals(0, personalRow.getInt("tenantType"));
+                assertEquals("alice", personalRow.getStr("hostDisplayName"));
+            }
+        });
+    }
+
+    @Test
+    void concurrentDifferentKeysCannotCreateDuplicateInvitationsAndOnlyOneDecisionWins() throws Exception {
+        membershipContext().run(c -> {
+            Authentication alice = login(1, "alice");
+            Authentication bob = login(2, "bob");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Concurrent Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Concurrent");
+                String bobId = memberTarget(http, alice, tenant, "bob");
+                var identities = c.getBean(com.arte.app.platform.identity.RbacIdentityProvider.class);
+                var owner = identities.actor(alice);
+                var target = identities.actor(bob);
+                var service = c.getBean(DefaultWorkspaceServices.class).membership();
+                var scheduler = reactor.core.scheduler.Schedulers.boundedElastic();
+                var a = Mono.fromCallable(() -> service.invite(owner, new WorkspaceCommands.InviteMember(meta("race-a"),
+                        scope, 0, bobId, WorkspaceRoleEnum.MEMBER, null))).subscribeOn(scheduler).materialize();
+                var b = Mono.fromCallable(() -> service.invite(owner, new WorkspaceCommands.InviteMember(meta("race-b"),
+                        scope, 0, bobId, WorkspaceRoleEnum.GUEST, null))).subscribeOn(scheduler).materialize();
+                var issued = Mono.zip(a, b).block(WAIT);
+                assertEquals(1, (issued.getT1().isOnNext() ? 1 : 0) + (issued.getT2().isOnNext() ? 1 : 0));
+                var failure = issued.getT1().isOnError() ? issued.getT1().getThrowable() : issued.getT2().getThrowable();
+                assertEquals(PlatformErrorCodeEnum.INVITATION_PENDING, ((PlatformException) failure).getCode());
+                var invitation = (issued.getT1().isOnNext() ? issued.getT1().get() : issued.getT2().get()).value();
+                var accept = Mono.fromCallable(() -> service.accept(target, new WorkspaceCommands.AcceptInvitation(
+                        meta("accept-race"), invitation.invitationId(), 0))).subscribeOn(scheduler).materialize();
+                var decline = Mono.fromCallable(() -> service.decline(target, new WorkspaceCommands.DeclineInvitation(
+                        meta("decline-race"), invitation.invitationId(), 0))).subscribeOn(scheduler).materialize();
+                var decisions = Mono.zip(accept, decline).block(WAIT);
+                assertEquals(1, (decisions.getT1().isOnNext() ? 1 : 0) + (decisions.getT2().isOnNext() ? 1 : 0));
+                assertEquals(decisions.getT1().isOnNext(), fixture.workspaceMembers.find(scope, bobId).isPresent());
+                assertEquals(0, service.pendingInvitationCounts(target).workspace());
             }
         });
     }

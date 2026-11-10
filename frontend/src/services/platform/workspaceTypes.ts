@@ -7,7 +7,15 @@ export interface WorkspaceScope {
 export type WorkspaceRole = 0 | 1 | 2 | 3;
 export type WorkspaceState = 0 | 1 | 2 | 3;
 
+export interface WorkspaceIdentity {
+  tenantName: string;
+  tenantType: 0 | 1;
+  hostedByMe: boolean;
+  createdByMe: boolean;
+}
+
 export interface WorkspaceView {
+  identity?: WorkspaceIdentity | null;
   scope: WorkspaceScope;
   name: string;
   description?: string;

@@ -346,4 +346,20 @@ public final class WorkspaceCommands {
             }
         }
     }
+
+    /**
+     * 由受邀账号拒绝尚未到期的邀请；不建立或修改成员资格。
+     *
+     * @param meta                      命令元数据及原操作键
+     * @param invitationId              本人收到的邀请 ID
+     * @param expectedInvitationVersion 预期邀请版本
+     */
+    public record DeclineInvitation(CommandMeta meta, String invitationId, long expectedInvitationVersion) {
+        public DeclineInvitation {
+            Objects.requireNonNull(meta);
+            PlatformChecks.id(invitationId, "invitationId");
+            PlatformChecks.version(expectedInvitationVersion, "expectedInvitationVersion");
+        }
+    }
+
 }

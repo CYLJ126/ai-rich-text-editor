@@ -85,7 +85,7 @@ it('accepts only after explicit confirmation and restores the original scoped co
   fireEvent.click(await screen.findByRole('button', {name: '确认接受'}));
   await waitFor(() => expect(executeMembership).toHaveBeenCalledTimes(1));
   expect(vi.mocked(executeMembership).mock.calls[0]?.[0]).toEqual({
-    target, action: 'accept', payload: {invitationId: 'invite', expectedInvitationVersion: 0}
+    target, targetLabel: '研发空间', action: 'accept', payload: {invitationId: 'invite', expectedInvitationVersion: 0}
   });
   first.unmount();
 
@@ -97,4 +97,24 @@ it('accepts only after explicit confirmation and restores the original scoped co
   fireEvent.click(screen.getByRole('button', {name: '确认原成员操作'}));
   await waitFor(() => expect(executeMembership).toHaveBeenCalledTimes(2));
   expect(vi.mocked(executeMembership).mock.calls[1]).toEqual(vi.mocked(executeMembership).mock.calls[0]);
+});
+
+it('shows the host, inviter and access boundary before declining without joining', async () => {
+  vi.mocked(listMyInvitations).mockResolvedValue(page([{
+    ...invitation, tenantName: 'Alice 的协作空间', tenantType: 0,
+    hostDisplayName: 'alice', inviterDisplayName: 'lead', sharingBoundary: '私有会话不会向新成员开放。'
+  }]));
+  vi.mocked(executeMembership).mockResolvedValue(receipt);
+  render(<MembershipSession userId="bob"><MembershipInbox workspace initiallyOpen/></MembershipSession>);
+  expect(await screen.findByText('托管者：alice')).toBeInTheDocument();
+  expect(screen.getByText('邀请人：lead')).toBeInTheDocument();
+  expect(screen.getByText('私有会话不会向新成员开放。')).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: '收起我的邀请'})).toHaveTextContent('1 条待处理');
+  fireEvent.click(screen.getByRole('button', {name: '拒绝邀请'}));
+  expect(executeMembership).not.toHaveBeenCalled();
+  fireEvent.click(await screen.findByRole('button', {name: '确认拒绝'}));
+  await waitFor(() => expect(executeMembership).toHaveBeenCalledWith({
+    target, targetLabel: '研发空间', action: 'decline',
+    payload: {invitationId: 'invite', expectedInvitationVersion: 0}
+  }, expect.any(String)));
 });
