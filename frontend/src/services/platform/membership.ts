@@ -8,7 +8,11 @@ const version = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const role = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 const caps = z.object({
   available: z.boolean(), manage: z.boolean(), invite: z.boolean(), assignAdmin: z.boolean(),
-  transferOwner: z.boolean(), leave: z.boolean(), memberId: id.nullish(), memberVersion: version.nullish()
+  readOnly: z.boolean().optional(),
+  transferOwner: z.boolean(),
+  leave: z.boolean(),
+  memberId: id.nullish(),
+  memberVersion: version.nullish()
 });
 const member = z.object({
   memberId: id, subjectId: id, displayName: id.nullish(), role, state: z.union([z.literal(0), z.literal(1)]), version

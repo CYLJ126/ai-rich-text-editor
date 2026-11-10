@@ -25,6 +25,11 @@
         SELECT * FROM arte_platform_tenant WHERE id=#{id} FOR UPDATE
     </select>
 
+    <select id="selectClosureOperation" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT id FROM arte_platform_workspace_closure
+        WHERE tenant_id=#{tenant} AND workspace_id=#{workspace} AND id=#{operation} FOR UPDATE
+    </select>
+
     <update id="replaceCas">
         UPDATE arte_platform_tenant SET
         name=#{row.name},state=#{row.state},version=#{row.version},auth_epoch=#{row.authEpoch},updated_at=#{row.updatedAt}

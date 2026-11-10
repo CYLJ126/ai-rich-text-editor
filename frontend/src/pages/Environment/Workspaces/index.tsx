@@ -1,3 +1,5 @@
+import {LifecycleSession} from '@/features/workspace/LifecycleSession';
+import WorkspaceClosureRecords from '@/features/workspace/WorkspaceClosureRecords';
 import {workspaceOwnership, workspaceRelationship} from '@/features/workspace/workspaceIdentity';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {history, useModel} from '@umijs/max';
@@ -60,10 +62,10 @@ export default function WorkspaceConfigurationPage() {
                   action={<Button onClick={() => history.replace('/Environment/Workspaces')}>打开空间目录</Button>}/>;
   }
   return <ConfigurationBoundary key={userId} userId={userId}>
-    <MembershipSession userId={userId}>
+    <MembershipSession userId={userId}><LifecycleSession userId={userId}>
       <WorkspaceConfiguration key={location ? search : 'directory'} userId={userId} location={location}
                               defaultTab={(tab ?? 'overview') as WorkspaceTab}/>
-    </MembershipSession>
+    </LifecycleSession></MembershipSession>
   </ConfigurationBoundary>;
 }
 
@@ -267,6 +269,7 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
           </Flex>
         }))}>
         {membership?.status}
+        <WorkspaceClosureRecords userId={userId}/>
         <MembershipInbox workspace/>
         {(task?.management || task?.chat) && <Flex gap={8} wrap>
           {task.management &&
@@ -293,6 +296,11 @@ function WorkspaceConfiguration({userId, location, defaultTab}: {
             <WorkspaceEntry key={keyOf(target.scope)} userId={userId} target={target}/>
             <WorkspaceDetailForm userId={userId} scope={target.scope} tab={targetTab} focusedModel={focusedModel}
                                  focusBudget={task?.focus === 'budget'}
+                                 onClosed={() => {
+                                   setTarget(null);
+                                   setLocationError('');
+                                   void directory.load(filter);
+                                 }}
                                  onTabChange={setTargetTab} onUnsafeChange={setFormUnsafe} onSaved={setTarget}
                                  onAccessLost={() => {
                                    setTarget(null);

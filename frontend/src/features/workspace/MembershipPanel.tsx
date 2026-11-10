@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Alert, Button, Card, Flex, Input, Popconfirm, Select, Table, Typography, Grid, List} from 'antd';
+import {Alert, Button, Card, Flex, Grid, Input, List, Popconfirm, Select, Table, Typography} from 'antd';
 import {useConfigurationDraft} from '@/features/configuration/ConfigurationBoundary';
 import {AiApiError} from '@/services/arte-ai/request';
 import {
@@ -156,7 +156,7 @@ export function MembershipPanel({target, targetName, version, caps, disabled}: {
                                          expectedMemberVersion: member.version
                                        };
                                        return <Flex gap={6} wrap>
-                                         {(space || member.role !== 3) && <>
+                                         {!caps.readOnly && (space || member.role !== 3) && <>
                                            <Select aria-label={`调整 ${name(member)} 的角色`} size="small"
                                                    value={selected}
                                                    disabled={locked} options={options}

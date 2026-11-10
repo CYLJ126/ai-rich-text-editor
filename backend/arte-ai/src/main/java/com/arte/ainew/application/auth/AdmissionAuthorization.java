@@ -60,6 +60,11 @@ public final class AdmissionAuthorization {
      * 执行数据读取权限：读取所属上下文快照、执行状态、结果、事件及授权预算账户，不触发模型调用。
      * 会话／Turn 读取使用 CONVERSATION 权限；预算初始化另需 BUDGET_ADMIN。
      */
+    /**
+     * 仅受信核对 HTTP 入口使用的上下文用途，不授予账户权限或新执行。
+     */
+    public static final String RECONCILIATION = "ai:reconciliation";
+
     public static final String READ = "ai:read";
 
     /**

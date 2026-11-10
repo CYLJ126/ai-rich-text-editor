@@ -48,10 +48,14 @@ public final class DefaultRolePermissions {
 
     public static AccessReasonEnum workspace(Action action, WorkspaceAccessSupport.WorkspaceSnapshot scope) {
         WorkspaceRoleEnum role = scope.member().role();
+        if (action.equals(WORKSPACE_RECONCILE)) return AccessReasonEnum.ALLOWED;
         if (Set.of(WORKSPACE_READ, RESOURCE_DISCOVER).contains(action)) return AccessReasonEnum.ALLOWED;
         if (scope.workspace().state() == WorkspaceStateEnum.ARCHIVED) {
-            return action.equals(WORKSPACE_RESTORE) ? decision(role == WorkspaceRoleEnum.OWNER)
-                    : AccessReasonEnum.LIFECYCLE_DENIED;
+            if (Set.of(WORKSPACE_RESTORE, WORKSPACE_CLOSE, WORKSPACE_RESOURCE_GOVERN).contains(action))
+                return decision(role == WorkspaceRoleEnum.OWNER);
+            if (action.equals(WORKSPACE_MEMBER_MANAGE))
+                return decision(role == WorkspaceRoleEnum.OWNER || role == WorkspaceRoleEnum.ADMIN);
+            return AccessReasonEnum.LIFECYCLE_DENIED;
         }
         if (Set.of(WORKSPACE_UPDATE, WORKSPACE_INVITE, WORKSPACE_MEMBER_MANAGE).contains(action)) {
             return decision(role == WorkspaceRoleEnum.OWNER || role == WorkspaceRoleEnum.ADMIN);

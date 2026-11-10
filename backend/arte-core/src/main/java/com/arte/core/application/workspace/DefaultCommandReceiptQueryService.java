@@ -45,6 +45,12 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
     private final PublicTransactionRunner transactions;
     private final DefaultTenantGovernanceService tenantGovernance;
     private final DefaultMembershipGovernanceService membership;
+    private DefaultWorkspaceLifecycleService lifecycle;
+
+    public void registerLifecycle(DefaultWorkspaceLifecycleService service) {
+        if (lifecycle != null) throw new IllegalStateException("Lifecycle already registered");
+        lifecycle = java.util.Objects.requireNonNull(service);
+    }
 
     DefaultCommandReceiptQueryService(CurrentPrincipalResolver principals, CommandReceiptStore receipts,
                                       PreferenceStore preferences, TenantStore tenants, WorkspaceAccessSupport access,
@@ -69,6 +75,10 @@ public final class DefaultCommandReceiptQueryService implements CommandReceiptQu
         String subjectId = principals.requireUser(actor).subjectId();
         var located = authorityRead(() -> receipts.findByOperationId(operationId)).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
         if (!located.identity().actorSubjectId().equals(subjectId)) throw error(PlatformErrorCodeEnum.NOT_FOUND);
+        if (DefaultWorkspaceLifecycleService.supports(located.identity().commandType())) {
+            if (lifecycle == null) throw error(PlatformErrorCodeEnum.CAPABILITY_NOT_ENABLED);
+            return lifecycle.receipt(actor, located);
+        }
         boolean membershipCommand = DefaultMembershipGovernanceService.supportsReceipt(located.identity().commandType());
         return transactions.required(() -> {
             if (membershipCommand) {

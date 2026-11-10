@@ -18,8 +18,7 @@ import java.time.Clock;
 import java.util.*;
 
 import static com.arte.core.constant.platform.PlatformActions.*;
-import static com.arte.core.constant.platform.PlatformResourceTypes.TENANT;
-import static com.arte.core.constant.platform.PlatformResourceTypes.WORKSPACE;
+import static com.arte.core.constant.platform.PlatformResourceTypes.*;
 
 /**
  * 租户／空间治理与资源 ACL 共用的统一判定
@@ -131,7 +130,9 @@ public final class DefaultAuthorizationService implements AuthorizationService {
             } else if (request.resource().type().equals(WORKSPACE)
                     && request.resource().resourceId().equals(request.scope().workspaceId())) {
                 Scope workspaceScope = request.scope().requireWorkspace();
-                var scope = batch != null ? batch.snapshot(workspaceScope)
+                var scope = request.action().equals(WORKSPACE_RECONCILE)
+                        ? currentRead ? workspaceAccessSupport.reconciliationCurrent(actor, workspaceScope) : workspaceAccessSupport.reconciliation(actor, workspaceScope)
+                        : batch != null ? batch.snapshot(workspaceScope)
                         : currentRead ? workspaceAccessSupport.snapshotCurrent(actor, workspaceScope)
                         : workspaceAccessSupport.snapshot(actor, workspaceScope);
                 var invalidAction = invalidAction(request);
@@ -147,7 +148,10 @@ public final class DefaultAuthorizationService implements AuthorizationService {
                 var invalid = invalidAction(request);
                 if (invalid != null) return denied(invalid);
                 // 业务资源首版在明确的当前使用空间内判断；同租户租户级资源也须有目标空间资格。
-                var snapshot = batch != null ? batch.snapshot(request.scope().requireWorkspace())
+                var snapshot = request.resource().type().equals(BUDGET_ACCOUNT) && request.action().equals(BUDGET_ACCOUNT_RECONCILE)
+                        ? currentRead ? workspaceAccessSupport.reconciliationCurrent(actor, request.scope().requireWorkspace())
+                        : workspaceAccessSupport.reconciliation(actor, request.scope().requireWorkspace())
+                        : batch != null ? batch.snapshot(request.scope().requireWorkspace())
                         : currentRead ? workspaceAccessSupport.snapshotCurrent(actor, request.scope().requireWorkspace())
                         : workspaceAccessSupport.snapshot(actor, request.scope().requireWorkspace());
                 return acl.check(actor, request, snapshot, currentRead);

@@ -152,11 +152,11 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
             WorkspaceRoleEnum role = snapshot.member().role();
             boolean writable = snapshot.workspace().state() == WorkspaceStateEnum.ACTIVE;
             boolean owner = role == WorkspaceRoleEnum.OWNER;
-            boolean manage = writable && (owner || role == WorkspaceRoleEnum.ADMIN);
-            boolean transfer = manage && owner && !access.isDefaultSpaceCurrent(snapshot);
-            boolean leave = writable && !owner;
-            return new MembershipCapabilities(true, manage, manage, manage && owner, transfer, leave,
-                    manage || leave ? snapshot.member().id() : null, manage || leave ? snapshot.member().version() : null);
+            boolean manage = owner || role == WorkspaceRoleEnum.ADMIN;
+            boolean transfer = writable && owner && !access.isDefaultSpaceCurrent(snapshot);
+            boolean leave = !owner;
+            return new MembershipCapabilities(true, manage, writable && manage, writable && owner, transfer, leave,
+                    manage || leave ? snapshot.member().id() : null, manage || leave ? snapshot.member().version() : null, !writable);
         });
     }
 
@@ -231,7 +231,7 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
 
     public PageResult<InvitationView> listWorkspaceInvitations(TrustedActor actor, Scope scope, PageQuery query, InvitationStateEnum state) {
         return read(actor, range(scope), () -> {
-            workspace(actor, scope, WORKSPACE_INVITE);
+            workspace(actor, scope, WORKSPACE_MEMBER_MANAGE);
             return spaceInvitations.listForWorkspace(scope, query, state, clock.instant()).map(this::view);
         });
     }
@@ -343,7 +343,7 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
         return commands.execute(actor, command.meta(), scope, type, SPACE_INVITATION, InvitationView.class,
                 fields(command.invitationId(), command.expectedInvitationVersion(), command.expectedWorkspaceVersion()), () -> gate(actor, scope),
                 saved -> authorizeReceipt(actor, scope, type, saved, saved.version()), operation -> {
-                    check(workspace(actor, space, WORKSPACE_INVITE).workspace().version() == command.expectedWorkspaceVersion());
+                    check(workspace(actor, space, WORKSPACE_MEMBER_MANAGE).workspace().version() == command.expectedWorkspaceVersion());
                     spaceInvitations.find(command.invitationId())
                             .filter(value -> value.scope().equals(space)).orElseThrow(DefaultMembershipGovernanceService::missing);
                     WorkspaceInvitation invitation = spaceInvitations.lock(command.invitationId())
@@ -539,6 +539,7 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
                 fields(command.memberId(), command.expectedMemberVersion(), command.expectedWorkspaceVersion(), command.role()),
                 () -> gate(actor, scope, target), saved -> authorizeReceipt(actor, scope, type, saved, saved.version()), operation -> {
                     WorkspaceAccessSupport.WorkspaceSnapshot snapshot = workspace(actor, space, WORKSPACE_MEMBER_MANAGE);
+                    allowed(snapshot.workspace().state() == WorkspaceStateEnum.ACTIVE);
                     WorkspaceMembership member = currentSpaceMember(space, target, command.memberId(), command.expectedMemberVersion());
                     check(snapshot.workspace().version() == command.expectedWorkspaceVersion());
                     protectSpaceTarget(snapshot.member(), member);
@@ -581,7 +582,8 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
                     WorkspaceAccessSupport.WorkspaceSnapshot snapshot = workspace(actor, space, WORKSPACE_READ);
                     WorkspaceMembership member = snapshot.member();
                     check(snapshot.workspace().version() == command.expectedWorkspaceVersion() && member.version() == command.expectedMemberVersion());
-                    allowed(snapshot.workspace().state() == WorkspaceStateEnum.ACTIVE && member.role() != WorkspaceRoleEnum.OWNER);
+                    allowed((snapshot.workspace().state() == WorkspaceStateEnum.ACTIVE || snapshot.workspace().state() == WorkspaceStateEnum.ARCHIVED)
+                            && member.role() != WorkspaceRoleEnum.OWNER);
                     return removeSpaceMember(actor, snapshot.workspace(), member, scope, type, operation);
                 });
     }
@@ -849,7 +851,7 @@ public final class DefaultMembershipGovernanceService implements TenantService, 
         if (space == null) {
             organization(actor, tenant, TENANT_MEMBER_MANAGE);
         } else {
-            workspace(actor, space, type.startsWith("workspace:invitation:") ? WORKSPACE_INVITE : WORKSPACE_MEMBER_MANAGE);
+            workspace(actor, space, type.equals("workspace:invitation:issue") ? WORKSPACE_INVITE : WORKSPACE_MEMBER_MANAGE);
         }
         if (saved instanceof TenantInvitationView view) {
             allowed(tenant.equals(view.tenantId()) && version == view.version()

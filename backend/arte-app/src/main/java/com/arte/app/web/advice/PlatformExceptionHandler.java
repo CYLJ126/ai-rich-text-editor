@@ -38,7 +38,7 @@ import java.util.concurrent.RejectedExecutionException;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/10 18:42 ✾
  */
-@RestControllerAdvice(assignableTypes = {WorkspaceController.class, TenantDirectoryController.class, WorkspaceAccessController.class, MembershipGovernanceController.class,
+@RestControllerAdvice(assignableTypes = {WorkspaceController.class, WorkspaceLifecycleController.class, TenantDirectoryController.class, WorkspaceAccessController.class, MembershipGovernanceController.class,
         WorkspaceAiConfigurationController.class, ResourceAccessController.class, ModelResourceController.class,
         ModelDraftController.class, ModelPublicationController.class, ReviewedModelPlanController.class, ModelSharingController.class,
         ModelUsagePreparationController.class, AssistantManagementController.class, AssistantTrialController.class})

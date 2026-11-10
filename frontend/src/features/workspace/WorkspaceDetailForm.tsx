@@ -1,3 +1,4 @@
+import WorkspaceLifecyclePanel from './WorkspaceLifecyclePanel';
 import {workspaceOwnership, workspaceRelationship} from './workspaceIdentity';
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, Button, Card, Descriptions, Flex, Form, Input, Select, Tabs, Typography} from 'antd';
@@ -30,6 +31,7 @@ interface Props {
   onMoreTenants?: () => void;
   onSaved?: (view: WorkspaceView) => void;
   onAccessLost?: () => void;
+  onClosed?: () => void;
   onCancel?: () => void;
   onUnsafeChange?: (unsafe: boolean) => void;
   tab?: WorkspaceTab;
@@ -51,6 +53,7 @@ function Detail({
                   onMoreTenants,
                   onSaved,
                   onAccessLost,
+                  onClosed,
                   onCancel,
                   onUnsafeChange,
                   tab,
@@ -341,6 +344,13 @@ function Detail({
                                                      {!allowed && <Typography.Text
                                                        type="secondary">当前没有修改此空间信息的权限。</Typography.Text>}
                                                    </Card>
+                                                   <WorkspaceLifecyclePanel view={view}
+                                                                            disabled={locked || unsafe || !!membership?.locked}
+                                                                            onUpdated={() => void read(true)}
+                                                                            onClosed={() => {
+                                                                              setClosed(true);
+                                                                              onClosed?.();
+                                                                            }}/>
                                                    <WorkspaceAiSummary scope={context.scope}
                                                                        revision={summaryRevision}/>
                                                  </Flex>

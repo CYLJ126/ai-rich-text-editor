@@ -55,6 +55,16 @@ public class TenantStoreServiceImpl extends PlatformStoreSupport<PlatformTenantM
     }
 
     @Override
+    public Optional<Tenant> lockForClosure(com.arte.core.pojo.platform.Scope scope, String operationId) {
+        tx.requireWritable();
+        var found = one(() -> baseMapper.selectCurrent(scope.tenantId()), PlatformRecords::tenant);
+        if (found.isEmpty() || baseMapper.selectClosureOperation(scope.tenantId(), scope.workspaceId(), operationId) == null)
+            throw new IllegalStateException("Unregistered closure coordination scope");
+        tenantHeld(scope.tenantId());
+        return found;
+    }
+
+    @Override
     public boolean insert(Tenant value) {
         requireSubject(value.createdBy());
         boolean inserted = insertRecord(() -> baseMapper.insert(PlatformRecords.tenant(value)));

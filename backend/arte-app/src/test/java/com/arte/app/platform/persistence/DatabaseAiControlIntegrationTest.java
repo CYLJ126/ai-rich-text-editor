@@ -849,6 +849,26 @@ class DatabaseAiControlIntegrationTest {
                 });
     }
 
+    @Test
+    void closingWorkspaceOnlyAllowsTheNarrowReconciliationContext() {
+        var scope = f.initialize().value().workspace().scope();
+        context().withPropertyValues(seedProperties()).run(c -> {
+            var db = c.getBean(DatabaseAiControlService.class);
+            DatabaseAiTestCatalog.publish(db, c, f.actor, meta("closure-finance-catalog"));
+            assertNotNull(DatabaseAiTestCatalog.prepareWithAccounts(c, f.actor, scope).configuration());
+            f.jdbc.update("UPDATE arte_platform_workspace SET state=2,version=version+1,auth_epoch=auth_epoch+1 WHERE tenant_id=? AND id=?",
+                    scope.tenantId(), scope.workspaceId());
+            var scopes = Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.RECONCILIATION);
+            var snapshot = db.readSnapshot("alice", scope.tenantId(), scope.workspaceId(), scopes, true).block(WAIT);
+            assertEquals(scopes, snapshot.authorization().scopes());
+            assertFalse(snapshot.configuration().grants().getFirst().scopes().contains(AdmissionAuthorization.INVOKE));
+            assertNotNull(db.resolve("alice", scope.tenantId(), scope.workspaceId(), scopes).block(WAIT));
+            assertThrows(RuntimeException.class, () -> db.resolve("alice", scope.tenantId(), scope.workspaceId(), Set.of(AdmissionAuthorization.READ)).block(WAIT));
+            assertThrows(RuntimeException.class, () -> db.resolve("alice", scope.tenantId(), scope.workspaceId(),
+                    Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.RECONCILIATION, AdmissionAuthorization.INVOKE)).block(WAIT));
+        });
+    }
+
     int http(org.springframework.test.web.servlet.MockMvc mvc, String endpoint, String body, String key,
              org.springframework.security.core.Authentication auth, com.arte.core.pojo.UserOnlineInfo online, boolean administrator) throws Exception {
         return httpResponse(mvc, endpoint, body, key, auth, online, administrator).getStatus();

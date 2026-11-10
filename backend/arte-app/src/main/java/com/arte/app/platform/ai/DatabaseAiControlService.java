@@ -294,12 +294,16 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
 
     private Snapshot readSnapshot(TrustedActor actor, String name, Scope scope, Set<String> requested, boolean includeConfiguration) {
         if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
-                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested)) {
+                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN, AdmissionAuthorization.RECONCILIATION).containsAll(requested)) {
             throw new AccessDeniedException("Workspace AI action denied");
         }
+        if (requested.contains(AdmissionAuthorization.RECONCILIATION)
+                && (requested.contains(AdmissionAuthorization.INVOKE) || requested.contains(AdmissionAuthorization.CONVERSATION)))
+            throw new AccessDeniedException("Reconciliation cannot create executions");
         List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
-                requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-read"));
+                requested.contains(AdmissionAuthorization.RECONCILIATION) ? WORKSPACE_RECONCILE
+                        : requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-read"));
         if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN) && !catalogPermissions.snapshot(name).contains(AdmissionAuthorization.BUDGET_ADMIN))
             throw new AccessDeniedException("Independent budget operation denied");
         int requiredActions = requests.size();
@@ -335,7 +339,9 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         }
         List<ControlConfiguration.Budget> definitions = mapper.budgetsRead(scope.tenantId(), scope.workspaceId(), actor.principal().subjectId()).stream()
                 .map(b -> json.read(b.getPayload(), ControlConfiguration.Budget.class)).toList();
-        Set<String> permissions = new HashSet<>(Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
+        Set<String> permissions = new HashSet<>(requested.contains(AdmissionAuthorization.RECONCILIATION)
+                ? Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.RECONCILIATION)
+                : Set.of(AdmissionAuthorization.READ, AdmissionAuthorization.CONVERSATION));
         if (settings.enabled() && decisions.get(invokeAction).allowed()) {
             permissions.add(AdmissionAuthorization.INVOKE);
         }
@@ -347,7 +353,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
         List<ResolvedBinding> bindings = catalog.bindings().stream().filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION).toList();
         Catalog filtered = new Catalog(catalog.capabilities(), bindings, catalog.connections(), catalog.rates(),
                 List.of(), List.of(), catalog.defaults(), catalog.disabledConnections());
-        return new Snapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), false));
+        var configuration = filtered.properties(infrastructure, List.of(grant), definitions);
+        return new Snapshot(auth, requested.contains(AdmissionAuthorization.RECONCILIATION) ? configuration : withResources(actor, scope, configuration, false));
     }
 
     private ExecutionAuthorization authorization(ControlConfiguration.Grant grant, Set<String> requested) {
@@ -427,15 +434,19 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
             throw new AccessDeniedException("Stable identity mismatch");
         }
         if (!Set.of(AdmissionAuthorization.INVOKE, AdmissionAuthorization.CONVERSATION,
-                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN).containsAll(requested)) {
+                AdmissionAuthorization.READ, AdmissionAuthorization.BUDGET_ADMIN, AdmissionAuthorization.RECONCILIATION).containsAll(requested)) {
             throw new AccessDeniedException("Workspace AI action denied");
         }
         if (workspaces.getObject().find(scope).isEmpty()) {
             throw new AccessDeniedException("Workspace AI access denied");
         }
+        if (requested.contains(AdmissionAuthorization.RECONCILIATION)
+                && (requested.contains(AdmissionAuthorization.INVOKE) || requested.contains(AdmissionAuthorization.CONVERSATION)))
+            throw new AccessDeniedException("Reconciliation cannot create executions");
         List<AccessRequest> requests = new ArrayList<>();
         requests.add(DefaultAuthorizationService.workspaceRequest(scope,
-                requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-write"));
+                requested.contains(AdmissionAuthorization.RECONCILIATION) ? WORKSPACE_RECONCILE
+                        : requested.contains(AdmissionAuthorization.INVOKE) ? WORKSPACE_AI_USE : WORKSPACE_READ, "database-ai-write"));
 
         return guards.getObject().inCurrentTransaction(actor, requests, () -> {
             if (requested.contains(AdmissionAuthorization.BUDGET_ADMIN) && !catalogPermissions.current(name).contains(AdmissionAuthorization.BUDGET_ADMIN))
@@ -457,7 +468,8 @@ public class DatabaseAiControlService implements ExecutionReadAuthorizationResol
                     .filter(b -> b.capability().kind() != CapabilityDescriptor.Kind.GENERATION
                     ).toList(), catalog.connections(), catalog.rates(),
                     List.of(), List.of(), catalog.defaults(), catalog.disabledConnections());
-            return new CurrentSnapshot(auth, withResources(actor, scope, filtered.properties(infrastructure, List.of(grant), definitions), true), publication.version());
+            var configuration = filtered.properties(infrastructure, List.of(grant), definitions);
+            return new CurrentSnapshot(auth, requested.contains(AdmissionAuthorization.RECONCILIATION) ? configuration : withResources(actor, scope, configuration, true), publication.version());
         });
     }
 

@@ -700,6 +700,144 @@ class PlatformWorkspaceAssemblyIntegrationTest {
         });
     }
 
+    @Test
+    void lifecycleArchivesRestoresAndAllowsRevocationWithoutRoleExpansion() throws Exception {
+        fixture.installDdl(java.nio.file.Path.of("scripts/arte-platform-workspace-lifecycle-ddl-mysql.sql"));
+        membershipContext().run(c -> {
+            Authentication alice = login(1, "alice"), bob = login(2, "bob");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Archive Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Archive");
+                String target = memberTarget(http, alice, tenant, "bob");
+                JSONObject invite = command(http, "inviteWorkspaceMember", "invite", alice,
+                        Map.of("scope", scope, "expectedWorkspaceVersion", 0, "targetSubjectId", target, "role", 2));
+                JSONObject joined = command(http, "acceptWorkspaceInvitation", "accept", bob, acceptance(invite)).getJSONObject("member");
+                JSONObject archived = membershipResponse(http, "archiveWorkspace", "archive", alice,
+                        Map.of("scope", scope, "expectedWorkspaceVersion", 1, "reason", "done"));
+                assertEquals(1, archived.getJSONObject("value").getInt("state"));
+                assertEquals(2, archived.getJSONObject("value").getLong("version"));
+                assertTrue(readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant, "scope", scope)).getBool("readOnly"));
+                assertFalse(readMembership(http, "getMembershipCapabilities", alice, Map.of("tenantId", tenant, "scope", scope)).getBool("invite"));
+                assertEquals("Archive", readMembership(http, "getWorkspace", bob, Map.of("scope", scope)).getStr("name"));
+                http.rejected("/workspace/renameWorkspace", fixture.json.write(Map.of("scope", scope, "expectedVersion", 2, "name", "bad")),
+                        "rename", alice, 409, "SPACE_READ_ONLY");
+                http.rejected("/workspace/changeWorkspaceMemberRole", fixture.json.write(Map.of("scope", scope, "expectedWorkspaceVersion", 2,
+                        "memberId", joined.getStr("memberId"), "expectedMemberVersion", 0, "role", 1)), "promote", alice, 403, "ACCESS_DENIED");
+                command(http, "leaveWorkspace", "leave", bob, Map.of("scope", scope, "expectedWorkspaceVersion", 2, "expectedMemberVersion", 0));
+                JSONObject restored = command(http, "unarchiveWorkspace", "restore", alice, Map.of("scope", scope, "expectedWorkspaceVersion", 3));
+                assertEquals(0, restored.getInt("state"));
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", alice, Map.of("operationId", archived.getStr("operationId"))).getInt("delivery"));
+                Scope personal = c.getBean(ReactiveWorkspaceOperations.class).initializePersonal(alice, meta("personal")).block(WAIT).value().workspace().scope();
+                http.rejected("/workspace/archiveWorkspace", fixture.json.write(Map.of("scope", personal, "expectedWorkspaceVersion", 0)), "default-archive", alice, 403, "POLICY_DENIED");
+                http.rejected("/workspace/closeWorkspace", fixture.json.write(Map.of("scope", personal, "expectedWorkspaceVersion", 0)), "default-close", alice, 403, "POLICY_DENIED");
+            }
+        });
+    }
+
+    @Test
+    void durableClosureWaitsForEvidenceSurvivesRestartAndPreservesResources() throws Exception {
+        fixture.installDdl(java.nio.file.Path.of("scripts/arte-platform-workspace-lifecycle-ddl-mysql.sql"));
+        var waiting = new java.util.concurrent.atomic.AtomicBoolean(true);
+        com.arte.core.spi.workspace.WorkspaceClosureInspector readiness = new com.arte.core.spi.workspace.WorkspaceClosureInspector() {
+            public String domain() {
+                return "test-domain";
+            }
+
+            public Inspection inspect(Scope scope) {
+                return new Inspection(waiting.get()
+                        ? List.of(new com.arte.core.pojo.workspace.ClosureBlocker(domain(), "retention", "EXECUTION_UNKNOWN", true)) : List.of(), Map.of("records", 1L));
+            }
+        };
+        membershipContext().withBean("closureTestInspector", com.arte.core.spi.workspace.WorkspaceClosureInspector.class, () -> readiness).run(c -> {
+            Authentication alice = login(1, "alice"), bob = login(2, "bob");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Close Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Close");
+                assertEquals(1, readMembership(http, "previewWorkspaceClosure", alice, Map.of("scope", scope)).getJSONArray("blockers").size());
+                JSONObject accepted = membershipResponse(http, "closeWorkspace", "close", alice, Map.of("scope", scope, "expectedWorkspaceVersion", 0));
+                String operation = accepted.getStr("operationId");
+                assertEquals(2, fixture.workspaces.find(scope).orElseThrow().state().getValue());
+                assertEquals(0, readMembership(http, "browseAccessibleWorkspaces", alice, Map.of()).getJSONArray("records").size());
+                assertEquals(1, readMembership(http, "listWorkspaceClosures", alice, Map.of()).getInt("total"));
+                assertEquals(0, readMembership(http, "listWorkspaceClosures", bob, Map.of()).getInt("total"));
+                http.rejected("/workspace/getWorkspaceClosureProgress", fixture.json.write(Map.of("scope", scope, "operationId", operation)), null, bob, 404, "NOT_FOUND");
+                var lifecycle = c.getBean(com.arte.core.application.workspace.DefaultWorkspaceLifecycleService.class);
+                lifecycle.advance(scope, operation);
+                JSONObject progress = readMembership(http, "getWorkspaceClosureProgress", alice, Map.of("scope", scope, "operationId", operation));
+                assertEquals(2, progress.getInt("state"));
+                assertEquals("EXECUTION_UNKNOWN", progress.getJSONArray("blockers").getJSONObject(0).getStr("code"));
+                assertEquals(1, membershipResponse(http, "closeWorkspace", "close", alice, Map.of("scope", scope, "expectedWorkspaceVersion", 0)).getInt("delivery"));
+                waiting.set(false);
+                fixture.jdbc.update("UPDATE arte_rbac_user SET status=0 WHERE id=1");
+                // 独立服务图只读取相同数据库中的工作项，不依赖原进程内存或原请求仍在线。
+                context().withBean("closureTestInspector", com.arte.core.spi.workspace.WorkspaceClosureInspector.class, () -> readiness).run(second -> {
+                    second.getBean(com.arte.core.application.workspace.DefaultWorkspaceLifecycleService.class).advance(scope, operation);
+                });
+                assertEquals(3, fixture.workspaces.find(scope).orElseThrow().state().getValue());
+                fixture.jdbc.update("UPDATE arte_rbac_user SET status=1 WHERE id=1");
+                assertEquals(3, readMembership(http, "getWorkspaceClosureProgress", alice, Map.of("scope", scope, "operationId", operation)).getInt("state"));
+                assertEquals(1, readMembership(http, "getWorkspaceCommandReceipt", alice, Map.of("operationId", operation)).getInt("delivery"));
+                assertEquals(1, fixture.count("workspace"));
+                assertEquals(1, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM arte_platform_audit WHERE action='workspace:deleted'", Integer.class));
+                lifecycle.advance(scope, operation);
+                assertEquals(1, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM arte_platform_audit WHERE action='workspace:deleted'", Integer.class));
+            }
+        });
+    }
+
+    @Test
+    void expiredClosureLeaseCannotCommitAfterAnotherWorkerReclaimsIt() throws Exception {
+        fixture.installDdl(java.nio.file.Path.of("scripts/arte-platform-workspace-lifecycle-ddl-mysql.sql"));
+        membershipContext().run(c -> {
+            Authentication alice = login(1, "alice");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Lease Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Lease");
+                String operation = membershipResponse(http, "closeWorkspace", "close", alice,
+                        Map.of("scope", scope, "expectedWorkspaceVersion", 0)).getStr("operationId");
+                var store = c.getBean(JdbcWorkspaceClosureStore.class);
+                var tx = c.getBean("platformTransactionRunner", com.arte.core.spi.platform.PublicTransactionRunner.class);
+                var now = java.time.Instant.parse("2026-11-10T00:00:00Z");
+                var first = tx.required(() -> store.claim(scope, operation, "ai", "retention", 0, "worker-1", now, java.time.Duration.ofSeconds(30)).orElseThrow());
+                assertTrue(tx.required(() -> store.claim(scope, operation, "ai", "retention", first.version(), "worker-2", now.plusSeconds(1), java.time.Duration.ofSeconds(30))).isEmpty());
+                var second = tx.required(() -> store.claim(scope, operation, "ai", "retention", first.version(), "worker-2", now.plusSeconds(31), java.time.Duration.ofSeconds(30)).orElseThrow());
+                assertTrue(second.fencing() > first.fencing());
+                var cleared = new com.arte.core.pojo.workspace.ClosureWorkItem(operation, scope, "ai", "retention", second.targetRefs(),
+                        com.arte.core.enums.workspace.ClosureWorkStateEnum.WAITING_EVIDENCE, second.version() + 1, null, null, null);
+                // 即使版本恰好相同，过期 worker 的 fencing 仍必须被拒绝。
+                assertFalse(tx.required(() -> store.replaceProgress(cleared, second.version(), first.fencing(), List.of())));
+                assertTrue(tx.required(() -> store.replaceProgress(cleared, second.version(), second.fencing(), List.of())));
+                var third = tx.required(() -> store.claim(scope, operation, "ai", "retention", cleared.version(), "worker-3", now.plusSeconds(32), java.time.Duration.ofSeconds(30)).orElseThrow());
+                assertTrue(third.fencing() > second.fencing());
+            }
+        });
+    }
+
+    @Test
+    void archiveAndCloseCompeteOnTheSameVersionWithoutPartialEffects() throws Exception {
+        fixture.installDdl(java.nio.file.Path.of("scripts/arte-platform-workspace-lifecycle-ddl-mysql.sql"));
+        membershipContext().run(c -> {
+            Authentication alice = login(1, "alice");
+            try (ManagementHttpHarness http = membershipHttp(c)) {
+                String tenant = command(http, "createOrganization", "org", alice, Map.of("name", "Race Team")).getStr("id");
+                Scope scope = createSpace(http, tenant, alice, "Lifecycle Race");
+                var actor = c.getBean(com.arte.app.platform.identity.RbacIdentityProvider.class).actor(alice);
+                var lifecycle = c.getBean(com.arte.core.application.workspace.DefaultWorkspaceLifecycleService.class);
+                var scheduler = reactor.core.scheduler.Schedulers.boundedElastic();
+                var a = Mono.fromCallable(() -> lifecycle.archive(actor, new WorkspaceCommands.ChangeWorkspaceState(meta("race-archive"), scope, 0, "done")))
+                        .subscribeOn(scheduler).materialize();
+                var b = Mono.fromCallable(() -> lifecycle.close(actor, new WorkspaceCommands.CloseWorkspace(meta("race-close"), scope, 0, "done")))
+                        .subscribeOn(scheduler).materialize();
+                var result = Mono.zip(a, b).block(WAIT);
+                assertEquals(1, (result.getT1().isOnNext() ? 1 : 0) + (result.getT2().isOnNext() ? 1 : 0));
+                var failure = result.getT1().isOnError() ? result.getT1().getThrowable() : result.getT2().getThrowable();
+                assertEquals(PlatformErrorCodeEnum.VERSION_CONFLICT, ((PlatformException) failure).getCode());
+                assertEquals(1, fixture.workspaces.find(scope).orElseThrow().version());
+                assertEquals(result.getT2().isOnNext() ? 1 : 0, fixture.jdbc.queryForObject("SELECT COUNT(*) FROM arte_platform_workspace_closure", Integer.class));
+            }
+        });
+    }
+
     private ApplicationContextRunner membershipContext() throws Exception {
         fixture.jdbc.execute("CREATE TABLE arte_rbac_relation(source VARCHAR(256), binding_type VARCHAR(96), target VARCHAR(256))");
         fixture.jdbc.execute("CREATE TABLE arte_rbac_role(role_code VARCHAR(96), status VARCHAR(8))");
@@ -720,7 +858,10 @@ class PlatformWorkspaceAssemblyIntegrationTest {
         return new ManagementHttpHarness(
                 new TenantDirectoryController(c.getBean(com.arte.app.platform.workspace.ReactiveTenantQueries.class)),
                 new WorkspaceController(c.getBean(ReactiveWorkspaceOperations.class)),
-                c.getBean(MembershipGovernanceController.class));
+                c.getBean(MembershipGovernanceController.class),
+                new com.arte.app.web.controller.platform.WorkspaceLifecycleController(
+                        c.getBean(com.arte.core.application.workspace.DefaultWorkspaceLifecycleService.class),
+                        c.getBean(com.arte.app.platform.identity.PlatformAuthenticatedExecutor.class)));
     }
 
     private String memberTarget(ManagementHttpHarness http, Authentication actor, String tenant, String account) {
@@ -738,6 +879,14 @@ class PlatformWorkspaceAssemblyIntegrationTest {
     }
 
     private JSONObject membershipResponse(ManagementHttpHarness http, String endpoint, String key, Authentication actor, Map<String, ?> body) {
+        if (endpoint.equals("closeWorkspace")) {
+            var response = http.execute("/workspace/" + endpoint, fixture.json.write(body), key, actor);
+            String contents = ManagementHttpHarness.contents(response);
+            assertEquals(202, response.getResponse().getStatus(), contents);
+            var value = cn.hutool.json.JSONUtil.parseObj(contents);
+            assertTrue(value.getBool("success"), contents);
+            return value.getJSONObject("data");
+        }
         return http.ok("/workspace/" + endpoint, fixture.json.write(body), key, actor).getJSONObject("data");
     }
 

@@ -45,7 +45,8 @@
   `DomainAccessConditionProvider` 收紧，不能覆盖公共拒绝。
 - `ResourceAccessService`：授权列表、授予、撤销及可见模式更新，内部仍调用统一判定器。
 - `ResourceRegistrationService`：受信领域创建事务登记 ACL 及初始授权，不能开放为客户端自报归属的初始化 HTTP。
-- `WorkspaceLifecycleService`：归档、取消归档、关闭预检／受理／进度。关闭参与者未实现并装配前不开放关闭承诺；首版无取消关闭或软删除恢复接口。
+- `WorkspaceLifecycleService`：归档、取消归档、关闭预检／受理／进度。app 已装配持久化的保留型关闭协调及只读
+  `WorkspaceClosureInspector`，资源与 AI 必需领域全部完成检查才软删除；领域缺失、未知费用或扫描异常均阻塞。首版无取消关闭、物理清理或软删除恢复接口。
 - `CommandReceiptQueryService`：原操作主体按当前可见资格读取回执，不能读取存储信封或恢复已撤销授权。
 
 `WorkspaceCommands`、`TenantCommands`、`ResourceAccessCommands` 按接口族组织写命令；`WorkspaceViews`、`ResourceAccessViews`
@@ -120,6 +121,11 @@ ACL 的正文、模型配置或凭据仍不放行。
 - `CleanupAuthorizationVerifier` 在实际领域收尾事务验证 SERVICE、工作项、固定目标、动作、版本及有效期；AI 的原执行 owner／账本仍由
   AI 保留，公共端口不引用 AI 类型。
 - 关闭工作项 WAITING_EVIDENCE／FAILED 或缺少必要参与者时，不能进入删除完成状态；不得把空实现当作 DONE。
+- 保留型关闭不使用 `CleanupAuthorizationVerifier` 取得业务写权或资金权限。`TenantStore.lockForClosure`
+  仅在独立内部事务中核验已登记的精确范围／操作，再取得租户及空间门控；后台推进不依赖原用户仍在线，审计记录实际系统协调者。领域检查仅保留数据，不改变历史
+  owner、账本或外部执行。
+- `workspace:reconcile` 是归档及关闭中存量费用核对的范围上下文，不授予账户操作权。仅明确的 `budget-account:reconcile`
+  可用该特殊快照，当前两级成员、账户 ACL、独立 RBAC 及证据校验继续生效；DELETED 拒绝。普通业务访问不使用此快照。
 
 ## 最终授权的当前读取
 
@@ -251,9 +257,9 @@ OWNER／ADMIN 没加入任何空间时仍可按租户预设治理，但不会因
 `AuthorizationVersions.workspaceEpoch`、`workspaceMembershipGeneration`、`workspaceMembershipVersion`
 为可空 Long 且全部为空，resourceVersion 为租户版本；空间授权保留实际空间版本值，适配器不得把空值当成有效空间资格。
 
-当前范围读取支持 ACTIVE 和 ARCHIVED；ARCHIVED 只允许空间读取／发现及符合角色的恢复资格，基础业务写入拒绝。CLOSING／DELETED
-不进入日常目录；未来关闭进度通过独立受限入口读取。系统默认空间可以改名，基础预设禁止归档、关闭及负责人转交；个人租户保持本人托管，租户
-OWNER 转交预设仅针对组织租户。未实现的成员、组织、授权管理和生命周期 API 不装配为空服务。
+当前普通范围读取支持 ACTIVE 和 ARCHIVED；ARCHIVED 允许空间读取／发现、符合角色的恢复和关闭，以及缩减既有成员／资源授权，基础业务写入拒绝。CLOSING／DELETED
+不进入日常目录；关闭进度通过独立且核验当前治理资格的入口读取。系统默认空间可以改名，基础预设禁止归档、关闭及负责人转交；个人租户保持本人托管，租户
+OWNER 转交预设仅针对组织租户。未实现的能力不装配为空服务。
 
 政策模板可由 app 显式传入受支持的连接白名单。`conservativePersonalDefaults()` 的协议／供应商／目的地列表为空，个人凭据许可不等于允许任意连接；不会为尚未接入的
 AI 模型生成可执行资格。Schema 和 rolePreset 当前只支持版本 1，未知版本拒绝，不静默按旧预设放行。

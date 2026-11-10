@@ -16,6 +16,14 @@ import java.util.Optional;
  */
 public interface TenantStore {
     /**
+     * 内部关闭协调专用：先锁父租户，再当前读取核对已登记的固定操作/空间。
+     * 不依赖已离线或失效的原请求者，不授予业务权限；不支持此端口的适配器必须拒绝。
+     */
+    default Optional<Tenant> lockForClosure(com.arte.core.pojo.platform.Scope scope, String operationId) {
+        throw new UnsupportedOperationException("Durable closure gate is not installed");
+    }
+
+    /**
      * 按租户 ID 查询租户，不存在时返回空。
      */
     Optional<Tenant> find(String tenantId);

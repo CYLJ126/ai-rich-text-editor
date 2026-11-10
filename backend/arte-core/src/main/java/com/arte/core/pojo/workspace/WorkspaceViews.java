@@ -257,7 +257,13 @@ public final class WorkspaceViews {
      * @param memberVersion 对应的当前主体成员关系版本，未返回成员关系 ID 时为 {@code null}
      */
     public record MembershipCapabilities(boolean available, boolean manage, boolean invite, boolean assignAdmin,
-                                         boolean transferOwner, boolean leave, String memberId, Long memberVersion) {
+                                         boolean transferOwner, boolean leave, String memberId, Long memberVersion,
+                                         boolean readOnly) {
+
+        public MembershipCapabilities(boolean available, boolean manage, boolean invite, boolean assignAdmin,
+                                      boolean transferOwner, boolean leave, String memberId, Long memberVersion) {
+            this(available, manage, invite, assignAdmin, transferOwner, leave, memberId, memberVersion, false);
+        }
     }
 
     /**

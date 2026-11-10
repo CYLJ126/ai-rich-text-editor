@@ -35,6 +35,7 @@ public final class PlatformJson {
             Map.ofEntries(
                     Map.entry("personal:view:v1", WorkspaceViews.PersonalWorkspaceView.class),
                     Map.entry("workspace:view:v1", WorkspaceViews.WorkspaceView.class),
+                    Map.entry("workspace:closure:v1", com.arte.core.pojo.workspace.ClosureView.class),
                     Map.entry("preference:view:v1", WorkspaceViews.PreferenceView.class),
                     Map.entry("tenant:policy:v1", TenantPolicy.class),
                     Map.entry("tenant:view:v1", WorkspaceViews.TenantView.class),

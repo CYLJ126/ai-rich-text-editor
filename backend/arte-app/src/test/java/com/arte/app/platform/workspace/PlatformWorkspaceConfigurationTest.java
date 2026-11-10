@@ -71,7 +71,7 @@ class PlatformWorkspaceConfigurationTest {
                     assertEquals(java.time.ZoneOffset.UTC, context.getBean("platformWorkspaceClock", Clock.class).getZone());
                     assertEquals(1, context.getBeansOfType(com.arte.app.api.rbac.AuthorizationService.class).size());
                     assertTrue(context.getBeansOfType(org.springframework.transaction.PlatformTransactionManager.class).isEmpty());
-                    assertTrue(context.getBeansOfType(WorkspaceLifecycleService.class).isEmpty());
+                    assertEquals(1, context.getBeansOfType(WorkspaceLifecycleService.class).size());
                 });
     }
 

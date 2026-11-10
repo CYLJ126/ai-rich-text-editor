@@ -36,6 +36,7 @@ public final class WorkspaceGovernanceLocks {
         String lastSubject;
         String lastTenant;
         boolean failed;
+        boolean closureCoordinator;
         int authorizationDepth;
         Map<Object, Object> authorizationFacts;
     }
@@ -107,6 +108,21 @@ public final class WorkspaceGovernanceLocks {
                     preferences.lockSubject(subjectId);
                     return Boolean.TRUE;
                 }));
+    }
+
+    /**
+     * 已登记关闭工作项的内部协调阶段，只取租户/空间锁，不伪造或依赖原请求者登录。
+     * 不能混入用户事务；不授予业务权限，不用于领域清理或资金写入。
+     */
+    public void closureScope(Scope scope, String operationId) {
+        LockState state = state();
+        if (!state.subjects.isEmpty() || !state.tenants.isEmpty()) reject(state);
+        state.closureCoordinator = true;
+        tenants.lockForClosure(scope, operationId).orElseThrow(() -> new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "closure-lock"));
+        state.tenants.add(scope.tenantId());
+        state.lockedParents.add(scope.tenantId());
+        state.lastTenant = scope.tenantId();
+        lockWorkspace(scope).orElseThrow(() -> new PlatformException(PlatformErrorCodeEnum.NOT_FOUND, "closure-lock"));
     }
 
     public Optional<Tenant> lockTenant(String tenantId) {
@@ -208,7 +224,7 @@ public final class WorkspaceGovernanceLocks {
     }
 
     private void checkTenant(LockState state, String tenantId) {
-        if (state.subjects.isEmpty() || !state.tenants.contains(tenantId)
+        if (state.subjects.isEmpty() && !state.closureCoordinator || !state.tenants.contains(tenantId)
                 && state.lastTenant != null && tenantId.compareTo(state.lastTenant) < 0) reject(state);
     }
 

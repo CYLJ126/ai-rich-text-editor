@@ -256,8 +256,49 @@ public final class WorkspaceAccessSupport {
                         .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
     }
 
+    /**
+     * 仅用于已有预算核对，CLOSING 仍要求当前有效两级成员，不授予正文或新执行权限。
+     */
+    public WorkspaceSnapshot reconciliationCurrent(TrustedActor actor, Scope scope) {
+        transactions.requireActive();
+        Objects.requireNonNull(scope);
+        String subjectId = actor.principal().subjectId();
+        locks.preflight(subjectId, List.of(scope.tenantId()));
+        locks.subject(subjectId);
+        Tenant tenant = locks.lockTenant(scope.tenantId()).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        Workspace workspace = locks.lockWorkspace(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        TenantMembership tenantMember = locks.lockTenantMember(scope.tenantId(), subjectId)
+                .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        WorkspaceMembership member = locks.lockWorkspaceMember(scope, subjectId)
+                .orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND));
+        Principal principal = locks.authorizationFact(List.of(CurrentPrincipalResolver.class, actor.principal()),
+                () -> principals.requireActiveCurrent(actor));
+        TenantSnapshot tenantSnapshot = tenantSnapshot(principal, scope.tenantId(), tenant, tenantMember,
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope.tenantId()),
+                                () -> policies.findCurrentTenantPolicy(scope.tenantId()))
+                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)));
+        return workspaceSnapshot(tenantSnapshot, scope, workspace, member,
+                () -> locks.authorizationFact(List.of(PolicyStore.class, scope),
+                                () -> policies.findCurrentWorkspacePolicy(scope))
+                        .orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)), true);
+    }
+
+    public WorkspaceSnapshot reconciliation(TrustedActor actor, Scope scope) {
+        Objects.requireNonNull(scope);
+        TenantSnapshot tenant = tenant(actor, scope.tenantId());
+        return workspaceSnapshot(tenant, scope,
+                workspaces.find(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND)),
+                workspaceMembers.find(scope, tenant.principal().subjectId()).orElseThrow(() -> error(PlatformErrorCodeEnum.NOT_FOUND)),
+                () -> policies.findWorkspacePolicy(scope).orElseThrow(() -> error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE)), true);
+    }
+
     private WorkspaceSnapshot workspaceSnapshot(TenantSnapshot tenant, Scope scope, Workspace workspace,
                                                 WorkspaceMembership member, Supplier<WorkspacePolicy> policyRead) {
+        return workspaceSnapshot(tenant, scope, workspace, member, policyRead, false);
+    }
+
+    private WorkspaceSnapshot workspaceSnapshot(TenantSnapshot tenant, Scope scope, Workspace workspace,
+                                                WorkspaceMembership member, Supplier<WorkspacePolicy> policyRead, boolean reconciliation) {
         if (!workspace.scope().equals(scope) || !member.scope().equals(scope)
                 || !member.subjectId().equals(tenant.principal().subjectId())) {
             throw error(PlatformErrorCodeEnum.AUTHORITY_UNAVAILABLE);
@@ -268,7 +309,7 @@ public final class WorkspaceAccessSupport {
         if (workspace.state() == WorkspaceStateEnum.DELETED) {
             throw error(PlatformErrorCodeEnum.NOT_FOUND);
         }
-        if (workspace.state() == WorkspaceStateEnum.CLOSING) {
+        if (workspace.state() == WorkspaceStateEnum.CLOSING && !reconciliation) {
             throw error(PlatformErrorCodeEnum.SPACE_CLOSING);
         }
         WorkspacePolicy policy = policyRead.get();

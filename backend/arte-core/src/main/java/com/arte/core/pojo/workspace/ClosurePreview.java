@@ -13,9 +13,15 @@ import java.util.Objects;
  * @author CYLJ126 ≧◔◡◔≦
  * @since 2026/10/09 14:25 ✾
  */
-public record ClosurePreview(Scope scope, List<ClosureBlocker> blockers) {
+public record ClosurePreview(Scope scope, List<ClosureBlocker> blockers, java.util.Map<String, Long> retainedResources,
+                             long workspaceVersion) {
+
+    public ClosurePreview(Scope scope, List<ClosureBlocker> blockers) {
+        this(scope, blockers, java.util.Map.of(), 0);
+    }
 
     public ClosurePreview {
+        retainedResources = java.util.Map.copyOf(retainedResources);
         Objects.requireNonNull(scope, "scope");
         blockers = List.copyOf(blockers);
     }

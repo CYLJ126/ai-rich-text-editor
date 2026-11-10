@@ -22,6 +22,11 @@ public interface TenantInvitationStore {
 
     boolean replaceTenantInvitation(TenantInvitation invitation, long expectedVersion);
 
+    /**
+     * 关闭受理时在同事务撤销整个固定空间的待接受邀请。
+     */
+    void invalidateWorkspace(com.arte.core.pojo.platform.Scope scope);
+
     void invalidatePending(String tenantId, String workspaceId, String subjectId);
 
     PageResult<TenantInvitation> listTenantInvitations(String tenantId, String subjectId, PageQuery query);

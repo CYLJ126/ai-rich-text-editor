@@ -215,7 +215,8 @@ final class ResourceAclSupport {
      * @return 公共限制满足时返回 ALLOWED，否则返回相应的生命周期或政策拒绝原因。
      */
     private AccessReasonEnum policy(Action action, WorkspaceAccessSupport.WorkspaceSnapshot snapshot) {
-        if (snapshot.workspace().state() == WorkspaceStateEnum.ARCHIVED && !action.value().endsWith(":read")) {
+        if ((snapshot.workspace().state() == WorkspaceStateEnum.ARCHIVED || snapshot.workspace().state() == WorkspaceStateEnum.CLOSING)
+                && !action.value().endsWith(":read") && !action.equals(BUDGET_ACCOUNT_RECONCILE)) {
             return AccessReasonEnum.LIFECYCLE_DENIED;
         }
         PolicyRules tenant = snapshot.tenant().policy().rules();

@@ -18,5 +18,10 @@ public interface PlatformTenantMapper extends BaseMapper<PlatformTenantDto> {
 
     PlatformTenantDto selectCurrent(@Param("id") String id);
 
+    /**
+     * 当前父锁内核对固定关闭操作，后台不得自报任意清理范围。
+     */
+    String selectClosureOperation(@Param("tenant") String tenant, @Param("workspace") String workspace, @Param("operation") String operation);
+
     int replaceCas(@Param("row") PlatformTenantDto row, @Param("expected") long expected);
 }

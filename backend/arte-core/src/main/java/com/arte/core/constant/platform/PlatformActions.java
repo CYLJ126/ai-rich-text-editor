@@ -22,6 +22,7 @@ public final class PlatformActions {
     public static final Action TENANT_MODEL_MANAGE = new Action("tenant:model:manage");
 
     /** ================================ 空间动作 ================================ */
+    public static final Action WORKSPACE_RECONCILE = new Action("workspace:reconcile");
     public static final Action WORKSPACE_READ = new Action("workspace:read");
     public static final Action WORKSPACE_UPDATE = new Action("workspace:update");
     public static final Action WORKSPACE_INVITE = new Action("workspace:invite");

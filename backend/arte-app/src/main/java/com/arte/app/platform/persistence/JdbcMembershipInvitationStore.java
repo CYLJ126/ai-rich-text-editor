@@ -240,4 +240,10 @@ public final class JdbcMembershipInvitationStore implements InvitationStore, Ten
         return countPending(subjectId, now, false);
     }
 
+    @Override
+    public void invalidateWorkspace(Scope scope) {
+        tx.requireWritable();
+        jdbc.update("UPDATE " + TABLE + " SET state=2,version=version+1 WHERE tenant_id=? AND workspace_id=? AND state=0", scope.tenantId(), scope.workspaceId());
+    }
+
 }

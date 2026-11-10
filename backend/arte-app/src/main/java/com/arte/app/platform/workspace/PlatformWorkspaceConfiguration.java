@@ -39,6 +39,7 @@ import java.time.Clock;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "arte.platform.workspace", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties({PlatformWorkspaceProperties.class, TenantGovernanceProperties.class})
+@org.springframework.context.annotation.Import(WorkspaceLifecycleConfiguration.class)
 public class PlatformWorkspaceConfiguration {
     private static final String UPDATE_TENANT_PERMISSION = "EnvironmentTenants:update";
     private static final String CREATE_ORGANIZATION_PERMISSION = "EnvironmentTenants:create";

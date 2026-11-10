@@ -191,6 +191,23 @@ class BudgetAccountAccessIntegrationTest {
     }
 
     @Test
+    void archivedAndClosingRetainExplicitFinancialAuthorityWithoutBusinessAccess() {
+        bootstrapGovernor();
+        permission("bob");
+        f.give("assign-reviewer", "bob", Set.of(BUDGET_ACCOUNT_RECONCILE));
+        for (int state : List.of(1, 2)) {
+            f.jdbc.update("UPDATE arte_platform_workspace SET state=?,version=version+1,auth_epoch=auth_epoch+1 WHERE tenant_id=? AND id=?",
+                    state, f.scope.tenantId(), f.scope.workspaceId());
+            assertNotNull(access.authorize(f.resource, actor("bob", true), true).block());
+            var member = new com.arte.core.pojo.platform.TrustedActor(f.principals.get("bob"), f.now.get());
+            assertFalse(f.services.authorization().check(member, com.arte.core.application.access.DefaultAuthorizationService.workspaceRequest(
+                    f.scope, com.arte.core.constant.platform.PlatformActions.WORKSPACE_AI_USE, "test")).allowed());
+        }
+        f.jdbc.update("UPDATE arte_platform_workspace SET state=3 WHERE tenant_id=? AND id=?", f.scope.tenantId(), f.scope.workspaceId());
+        assertThrows(AccessDeniedException.class, () -> access.authorize(f.resource, actor("bob", true), true).block());
+    }
+
+    @Test
     void generatedBootstrapUsesTheActualPublicPayloadAndDigestContracts() throws Exception {
         var process = new ProcessBuilder("python3", "scripts/arte-budget-reconciliation-bootstrap.py", "--tenant", f.scope.tenantId(),
                 "--workspace", f.scope.workspaceId(), "--budget-ref", account.budgetRef(), "--owner", "alice",

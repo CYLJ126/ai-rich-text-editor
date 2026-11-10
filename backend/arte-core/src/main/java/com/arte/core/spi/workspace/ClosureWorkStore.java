@@ -63,4 +63,36 @@ public interface ClosureWorkStore {
      * 按预期版本和 fencing 更新工作项，条件不满足时返回 false。
      */
     boolean replaceWork(ClosureWorkItem item, long expectedVersion, long expectedFencing);
+
+    /**
+     * 生命周期表是否已按部署流程安装。
+     */
+    boolean ready();
+
+    /**
+     * 治理门控内按当前读锁定操作。
+     */
+    Optional<ClosureOperation> lockOperation(Scope scope, String operationId);
+
+    /**
+     * 一个空间首版只有一次不可取消的关闭操作。
+     */
+    Optional<ClosureOperation> findForWorkspace(Scope scope);
+
+    /**
+     * 按当前正式租户或空间负责人资格过滤关闭记录，不暴露其他主体的数量。
+     */
+    PageResult<ClosureOperation> listForGovernor(String subjectId, PageQuery query);
+
+    /**
+     * 同一次工作项 CAS 保存最小阻塞项，不将等待或异常伪装成完成。
+     */
+    boolean replaceProgress(ClosureWorkItem item, long expectedVersion, long expectedFencing,
+                            java.util.List<com.arte.core.pojo.workspace.ClosureBlocker> blockers);
+
+    /**
+     * 已保存的最小关闭阻塞信息。
+     */
+    java.util.List<com.arte.core.pojo.workspace.ClosureBlocker> blockers(Scope scope, String operationId);
+
 }
